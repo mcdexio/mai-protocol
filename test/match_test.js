@@ -38,6 +38,7 @@ contract('Match', async accounts => {
     const u1 = accounts[4];
     const u2 = accounts[5];
     const u3 = accounts[6];
+    const u4 = accounts[7];
 
     const marketContractAddress = "0x3A92C58C7152B3b2d5F56E8d47Ce87d668b47B47";
     beforeEach(async () => {
@@ -251,6 +252,9 @@ contract('Match', async accounts => {
             matchConfigs.takerOrder.amount,
             matchConfigs.takerOrder.quote,
         );
+        await longPositionToken.methods.approve(proxy._address, infinity).send({ from: matchConfigs.takerOrder.user });
+        await shortPositionToken.methods.approve(proxy._address, infinity).send({ from: matchConfigs.takerOrder.user });
+
         let makerOrders = [];
         for (let i = 0; i < matchConfigs.makerOrders.length; i++) {
             const makerOrder = await matchConfigs.makerOrders[i].creator(
@@ -258,12 +262,16 @@ contract('Match', async accounts => {
                 matchConfigs.makerOrders[i].amount,
                 matchConfigs.makerOrders[i].quote,
             );
+            await longPositionToken.methods.approve(proxy._address, infinity).send({ from: matchConfigs.makerOrders[i].user });
+            await shortPositionToken.methods.approve(proxy._address, infinity).send({ from: matchConfigs.makerOrders[i].user });
             makerOrders.push(makerOrder);
         }
 
         console.log("==> approve");
         await collateralToken.methods.approve(proxy._address, infinity).send({ from: relayer });
-        await proxy.methods.approveCollateral(marketContractAddress).send({ from: admin });
+        await longPositionToken.methods.approve(proxy._address, infinity).send({ from: relayer });
+        await shortPositionToken.methods.approve(proxy._address, infinity).send({ from: relayer });
+        await proxy.methods.approveMarketContractPool(marketContractAddress).send({ from: admin });
 
         console.log("==> matching")
         await exchange.methods.matchOrders(
@@ -273,8 +281,8 @@ contract('Match', async accounts => {
             matchConfigs.orderAsset
         ).send({ from: relayer, gas: 8000000 });
     }
-
-    it('buy long + buy short = mint', async () => {
+    /*
+    it('buy long + buy short = mint -- single', async () => {
         await initBalances(collateralToken, admin, [
             { address: u1, amount: toWei("10000") },
             { address: u2, amount: toWei("10000") },
@@ -282,16 +290,16 @@ contract('Match', async accounts => {
         const config = {
             takerOrder: {
                 creator: buildBuyLongOrder,
-                user: u1,
+                user: u2,
                 amount: 1,
-                quote: 4000,
+                quote: 5000,
             },
             makerOrders: [
                 {
                     creator: buildBuyShortOrder,
-                    user: u2,
+                    user: u1,
                     amount: 1,
-                    quote: 5000,
+                    quote: 4000,
                 }
             ],
             filledAmounts: [
@@ -303,6 +311,211 @@ contract('Match', async accounts => {
         await withBalanceWatcher(
             tokens,
             { u1: u1, u2: u2, proxy: proxy._address },
+            async () => {
+                await matchTest(config);
+            });
+    });
+
+    it('buy long + buy short = mint == multi', async () => {
+
+        console.log(toBase("0.25"));
+
+        await initBalances(collateralToken, admin, [
+            { address: u1, amount: toWei("10000") },
+            { address: u2, amount: toWei("10000") },
+            { address: u3, amount: toWei("10000") },
+            { address: u4, amount: toWei("10000") },
+        ]);
+        const config = {
+            takerOrder: {
+                creator: buildBuyLongOrder,
+                user: u1,
+                amount: 1,
+                quote: 5000,
+            },
+            makerOrders: [
+                {
+                    creator: buildBuyShortOrder,
+                    user: u2,
+                    amount: 0.25,
+                    quote: 1000,
+                },
+                {
+                    creator: buildBuyShortOrder,
+                    user: u3,
+                    amount: 0.25,
+                    quote: 1500,
+                },
+                {
+                    creator: buildBuyShortOrder,
+                    user: u4,
+                    amount: 0.5,
+                    quote: 2000,
+                }
+            ],
+            filledAmounts: [
+                toBase("0.25"),
+                toBase("0.25"),
+                toBase("0.5"),
+            ],
+            orderAsset: orderAsset,
+        }
+
+        await withBalanceWatcher(
+            tokens,
+            { u1: u1, u2: u2, u3: u3, u4: u4, proxy: proxy._address },
+            async () => {
+                await matchTest(config);
+            });
+    });
+
+    it('sell long + sell short = mint -- single', async () => {
+        const config = {
+            takerOrder: {
+                creator: buildSellLongOrder,
+                user: u2,
+                amount: 1,
+                quote: 3000,
+            },
+            makerOrders: [
+                {
+                    creator: buildSellShortOrder,
+                    user: u1,
+                    amount: 1,
+                    quote: 2000,
+                }
+            ],
+            filledAmounts: [
+                toBase("1")
+            ],
+            orderAsset: orderAsset,
+        }
+
+        await withBalanceWatcher(
+            tokens,
+            { u1: u1, u2: u2, proxy: proxy._address },
+            async () => {
+                await matchTest(config);
+            });
+    });
+
+    it('sell long + sell short = mint -- multi', async () => {
+        const config = {
+            takerOrder: {
+                creator: buildSellLongOrder,
+                user: u1,
+                amount: 1,
+                quote: 3000,
+            },
+            makerOrders: [
+                {
+                    creator: buildSellShortOrder,
+                    user: u2,
+                    amount: 0.25,
+                    quote: 500,
+                },
+                {
+                    creator: buildSellShortOrder,
+                    user: u3,
+                    amount: 0.25,
+                    quote: 600,
+                },
+                {
+                    creator: buildSellShortOrder,
+                    user: u4,
+                    amount: 0.5,
+                    quote: 1000,
+                }
+            ],
+            filledAmounts: [
+                toBase("0.25"),
+                toBase("0.25"),
+                toBase("0.5")
+            ],
+            orderAsset: orderAsset,
+        }
+
+        await withBalanceWatcher(
+            tokens,
+            { u1: u1, u2: u2, u3: u3, u4: u4, proxy: proxy._address },
+            async () => {
+                await matchTest(config);
+            });
+    });
+    
+
+    it('buy long + sell long = exchange -- single', async () => {
+        await initBalances(collateralToken, admin, [
+            { address: u1, amount: toWei("10000") },
+            { address: u2, amount: toWei("10000") },
+        ]);
+        const config = {
+            takerOrder: {
+                creator: buildBuyLongOrder,
+                user: u1,
+                amount: 2,
+                quote: 7000, // 3500 per token
+            },
+            makerOrders: [
+                {
+                    creator: buildSellLongOrder,
+                    user: u2,
+                    amount: 1,
+                    quote: 2800,
+                },
+            ],
+            filledAmounts: [
+                toBase("1"),
+            ],
+            orderAsset: orderAsset,
+        }
+
+        await withBalanceWatcher(
+            tokens,
+            { u1: u1, u2: u2, proxy: proxy._address },
+            async () => {
+                await matchTest(config);
+            });
+    });
+    */
+
+    it('buy long + sell long = exchange -- multi', async () => {
+        await initBalances(collateralToken, admin, [
+            { address: u1, amount: toWei("10000") },
+            { address: u2, amount: toWei("10000") },
+            { address: u3, amount: toWei("10000") },
+        ]);
+        const config = {
+            takerOrder: {
+                creator: buildBuyLongOrder,
+                user: u3,
+                amount: 2,
+                quote: 7000, // 3500 per token
+            },
+            makerOrders: [
+                {
+                    creator: buildSellLongOrder,
+                    user: u2,
+                    amount: 1,
+                    quote: 2800,
+                },
+                {
+                    creator: buildSellLongOrder,
+                    user: u1,
+                    amount: 0.5,
+                    quote: 1500,
+                },
+            ],
+            filledAmounts: [
+                toBase("1"),
+                toBase("0.5"),
+            ],
+            orderAsset: orderAsset,
+        }
+
+        await withBalanceWatcher(
+            tokens,
+            { u1: u1, u2: u2, u3: u3, proxy: proxy._address },
             async () => {
                 await matchTest(config);
             });

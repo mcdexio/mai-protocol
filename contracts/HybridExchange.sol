@@ -89,16 +89,18 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
     }
 
     struct OrderAddressSet {
-        // required
         address marketContractAddress;
         address relayer;
+    }
 
-        // optional
-        address takerPositionToken;         // position token: long or short
-        address collateralToken;            // collateral token: dai
-        uint256 collateralPerUnit;
-        uint8 collateralTokenDecimals;
-        uint8 positionTokenDecimals;
+    struct OrderContext {
+        address marketContractPoolAddress;      // pool address
+        address collateralToken;                // collateral token
+        address longPositionToken;              // position token: long or short
+        address shortPositionToken;             // position token: long or short
+        address takerPositionToken;             // position token: long or short
+        uint256 collateralPerUnit;              // required collateral + mint fee
+        uint256 collateralTokenFeePerUnit;      // required collateral + mint fee
     }
 
     struct MatchResult {
@@ -128,22 +130,21 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
         proxyAddress = _proxyAddress;
     }
 
-    function getContractSettings(OrderAddressSet memory orderAddressSet, OrderParam memory takerOrderParam)
+    function makeOrderContext(OrderAddressSet memory orderAddressSet, OrderParam memory takerOrderParam)
         internal
         view
+        returns (OrderContext memory orderContext)
     {
         IMarketContract marketContract = IMarketContract(orderAddressSet.marketContractAddress);
-        orderAddressSet.collateralToken = marketContract.COLLATERAL_TOKEN_ADDRESS();
-        orderAddressSet.takerPositionToken = isLong(takerOrderParam.data)?
-            marketContract.LONG_POSITION_TOKEN():
-            marketContract.SHORT_POSITION_TOKEN();
-        orderAddressSet.collateralPerUnit = marketContract.COLLATERAL_PER_UNIT();
 
-        IERC20 positionToken = IERC20(orderAddressSet.takerPositionToken);
-        orderAddressSet.positionTokenDecimals = positionToken.decimals();
-        IERC20 collateralToken = IERC20(orderAddressSet.collateralToken);
-        orderAddressSet.collateralTokenDecimals = collateralToken.decimals();
-        
+        orderContext.marketContractPoolAddress = marketContract.COLLATERAL_POOL_ADDRESS();
+        orderContext.collateralToken = marketContract.COLLATERAL_TOKEN_ADDRESS();
+        orderContext.longPositionToken = marketContract.LONG_POSITION_TOKEN();
+        orderContext.shortPositionToken = marketContract.SHORT_POSITION_TOKEN();
+        orderContext.takerPositionToken = isLong(takerOrderParam.data)?
+            orderContext.longPositionToken : orderContext.shortPositionToken;
+        orderContext.collateralPerUnit = marketContract.COLLATERAL_PER_UNIT();
+        orderContext.collateralTokenFeePerUnit = marketContract.COLLATERAL_TOKEN_FEE_PER_UNIT();
     }
 
     /**
@@ -162,11 +163,11 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
     ) public {
         require(canMatchOrdersFrom(orderAddressSet.relayer), INVALID_SENDER);
         require(!isMakerOnly(takerOrderParam.data), MAKER_ONLY_ORDER_CANNOT_BE_TAKER);
-        // fill in parameters
-        getContractSettings(orderAddressSet, takerOrderParam);
+
+        OrderContext memory orderContext = makeOrderContext(orderAddressSet, takerOrderParam);
 
         uint256 takerFeeRate = getTakerFeeRate(takerOrderParam, false);
-        OrderInfo memory takerOrderInfo = getOrderInfo(takerOrderParam, orderAddressSet);
+        OrderInfo memory takerOrderInfo = getOrderInfo(takerOrderParam, orderAddressSet, orderContext);
 
         // Calculate which orders match for settlement.
         MatchResult[] memory results = new MatchResult[](makerOrderParams.length);
@@ -176,9 +177,10 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
             // by yz: cannot match (Buy Long + Sell Short) or (Buy Short + Sell Long)
             require(!((isSell(takerOrderParam.data) != isSell(makerOrderParams[i].data)) &&
                 (isLong(takerOrderParam.data) != isLong(makerOrderParams[i].data))), INVALID_SIDE);
+            // TODO: validate rules
             // validatePrice(takerOrderParam, makerOrderParams[i]);
 
-            OrderInfo memory makerOrderInfo = getOrderInfo(makerOrderParams[i], orderAddressSet);
+            OrderInfo memory makerOrderInfo = getOrderInfo(makerOrderParams[i], orderAddressSet, orderContext);
 
             results[i] = getMatchResult(
                 takerOrderParam,
@@ -194,9 +196,16 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
                     .div(makerOrderParams[i].baseTokenAmount)
                     .add(takerUnitPrice);
                 if (results[i].fillAction == FillAction.REDEEM) {
-                    require(unitPrice <= orderAddressSet.collateralPerUnit, "REDEEM_PRICE_NOT_MET");
+                    require(
+                        unitPrice <= orderContext.collateralPerUnit,
+                        "REDEEM_PRICE_NOT_MET"
+                    );
                 } else {
-                    require(unitPrice >= orderAddressSet.collateralPerUnit, "MINT_PRICE_NOT_MET");
+                    require(
+                        unitPrice >= orderContext.collateralPerUnit
+                            .add(orderContext.collateralTokenFeePerUnit),
+                        "MINT_PRICE_NOT_MET"
+                    );
                 }
             }
             // Update amount filled for this maker order.
@@ -205,7 +214,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
         // Update amount filled for this taker order.
         filled[takerOrderInfo.orderHash] = takerOrderInfo.filledAmount;
 
-        settleResults(results, takerOrderParam, orderAddressSet);
+        settleResults(results, takerOrderParam, orderAddressSet, orderContext);
     }
 
     /**
@@ -235,14 +244,18 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
      * @param orderAddressSet An object containing addresses common across each order.
      * @return An OrderInfo object containing the hash and current amount filled
      */
-    function getOrderInfo(OrderParam memory orderParam, OrderAddressSet memory orderAddressSet)
+    function getOrderInfo(
+        OrderParam memory orderParam,
+        OrderAddressSet memory orderAddressSet,
+        OrderContext memory orderContext
+    )
         internal
         view
         returns (OrderInfo memory orderInfo)
     {
         require(getOrderVersion(orderParam.data) == SUPPORTED_ORDER_VERSION, ORDER_VERSION_NOT_SUPPORTED);
 
-        Order memory order = getOrderFromOrderParam(orderParam, orderAddressSet);
+        Order memory order = getOrderFromOrderParam(orderParam, orderAddressSet, orderContext);
         orderInfo.orderHash = getOrderHash(order);
         orderInfo.filledAmount = filled[orderInfo.orderHash];
         uint8 status = uint8(OrderStatus.FILLABLE);
@@ -273,9 +286,13 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
      * @param orderAddressSet An object containing addresses common across each order.
      * @return The reconstructed Order object.
      */
-    function getOrderFromOrderParam(OrderParam memory orderParam, OrderAddressSet memory orderAddressSet)
+    function getOrderFromOrderParam(
+        OrderParam memory orderParam,
+        OrderAddressSet memory orderAddressSet,
+        OrderContext memory orderContext
+    )
         internal
-        view
+        pure
         returns (Order memory order)
     {
         order.trader = orderParam.trader;
@@ -283,8 +300,12 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
         order.quoteTokenAmount = orderParam.quoteTokenAmount;
         order.gasTokenAmount = orderParam.gasTokenAmount;
         order.data = orderParam.data;
-        order.baseToken = orderAddressSet.takerPositionToken;
-        order.quoteToken = orderAddressSet.collateralToken;
+        if (isLong(orderParam.data)) {
+            order.baseToken = orderContext.longPositionToken;
+        } else {
+            order.baseToken = orderContext.shortPositionToken;
+        }
+        order.quoteToken = orderContext.collateralToken;
         order.relayer = orderAddressSet.relayer;
     }
 
@@ -508,22 +529,17 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
     function settleResults(
         MatchResult[] memory results,
         OrderParam memory takerOrderParam,
-        OrderAddressSet memory orderAddressSet
+        OrderAddressSet memory orderAddressSet,
+        OrderContext memory orderContext
     )
         internal
     {
-        IMarketContract marketContract = IMarketContract(orderAddressSet.marketContractAddress);
-        address baseToken = isLong(takerOrderParam.data)?
-            marketContract.LONG_POSITION_TOKEN():
-            marketContract.SHORT_POSITION_TOKEN();
-        address quoteToken = marketContract.COLLATERAL_TOKEN_ADDRESS();
-
         if (isSell(takerOrderParam.data)) {
-            // sell, exchange or redeem, determine baseToken
-            settleTakerSell(results, orderAddressSet, baseToken, quoteToken);
+            // sell, exchange or redeem
+            settleTakerSell(results, orderAddressSet, orderContext);
         } else {
             // buy, exchange or mint
-            settleTakerBuy(results, orderAddressSet, baseToken, quoteToken);
+            settleTakerBuy(results, orderAddressSet, orderContext);
         }
     }
 
@@ -555,8 +571,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
     function settleTakerSell(
         MatchResult[] memory results,
         OrderAddressSet memory orderAddressSet,
-        address baseToken,
-        address quoteToken
+        OrderContext memory orderContext
     )
         internal
     {
@@ -567,91 +582,80 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
 
         for (uint256 i = 0; i < results.length; i++) {
             if (results[i].fillAction == FillAction.EXCHANGE) {
+                 // taker -> maker
+                transferFrom(
+                    orderContext.takerPositionToken,
+                    results[i].taker,
+                    results[i].maker,
+                    results[i].baseTokenFilledAmount
+                );
+                // maker -> relayer
+                transferFrom(
+                    orderContext.collateralToken,
+                    results[i].maker,
+                    orderAddressSet.relayer,
+                    results[i].quoteTokenFilledAmount.
+                        add(results[i].makerFee).
+                        add(results[i].makerGasFee)
+                );
                 totalTakerQuoteTokenFilledAmount = totalTakerQuoteTokenFilledAmount.add(
-                    preExchange(results[i], orderAddressSet, baseToken, quoteToken).sub(results[i].takerFee)
+                    results[i].quoteTokenFilledAmount.
+                        add(results[i].makerFee).
+                        add(results[i].makerGasFee)
+                        .sub(results[i].takerFee)
                 );
             } else if (results[i].fillAction == FillAction.REDEEM) {
                 totalTakerQuoteTokenRedeemedAmount = totalTakerQuoteTokenRedeemedAmount.add(
-                    preRedeem(results[i], orderAddressSet, baseToken, quoteToken).sub(results[i].takerFee)
+                    doRedeem(results[i], orderAddressSet, orderContext).sub(results[i].takerFee)
                 );
             } else {
                 revert("UNSUPPORTED_MATCHING_PAIR");
             }
             emitMatchEvent(results[i], orderAddressSet);
         }
-
-        transferFrom(
-            quoteToken,
-            orderAddressSet.relayer,
+        transfer(
+            orderContext.collateralToken,
             results[0].taker,
             totalTakerQuoteTokenFilledAmount.add(totalTakerQuoteTokenRedeemedAmount).sub(results[0].takerGasFee)
         );
     }
 
-
-    function preExchange(
-        MatchResult memory result,
-        OrderAddressSet memory orderAddressSet,
-        address baseToken,
-        address quoteToken
-    )
-        internal
-        returns (uint256)
-    {
-        // taker -> maker
-        transferFrom(
-            baseToken,
-            result.taker,
-            result.maker,
-            result.baseTokenFilledAmount
-        );
-        // maker -> relayer
-        transferFrom(
-            quoteToken,
-            result.maker,
-            orderAddressSet.relayer,
-            result.quoteTokenFilledAmount.
-                add(result.makerFee).
-                add(result.makerGasFee)
-        );
-        emitMatchEvent(result, orderAddressSet);
-        return result.quoteTokenFilledAmount;
+    // TODO: not a good name, but no better idea now
+    function getMakerPositionToken(OrderContext memory orderContext) internal pure returns (address) {
+        return (orderContext.takerPositionToken == orderContext.longPositionToken)?
+            orderContext.shortPositionToken : orderContext.longPositionToken;
     }
 
-    function preRedeem(
+    function doRedeem(
         MatchResult memory result,
         OrderAddressSet memory orderAddressSet,
-        address baseToken,
-        address quoteToken
+        OrderContext memory orderContext
     )
         internal
         returns (uint256)
     {
-        IMarketContract marketContract = IMarketContract(orderAddressSet.marketContractAddress);
-        IMarketContractPool marketContractPool = IMarketContractPool(contractPoolAddress);
-        // taker -> relayer
+        // taker -> proxy
         transferFrom(
-            baseToken == marketContract.LONG_POSITION_TOKEN()? marketContract.SHORT_POSITION_TOKEN(): marketContract.LONG_POSITION_TOKEN(),
+            orderContext.takerPositionToken,
             result.taker,
-            orderAddressSet.relayer,
+            proxyAddress,
             result.baseTokenFilledAmount
         );
-        // maker -> relayer
+        // maker -> proxy
         transferFrom(
-            baseToken,
+            getMakerPositionToken(orderContext),
             result.maker,
-            orderAddressSet.relayer,
+            proxyAddress,
             result.baseTokenFilledAmount
         );
-        marketContractPool.redeemPositionTokens(orderAddressSet.marketContractAddress, result.baseTokenFilledAmount);
+        redeemPositionTokens(orderAddressSet.marketContractAddress, result.baseTokenFilledAmount);
         // replayer -> maker
-        transferFrom(
-            quoteToken,
-            orderAddressSet.relayer,
+        transfer(
+            orderContext.collateralToken,
             result.maker,
             result.quoteTokenFilledAmount
         );
-        uint256 collateralToReturn = MathLib.multiply(result.baseTokenFilledAmount, marketContract.COLLATERAL_PER_UNIT());
+        uint256 collateralToReturn = MathLib.multiply(result.baseTokenFilledAmount, orderContext.collateralPerUnit);
         return collateralToReturn.sub(result.quoteTokenFilledAmount);
     }
 
@@ -684,8 +688,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
     function settleTakerBuy(
         MatchResult[] memory results,
         OrderAddressSet memory orderAddressSet,
-        address baseToken,
-        address quoteToken
+        OrderContext memory orderContext
     )
         internal
     {
@@ -694,14 +697,14 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
         for (uint256 i = 0; i < results.length; i++) {
             if (results[i].fillAction == FillAction.EXCHANGE) {
                 transferFrom(
-                    baseToken,
+                    orderContext.takerPositionToken,
                     results[i].maker,
                     results[i].taker,
                     results[i].baseTokenFilledAmount
                 );
 
                 transferFrom(
-                    quoteToken,
+                    orderContext.collateralToken,
                     results[i].taker,
                     results[i].maker,
                     results[i].quoteTokenFilledAmount.
@@ -715,7 +718,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
                     add(results[i].takerGasFee);
 
             } else if (results[i].fillAction == FillAction.MINT) {
-                preMint(results[i], orderAddressSet, baseToken, quoteToken);
+                doMint(results[i], orderAddressSet, orderContext);
             } else {
                 revert("UNSUPPORTED_MATCHING_PAIR");
             }
@@ -723,57 +726,52 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
             emitMatchEvent(results[i], orderAddressSet);
         }
         transferFrom(
-            quoteToken,
+            orderContext.collateralToken,
             results[0].taker,
             orderAddressSet.relayer,
             totalFee
         );
     }
 
-    function preMint(
+    function doMint(
         MatchResult memory result,
         OrderAddressSet memory orderAddressSet,
-        address baseToken,
-        address quoteToken
+        OrderContext memory orderContext
     )
         internal
         returns (uint256)
     {
         // baseTokenFilledAmount
-        IMarketContract marketContract = IMarketContract(orderAddressSet.marketContractAddress);
         uint256 neededCollateral = MathLib.multiply(
             result.baseTokenFilledAmount,
-            marketContract.COLLATERAL_PER_UNIT().add(marketContract.COLLATERAL_TOKEN_FEE_PER_UNIT())
+            orderContext.collateralPerUnit.add(orderContext.collateralTokenFeePerUnit)
         );
         // taker -> relayer
         transferFrom(
-            quoteToken,
+            orderContext.collateralToken,
             result.taker,
-            proxyAddress,
-            result.quoteTokenFilledAmount
-        );
-        // maker -> relayer
-        transferFrom(
-            quoteToken,
-            result.maker,
             proxyAddress,
             neededCollateral.sub(result.quoteTokenFilledAmount)
         );
+        // maker -> relayer
+        transferFrom(
+            orderContext.collateralToken,
+            result.maker,
+            proxyAddress,
+            result.quoteTokenFilledAmount
+        );
 
         mintPositionTokens(orderAddressSet.marketContractAddress, result.baseTokenFilledAmount);
-        // Proxy proxy = Proxy(proxyAddress);
-        // proxy.mintPositionTokens(orderAddressSet.marketContractAddress, result.baseTokenFilledAmount);
 
         // proxy -> maker
         transfer(
-            baseToken,
+            getMakerPositionToken(orderContext),
             result.maker,
             result.baseTokenFilledAmount
         );
         // proxy -> taker
         transfer(
-            (baseToken == marketContract.SHORT_POSITION_TOKEN()) ?
-                marketContract.LONG_POSITION_TOKEN(): marketContract.SHORT_POSITION_TOKEN(),
+            orderContext.takerPositionToken,
             result.taker,
             result.baseTokenFilledAmount
         );
@@ -947,8 +945,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
             let tmp2 := mload(4)
             let tmp3 := mload(36)
 
-            // keccak256('transferFrom(address,address,address,uint256)') bitmasked to 4 bytes
-            // mstore(0, 0x15dacbea00000000000000000000000000000000000000000000000000000000)
+            // keccak256('mintPositionTokens(address,uint256)') bitmasked to 4 bytes
             mstore(0, 0x2bb0d30f00000000000000000000000000000000000000000000000000000000)
             mstore(4, contractAddress)
             mstore(36, value)
@@ -971,7 +968,60 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
         }
 
         if (result == 0) {
-            revert(MINT_FAILED);
+            revert(MINT_POSITION_TOKENS_FAILED);
+        }
+    }
+
+    function redeemPositionTokens(address contractAddress, uint256 value) internal {
+        if (value == 0) {
+            return;
+        }
+
+        address proxy = proxyAddress;
+        uint256 result;
+
+        /**
+         * We construct calldata for the `Proxy.transferFrom` ABI.
+         * The layout of this calldata is in the table below.
+         *
+         * ╔════════╤════════╤════════╤═══════════════════╗
+         * ║ Area   │ Offset │ Length │ Contents          ║
+         * ╟────────┼────────┼────────┼───────────────────╢
+         * ║ Header │ 0      │ 4      │ function selector ║
+         * ║ Params │ 4      │ 32     │ contract address  ║
+         * ║        │ 36     │ 32     │ amount of token    ║
+         * ╚════════╧════════╧════════╧═══════════════════╝
+         */
+        assembly {
+            // Keep these so we can restore stack memory upon completion
+            let tmp1 := mload(0)
+            let tmp2 := mload(4)
+            let tmp3 := mload(36)
+
+            // keccak256('redeemPositionTokens(address,uint256)') bitmasked to 4 bytes
+            mstore(0, 0xc1b2141100000000000000000000000000000000000000000000000000000000)
+            mstore(4, contractAddress)
+            mstore(36, value)
+
+            // Call Proxy contract transferFrom function using constructed calldata
+            result := call(
+                gas,   // Forward all gas
+                proxy, // Proxy.sol deployment address
+                0,     // Don't send any ETH
+                0,     // Pointer to start of calldata
+                68,   // Length of calldata
+                0,     // Output location
+                0      // We don't expect any output
+            )
+
+            // Restore stack memory
+            mstore(0, tmp1)
+            mstore(4, tmp2)
+            mstore(36, tmp3)
+        }
+
+        if (result == 0) {
+            revert(REDEEM_POSITION_TOKENS_FAILED);
         }
     }
 

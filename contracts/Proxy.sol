@@ -50,18 +50,13 @@ contract Proxy is LibWhitelist {
         depositEther();
     }
 
-    function approveCollateral(address contractAddress)
+    function approveMarketContractPool(address contractAddress)
         public
     {
         IMarketContract marketContract = IMarketContract(contractAddress);
+
         IERC20 collateralToken = IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS());
         collateralToken.approve(marketContract.COLLATERAL_POOL_ADDRESS(), INFINITY);
-
-        /*
-        longPositionToken.approve(this, INFINITY);
-        IERC20 shortPositionToken = IERC20(marketContract.SHORT_POSITION_TOKEN());
-        shortPositionToken.approve(this, INFINITY);
-        */
     }
 
     /// @dev Invoking transferFrom.
@@ -115,9 +110,18 @@ contract Proxy is LibWhitelist {
         IMarketContract marketContract = IMarketContract(contractAddress);
         IMarketContractPool marketContractPool = IMarketContractPool(marketContract.COLLATERAL_POOL_ADDRESS());
         marketContractPool.mintPositionTokens(contractAddress, qtyToMint, false);
+    }
 
-        // IERC20 longPositionToken = IERC20(marketContract.LONG_POSITION_TOKEN());
-        // longPositionToken.transfer(0xde570Db12107616e878798a42CeB791084B1Ccc8, 100000);
+    function redeemPositionTokens(
+        address contractAddress,
+        uint256 qtyToMint
+    )
+        external
+        onlyAddressInWhitelist
+    {
+        IMarketContract marketContract = IMarketContract(contractAddress);
+        IMarketContractPool marketContractPool = IMarketContractPool(marketContract.COLLATERAL_POOL_ADDRESS());
+        marketContractPool.redeemPositionTokens(contractAddress, qtyToMint);
     }
 
 /// @dev Calls into ERC20 Token contract, invoking transferFrom.
