@@ -16,13 +16,18 @@
 
 */
 
-pragma solidity 0.4.24;
+pragma solidity ^0.4.24;
 
 import "./lib/SafeMath.sol";
 import "./lib/LibWhitelist.sol";
+import "./interfaces/IMarketContractPool.sol";
+import "./interfaces/IMarketContract.sol";
+import "./interfaces/IERC20.sol";
 
 contract Proxy is LibWhitelist {
     using SafeMath for uint256;
+
+    uint256 public constant INFINITY = 999999999999999999999999999999999999999999;
 
     mapping( address => uint256 ) public balances;
 
@@ -45,6 +50,35 @@ contract Proxy is LibWhitelist {
         depositEther();
     }
 
+    function approveCollateral(address contractAddress)
+        public
+    {
+        IMarketContract marketContract = IMarketContract(contractAddress);
+        IERC20 collateralToken = IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS());
+        collateralToken.approve(marketContract.COLLATERAL_POOL_ADDRESS(), INFINITY);
+
+        /*
+        longPositionToken.approve(this, INFINITY);
+        IERC20 shortPositionToken = IERC20(marketContract.SHORT_POSITION_TOKEN());
+        shortPositionToken.approve(this, INFINITY);
+        */
+    }
+
+    /// @dev Invoking transferFrom.
+    /// @param token Address of token to transfer.
+    /// @param to Address to transfer token to.
+    /// @param value Amount of token to transfer.
+    function transfer(address token, address to, uint256 value)
+        external
+        onlyAddressInWhitelist
+    {
+        if (token == address(0)) {
+            transferEther(address(this), to, value);
+        } else {
+            transferToken(token, to, value);
+        }
+    }
+
     /// @dev Invoking transferFrom.
     /// @param token Address of token to transfer.
     /// @param from Address to transfer token from.
@@ -57,7 +91,7 @@ contract Proxy is LibWhitelist {
         if (token == address(0)) {
             transferEther(from, to, value);
         } else {
-            transferToken(token, from, to, value);
+            transferTokenFrom(token, from, to, value);
         }
     }
 
@@ -71,17 +105,64 @@ contract Proxy is LibWhitelist {
         emit Transfer(from, to, value);
     }
 
+    function mintPositionTokens(
+        address contractAddress,
+        uint256 qtyToMint
+    )
+        external
+        onlyAddressInWhitelist
+    {
+        IMarketContract marketContract = IMarketContract(contractAddress);
+        IMarketContractPool marketContractPool = IMarketContractPool(marketContract.COLLATERAL_POOL_ADDRESS());
+        marketContractPool.mintPositionTokens(contractAddress, qtyToMint, false);
+
+        // IERC20 longPositionToken = IERC20(marketContract.LONG_POSITION_TOKEN());
+        // longPositionToken.transfer(0xde570Db12107616e878798a42CeB791084B1Ccc8, 100000);
+    }
+
+/// @dev Calls into ERC20 Token contract, invoking transferFrom.
+    /// @param token Address of token to transfer.
+    /// @param to Address to transfer token to.
+    /// @param value Amount of token to transfer.
+    function transferToken(address token, address to, uint256 value)
+        internal
+        onlyAddressInWhitelist
+    {
+        assembly {
+            // keccak256('transfer(address,uint256)') & 0xFFFFFFFF00000000000000000000000000000000000000000000000000000000
+            mstore(0, 0xa9059cbb00000000000000000000000000000000000000000000000000000000)
+            // calldatacopy(t, f, s) copy s bytes from calldata at position f to mem at position t
+            // copy from, to, value from calldata to memory
+            calldatacopy(4, 36, 64)
+            // call ERC20 Token contract transferFrom function
+            let result := call(gas, token, 0, 0, 68, 0, 32)
+
+            // Some ERC20 Token contract doesn't return any value when calling the transferFrom function successfully.
+            // So we consider the transferFrom call is successful in either case below.
+            //   1. call successfully and nothing return.
+            //   2. call successfully, return value is 32 bytes long and the value isn't equal to zero.
+            switch eq(result, 1)
+            case 1 {
+                switch or(eq(returndatasize, 0), and(eq(returndatasize, 32), gt(mload(0), 0)))
+                case 1 {
+                    return(0, 0)
+                }
+            }
+        }
+
+        revert("TOKEN_TRANSFER_ERROR");
+    }
+
     /// @dev Calls into ERC20 Token contract, invoking transferFrom.
     /// @param token Address of token to transfer.
     /// @param from Address to transfer token from.
     /// @param to Address to transfer token to.
     /// @param value Amount of token to transfer.
-    function transferToken(address token, address from, address to, uint256 value)
+    function transferTokenFrom(address token, address from, address to, uint256 value)
         internal
         onlyAddressInWhitelist
     {
         assembly {
-
             // keccak256('transferFrom(address,address,uint256)') & 0xFFFFFFFF00000000000000000000000000000000000000000000000000000000
             mstore(0, 0x23b872dd00000000000000000000000000000000000000000000000000000000)
 
@@ -91,7 +172,7 @@ contract Proxy is LibWhitelist {
 
             // call ERC20 Token contract transferFrom function
             let result := call(gas, token, 0, 0, 100, 0, 32)
-
+            
             // Some ERC20 Token contract doesn't return any value when calling the transferFrom function successfully.
             // So we consider the transferFrom call is successful in either case below.
             //   1. call successfully and nothing return.

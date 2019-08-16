@@ -39,18 +39,19 @@ contract LibOrder is EIP712, LibSignature, LibMath {
         /**
          * Data contains the following values packed into 32 bytes
          * ╔════════════════════╤═══════════════════════════════════════════════════════════╗
-         * ║                    │ length(bytes)   desc                                      ║
+         * ║                        │ length(bytes)   desc                                                  ║
          * ╟────────────────────┼───────────────────────────────────────────────────────────╢
-         * ║ version            │ 1               order version                             ║
-         * ║ side               │ 1               0: buy, 1: sell                           ║
-         * ║ isMarketOrder      │ 1               0: limitOrder, 1: marketOrder             ║
-         * ║ expiredAt          │ 5               order expiration time in seconds          ║
-         * ║ asMakerFeeRate     │ 2               maker fee rate (base 100,000)             ║
-         * ║ asTakerFeeRate     │ 2               taker fee rate (base 100,000)             ║
-         * ║ makerRebateRate    │ 2               rebate rate for maker (base 100)          ║
-         * ║ salt               │ 8               salt                                      ║
-         * ║ isMakerOnly        │ 1               is maker only                             ║
-         * ║                    │ 9               reserved                                  ║
+         * ║ version                │ 1               order version                                         ║
+         * ║ side                   │ 1               0: buy, 1: sell                                       ║
+         * ║ isMarketOrder          │ 1               0: limitOrder, 1: marketOrder                         ║
+         * ║ expiredAt              │ 5               order expiration time in seconds                      ║
+         * ║ asMakerFeeRate         │ 2               maker fee rate (base 100,000)                         ║
+         * ║ asTakerFeeRate         │ 2               taker fee rate (base 100,000)                         ║
+         * ║ makerRebateRate        │ 2               rebate rate for maker (base 100)                      ║
+         * ║ salt                   │ 8               salt                                                  ║
+         * ║ isMakerOnly            │ 1               is maker only                                         ║
+         * ║ isLongMaker            │ 1               0: for short token, 1: for long token                 ║
+         * ║                        │ 8               reserved                                              ║
          * ╚════════════════════╧═══════════════════════════════════════════════════════════╝
          */
         bytes32 data;
@@ -61,6 +62,12 @@ contract LibOrder is EIP712, LibSignature, LibMath {
         CANCELLED,
         FILLABLE,
         FULLY_FILLED
+    }
+
+    enum FillAction {
+        EXCHANGE,
+        MINT,
+        REDEEM
     }
 
     bytes32 public constant EIP712_ORDER_TYPE = keccak256(
@@ -144,6 +151,10 @@ contract LibOrder is EIP712, LibSignature, LibMath {
 
     function isMakerOnly(bytes32 data) internal pure returns (bool) {
         return data[22] == 1;
+    }
+
+    function isLong(bytes32 data) internal pure returns (bool) {
+        return data[23] == 1;
     }
 
     function isMarketBuy(bytes32 data) internal pure returns (bool) {

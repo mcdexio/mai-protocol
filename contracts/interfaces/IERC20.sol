@@ -1,6 +1,7 @@
-pragma solidity 0.4.24;
+pragma solidity ^0.4.24;
 
 contract IERC20 {
+    function decimals() public view returns (uint8);
 
     /// @return total amount of tokens
     function totalSupply() public pure returns (uint) {}

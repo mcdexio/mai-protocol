@@ -16,7 +16,7 @@
 
 */
 
-pragma solidity 0.4.24;
+pragma solidity >=0.4.24;
 
 contract LibExchangeErrors {
     string constant INVALID_TRADER = "INVALID_TRADER";
@@ -35,4 +35,7 @@ contract LibExchangeErrors {
     string constant ORDER_VERSION_NOT_SUPPORTED = "ORDER_VERSION_NOT_SUPPORTED";
 
     string constant MAKER_ONLY_ORDER_CANNOT_BE_TAKER = "MAKER_ONLY_ORDER_CANNOT_BE_TAKER";
+
+    string constant MINT_FAILED = "MINT_FAILED";
+    string constant REDEEM_FAILED = "REDEEM_FAILED";
 }

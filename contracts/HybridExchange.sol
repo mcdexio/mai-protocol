@@ -26,6 +26,11 @@ import "./lib/LibSignature.sol";
 import "./lib/LibRelayer.sol";
 import "./lib/LibDiscount.sol";
 import "./lib/LibExchangeErrors.sol";
+import "./interfaces/IMarketContractPool.sol";
+import "./interfaces/IMarketContract.sol";
+import "./interfaces/IERC20.sol";
+import "./lib/MathLib.sol";
+import "./Proxy.sol";
 
 contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchangeErrors {
     using SafeMath for uint256;
@@ -40,6 +45,8 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
      */
     address public proxyAddress;
 
+    address public contractPoolAddress;
+
     /**
      * Mapping of orderHash => amount
      * Generally the amount will be specified in base token units, however in the case of a market
@@ -52,6 +59,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
     mapping (bytes32 => bool) public cancelled;
 
     event Cancel(bytes32 indexed orderHash);
+    event Print(string message, uint256 value);
 
     /**
      * When orders are being matched, they will always contain the exact same base token,
@@ -81,9 +89,16 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
     }
 
     struct OrderAddressSet {
-        address baseToken;
-        address quoteToken;
+        // required
+        address marketContractAddress;
         address relayer;
+
+        // optional
+        address takerPositionToken;         // position token: long or short
+        address collateralToken;            // collateral token: dai
+        uint256 collateralPerUnit;
+        uint8 collateralTokenDecimals;
+        uint8 positionTokenDecimals;
     }
 
     struct MatchResult {
@@ -97,6 +112,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
         uint256 takerGasFee;
         uint256 baseTokenFilledAmount;
         uint256 quoteTokenFilledAmount;
+        FillAction fillAction;
     }
 
 
@@ -110,6 +126,24 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
         public
     {
         proxyAddress = _proxyAddress;
+    }
+
+    function getContractSettings(OrderAddressSet memory orderAddressSet, OrderParam memory takerOrderParam)
+        internal
+        view
+    {
+        IMarketContract marketContract = IMarketContract(orderAddressSet.marketContractAddress);
+        orderAddressSet.collateralToken = marketContract.COLLATERAL_TOKEN_ADDRESS();
+        orderAddressSet.takerPositionToken = isLong(takerOrderParam.data)?
+            marketContract.LONG_POSITION_TOKEN():
+            marketContract.SHORT_POSITION_TOKEN();
+        orderAddressSet.collateralPerUnit = marketContract.COLLATERAL_PER_UNIT();
+
+        IERC20 positionToken = IERC20(orderAddressSet.takerPositionToken);
+        orderAddressSet.positionTokenDecimals = positionToken.decimals();
+        IERC20 collateralToken = IERC20(orderAddressSet.collateralToken);
+        orderAddressSet.collateralTokenDecimals = collateralToken.decimals();
+        
     }
 
     /**
@@ -128,18 +162,21 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
     ) public {
         require(canMatchOrdersFrom(orderAddressSet.relayer), INVALID_SENDER);
         require(!isMakerOnly(takerOrderParam.data), MAKER_ONLY_ORDER_CANNOT_BE_TAKER);
+        // fill in parameters
+        getContractSettings(orderAddressSet, takerOrderParam);
 
-        bool isParticipantRelayer = isParticipant(orderAddressSet.relayer);
-        uint256 takerFeeRate = getTakerFeeRate(takerOrderParam, isParticipantRelayer);
+        uint256 takerFeeRate = getTakerFeeRate(takerOrderParam, false);
         OrderInfo memory takerOrderInfo = getOrderInfo(takerOrderParam, orderAddressSet);
 
         // Calculate which orders match for settlement.
         MatchResult[] memory results = new MatchResult[](makerOrderParams.length);
-
+        uint256 takerUnitPrice = takerOrderParam.quoteTokenAmount.div(takerOrderParam.baseTokenAmount);
         for (uint256 i = 0; i < makerOrderParams.length; i++) {
             require(!isMarketOrder(makerOrderParams[i].data), MAKER_ORDER_CAN_NOT_BE_MARKET_ORDER);
-            require(isSell(takerOrderParam.data) != isSell(makerOrderParams[i].data), INVALID_SIDE);
-            validatePrice(takerOrderParam, makerOrderParams[i]);
+            // by yz: cannot match (Buy Long + Sell Short) or (Buy Short + Sell Long)
+            require(!((isSell(takerOrderParam.data) != isSell(makerOrderParams[i].data)) &&
+                (isLong(takerOrderParam.data) != isLong(makerOrderParams[i].data))), INVALID_SIDE);
+            // validatePrice(takerOrderParam, makerOrderParams[i]);
 
             OrderInfo memory makerOrderInfo = getOrderInfo(makerOrderParams[i], orderAddressSet);
 
@@ -150,13 +187,21 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
                 makerOrderInfo,
                 baseTokenFilledAmounts[i],
                 takerFeeRate,
-                isParticipantRelayer
+                false
             );
-
+            if (results[i].fillAction != FillAction.EXCHANGE) {
+                uint256 unitPrice = makerOrderParams[i].quoteTokenAmount
+                    .div(makerOrderParams[i].baseTokenAmount)
+                    .add(takerUnitPrice);
+                if (results[i].fillAction == FillAction.REDEEM) {
+                    require(unitPrice <= orderAddressSet.collateralPerUnit, "REDEEM_PRICE_NOT_MET");
+                } else {
+                    require(unitPrice >= orderAddressSet.collateralPerUnit, "MINT_PRICE_NOT_MET");
+                }
+            }
             // Update amount filled for this maker order.
             filled[makerOrderInfo.orderHash] = makerOrderInfo.filledAmount;
         }
-
         // Update amount filled for this taker order.
         filled[takerOrderInfo.orderHash] = takerOrderInfo.filledAmount;
 
@@ -230,7 +275,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
      */
     function getOrderFromOrderParam(OrderParam memory orderParam, OrderAddressSet memory orderAddressSet)
         internal
-        pure
+        view
         returns (Order memory order)
     {
         order.trader = orderParam.trader;
@@ -238,8 +283,8 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
         order.quoteTokenAmount = orderParam.quoteTokenAmount;
         order.gasTokenAmount = orderParam.gasTokenAmount;
         order.data = orderParam.data;
-        order.baseToken = orderAddressSet.baseToken;
-        order.quoteToken = orderAddressSet.quoteToken;
+        order.baseToken = orderAddressSet.takerPositionToken;
+        order.quoteToken = orderAddressSet.collateralToken;
         order.relayer = orderAddressSet.relayer;
     }
 
@@ -317,16 +362,24 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
             result.makerGasFee = makerOrderParam.gasTokenAmount;
         }
 
-        if(!isMarketBuy(takerOrderParam.data)) {
-            takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(result.baseTokenFilledAmount);
-            require(takerOrderInfo.filledAmount <= takerOrderParam.baseTokenAmount, TAKER_ORDER_OVER_MATCH);
-        } else {
-            takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(result.quoteTokenFilledAmount);
-            require(takerOrderInfo.filledAmount <= takerOrderParam.quoteTokenAmount, TAKER_ORDER_OVER_MATCH);
-        }
-
         makerOrderInfo.filledAmount = makerOrderInfo.filledAmount.add(result.baseTokenFilledAmount);
-        require(makerOrderInfo.filledAmount <= makerOrderParam.baseTokenAmount, MAKER_ORDER_OVER_MATCH);
+
+        // buy + sell, and all long or all short, do exchange
+        if (isSell(takerOrderParam.data) != isSell(makerOrderParam.data)) {
+            require(makerOrderInfo.filledAmount <= makerOrderParam.baseTokenAmount, MAKER_ORDER_OVER_MATCH);
+            if(!isMarketBuy(takerOrderParam.data)) {
+                takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(result.baseTokenFilledAmount);
+                require(takerOrderInfo.filledAmount <= takerOrderParam.baseTokenAmount, TAKER_ORDER_OVER_MATCH);
+            } else {
+                takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(result.quoteTokenFilledAmount);
+                require(takerOrderInfo.filledAmount <= takerOrderParam.quoteTokenAmount, TAKER_ORDER_OVER_MATCH);
+            }
+            result.fillAction = FillAction.EXCHANGE;
+        } else {
+            // buy + buy, sell + sell
+            result.fillAction = isSell(takerOrderParam.data)? FillAction.REDEEM: FillAction.MINT;
+            takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(result.baseTokenFilledAmount);
+        }
 
         result.maker = makerOrderParam.trader;
         result.taker = takerOrderParam.trader;
@@ -336,9 +389,8 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
         } else {
             result.buyer = result.taker;
         }
-
+        
         uint256 rebateRate = getMakerRebateRateFromOrderData(makerOrderParam.data);
-
         if (rebateRate > 0) {
             // If the rebate rate is not zero, maker pays no fees.
             result.makerFee = 0;
@@ -460,10 +512,18 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
     )
         internal
     {
+        IMarketContract marketContract = IMarketContract(orderAddressSet.marketContractAddress);
+        address baseToken = isLong(takerOrderParam.data)?
+            marketContract.LONG_POSITION_TOKEN():
+            marketContract.SHORT_POSITION_TOKEN();
+        address quoteToken = marketContract.COLLATERAL_TOKEN_ADDRESS();
+
         if (isSell(takerOrderParam.data)) {
-            settleTakerSell(results, orderAddressSet);
+            // sell, exchange or redeem, determine baseToken
+            settleTakerSell(results, orderAddressSet, baseToken, quoteToken);
         } else {
-            settleTakerBuy(results, orderAddressSet);
+            // buy, exchange or mint
+            settleTakerBuy(results, orderAddressSet, baseToken, quoteToken);
         }
     }
 
@@ -492,41 +552,109 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
      * @param results A list of MatchResult objects representing each individual trade to settle.
      * @param orderAddressSet An object containing addresses common across each order.
      */
-    function settleTakerSell(MatchResult[] memory results, OrderAddressSet memory orderAddressSet) internal {
+    function settleTakerSell(
+        MatchResult[] memory results,
+        OrderAddressSet memory orderAddressSet,
+        address baseToken,
+        address quoteToken
+    )
+        internal
+    {
+        // total amount of exchanged
         uint256 totalTakerQuoteTokenFilledAmount = 0;
+        // total amount of redeemed
+        uint256 totalTakerQuoteTokenRedeemedAmount = 0;
 
         for (uint256 i = 0; i < results.length; i++) {
-            transferFrom(
-                orderAddressSet.baseToken,
-                results[i].taker,
-                results[i].maker,
-                results[i].baseTokenFilledAmount
-            );
-
-            transferFrom(
-                orderAddressSet.quoteToken,
-                results[i].maker,
-                orderAddressSet.relayer,
-                results[i].quoteTokenFilledAmount.
-                    add(results[i].makerFee).
-                    add(results[i].makerGasFee).
-                    sub(results[i].makerRebate)
-            );
-
-            totalTakerQuoteTokenFilledAmount = totalTakerQuoteTokenFilledAmount.add(
-                results[i].quoteTokenFilledAmount.sub(results[i].takerFee)
-            );
-
+            if (results[i].fillAction == FillAction.EXCHANGE) {
+                totalTakerQuoteTokenFilledAmount = totalTakerQuoteTokenFilledAmount.add(
+                    preExchange(results[i], orderAddressSet, baseToken, quoteToken).sub(results[i].takerFee)
+                );
+            } else if (results[i].fillAction == FillAction.REDEEM) {
+                totalTakerQuoteTokenRedeemedAmount = totalTakerQuoteTokenRedeemedAmount.add(
+                    preRedeem(results[i], orderAddressSet, baseToken, quoteToken).sub(results[i].takerFee)
+                );
+            } else {
+                revert("UNSUPPORTED_MATCHING_PAIR");
+            }
             emitMatchEvent(results[i], orderAddressSet);
         }
 
         transferFrom(
-            orderAddressSet.quoteToken,
+            quoteToken,
             orderAddressSet.relayer,
             results[0].taker,
-            totalTakerQuoteTokenFilledAmount.sub(results[0].takerGasFee)
+            totalTakerQuoteTokenFilledAmount.add(totalTakerQuoteTokenRedeemedAmount).sub(results[0].takerGasFee)
         );
     }
+
+
+    function preExchange(
+        MatchResult memory result,
+        OrderAddressSet memory orderAddressSet,
+        address baseToken,
+        address quoteToken
+    )
+        internal
+        returns (uint256)
+    {
+        // taker -> maker
+        transferFrom(
+            baseToken,
+            result.taker,
+            result.maker,
+            result.baseTokenFilledAmount
+        );
+        // maker -> relayer
+        transferFrom(
+            quoteToken,
+            result.maker,
+            orderAddressSet.relayer,
+            result.quoteTokenFilledAmount.
+                add(result.makerFee).
+                add(result.makerGasFee)
+        );
+        emitMatchEvent(result, orderAddressSet);
+        return result.quoteTokenFilledAmount;
+    }
+
+    function preRedeem(
+        MatchResult memory result,
+        OrderAddressSet memory orderAddressSet,
+        address baseToken,
+        address quoteToken
+    )
+        internal
+        returns (uint256)
+    {
+        IMarketContract marketContract = IMarketContract(orderAddressSet.marketContractAddress);
+        IMarketContractPool marketContractPool = IMarketContractPool(contractPoolAddress);
+        // taker -> relayer
+        transferFrom(
+            baseToken == marketContract.LONG_POSITION_TOKEN()? marketContract.SHORT_POSITION_TOKEN(): marketContract.LONG_POSITION_TOKEN(),
+            result.taker,
+            orderAddressSet.relayer,
+            result.baseTokenFilledAmount
+        );
+        // maker -> relayer
+        transferFrom(
+            baseToken,
+            result.maker,
+            orderAddressSet.relayer,
+            result.baseTokenFilledAmount
+        );
+        marketContractPool.redeemPositionTokens(orderAddressSet.marketContractAddress, result.baseTokenFilledAmount);
+        // replayer -> maker
+        transferFrom(
+            quoteToken,
+            orderAddressSet.relayer,
+            result.maker,
+            result.quoteTokenFilledAmount
+        );
+        uint256 collateralToReturn = MathLib.multiply(result.baseTokenFilledAmount, marketContract.COLLATERAL_PER_UNIT());
+        return collateralToReturn.sub(result.quoteTokenFilledAmount);
+    }
+
 
     /**
      * Settles a buy order given a list of MatchResult objects. A naive approach would be to take
@@ -553,43 +681,171 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
      * @param results A list of MatchResult objects representing each individual trade to settle.
      * @param orderAddressSet An object containing addresses common across each order.
      */
-    function settleTakerBuy(MatchResult[] memory results, OrderAddressSet memory orderAddressSet) internal {
+    function settleTakerBuy(
+        MatchResult[] memory results,
+        OrderAddressSet memory orderAddressSet,
+        address baseToken,
+        address quoteToken
+    )
+        internal
+    {
         uint256 totalFee = 0;
 
         for (uint256 i = 0; i < results.length; i++) {
-            transferFrom(
-                orderAddressSet.baseToken,
-                results[i].maker,
-                results[i].taker,
-                results[i].baseTokenFilledAmount
-            );
+            if (results[i].fillAction == FillAction.EXCHANGE) {
+                transferFrom(
+                    baseToken,
+                    results[i].maker,
+                    results[i].taker,
+                    results[i].baseTokenFilledAmount
+                );
 
-            transferFrom(
-                orderAddressSet.quoteToken,
-                results[i].taker,
-                results[i].maker,
-                results[i].quoteTokenFilledAmount.
-                    sub(results[i].makerFee).
-                    sub(results[i].makerGasFee).
-                    add(results[i].makerRebate)
-            );
+                transferFrom(
+                    quoteToken,
+                    results[i].taker,
+                    results[i].maker,
+                    results[i].quoteTokenFilledAmount.
+                        sub(results[i].makerFee).
+                        sub(results[i].makerGasFee)
+                );
+                totalFee = totalFee.
+                    add(results[i].takerFee).
+                    add(results[i].makerFee).
+                    add(results[i].makerGasFee).
+                    add(results[i].takerGasFee);
 
-            totalFee = totalFee.
-                add(results[i].takerFee).
-                add(results[i].makerFee).
-                add(results[i].makerGasFee).
-                add(results[i].takerGasFee).
-                sub(results[i].makerRebate);
+            } else if (results[i].fillAction == FillAction.MINT) {
+                preMint(results[i], orderAddressSet, baseToken, quoteToken);
+            } else {
+                revert("UNSUPPORTED_MATCHING_PAIR");
+            }
 
             emitMatchEvent(results[i], orderAddressSet);
         }
-
         transferFrom(
-            orderAddressSet.quoteToken,
+            quoteToken,
             results[0].taker,
             orderAddressSet.relayer,
             totalFee
         );
+    }
+
+    function preMint(
+        MatchResult memory result,
+        OrderAddressSet memory orderAddressSet,
+        address baseToken,
+        address quoteToken
+    )
+        internal
+        returns (uint256)
+    {
+        // baseTokenFilledAmount
+        IMarketContract marketContract = IMarketContract(orderAddressSet.marketContractAddress);
+        uint256 neededCollateral = MathLib.multiply(
+            result.baseTokenFilledAmount,
+            marketContract.COLLATERAL_PER_UNIT().add(marketContract.COLLATERAL_TOKEN_FEE_PER_UNIT())
+        );
+        // taker -> relayer
+        transferFrom(
+            quoteToken,
+            result.taker,
+            proxyAddress,
+            result.quoteTokenFilledAmount
+        );
+        // maker -> relayer
+        transferFrom(
+            quoteToken,
+            result.maker,
+            proxyAddress,
+            neededCollateral.sub(result.quoteTokenFilledAmount)
+        );
+
+        mintPositionTokens(orderAddressSet.marketContractAddress, result.baseTokenFilledAmount);
+        // Proxy proxy = Proxy(proxyAddress);
+        // proxy.mintPositionTokens(orderAddressSet.marketContractAddress, result.baseTokenFilledAmount);
+
+        // proxy -> maker
+        transfer(
+            baseToken,
+            result.maker,
+            result.baseTokenFilledAmount
+        );
+        // proxy -> taker
+        transfer(
+            (baseToken == marketContract.SHORT_POSITION_TOKEN()) ?
+                marketContract.LONG_POSITION_TOKEN(): marketContract.SHORT_POSITION_TOKEN(),
+            result.taker,
+            result.baseTokenFilledAmount
+        );
+    }
+
+/**
+     * A helper function to call the transferFrom function in Proxy.sol with solidity assembly.
+     * Copying the data in order to make an external call can be expensive, but performing the
+     * operations in assembly seems to reduce gas cost.
+     *
+     * The function will revert the transaction if the transfer fails.
+     *
+     * @param token The address of the ERC20 token we will be transferring, 0 for ETH.
+     * @param to The address we will be transferring to.
+     * @param value The amount of token we will be transferring.
+     */
+    function transfer(address token, address to, uint256 value) internal {
+        if (value == 0) {
+            return;
+        }
+
+        address proxy = proxyAddress;
+        uint256 result;
+
+        /**
+         * We construct calldata for the `Proxy.transferFrom` ABI.
+         * The layout of this calldata is in the table below.
+         *
+         * ╔════════╤════════╤════════╤═══════════════════╗
+         * ║ Area   │ Offset │ Length │ Contents          ║
+         * ╟────────┼────────┼────────┼───────────────────╢
+         * ║ Header │ 0      │ 4      │ function selector ║
+         * ║ Params │ 4      │ 32     │ token address     ║
+         * ║        │ 36     │ 32     │ from address      ║
+         * ║        │ 68     │ 32     │ to address        ║
+         * ║        │ 100    │ 32     │ amount of token   ║
+         * ╚════════╧════════╧════════╧═══════════════════╝
+         */
+        assembly {
+            // Keep these so we can restore stack memory upon completion
+            let tmp1 := mload(0)
+            let tmp2 := mload(4)
+            let tmp3 := mload(36)
+            let tmp4 := mload(68)
+
+            // keccak256('transfer(address,address,uint256)') bitmasked to 4 bytes
+            mstore(0, 0xbeabacc800000000000000000000000000000000000000000000000000000000)
+            mstore(4, token)
+            mstore(36, to)
+            mstore(68, value)
+
+            // Call Proxy contract transferFrom function using constructed calldata
+            result := call(
+                gas,   // Forward all gas
+                proxy, // Proxy.sol deployment address
+                0,     // Don't send any ETH
+                0,     // Pointer to start of calldata
+                100,   // Length of calldata
+                0,     // Output location
+                0      // We don't expect any output
+            )
+
+            // Restore stack memory
+            mstore(0, tmp1)
+            mstore(4, tmp2)
+            mstore(36, tmp3)
+            mstore(68, tmp4)
+        }
+
+        if (result == 0) {
+            revert(TRANSFER_FROM_FAILED);
+        }
     }
 
     /**
@@ -662,6 +918,60 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
 
         if (result == 0) {
             revert(TRANSFER_FROM_FAILED);
+        }
+    }
+
+    function mintPositionTokens(address contractAddress, uint256 value) internal {
+        if (value == 0) {
+            return;
+        }
+
+        address proxy = proxyAddress;
+        uint256 result;
+
+        /**
+         * We construct calldata for the `Proxy.transferFrom` ABI.
+         * The layout of this calldata is in the table below.
+         *
+         * ╔════════╤════════╤════════╤═══════════════════╗
+         * ║ Area   │ Offset │ Length │ Contents          ║
+         * ╟────────┼────────┼────────┼───────────────────╢
+         * ║ Header │ 0      │ 4      │ function selector ║
+         * ║ Params │ 4      │ 32     │ contract address  ║
+         * ║        │ 36     │ 32     │ amount of token    ║
+         * ╚════════╧════════╧════════╧═══════════════════╝
+         */
+        assembly {
+            // Keep these so we can restore stack memory upon completion
+            let tmp1 := mload(0)
+            let tmp2 := mload(4)
+            let tmp3 := mload(36)
+
+            // keccak256('transferFrom(address,address,address,uint256)') bitmasked to 4 bytes
+            // mstore(0, 0x15dacbea00000000000000000000000000000000000000000000000000000000)
+            mstore(0, 0x2bb0d30f00000000000000000000000000000000000000000000000000000000)
+            mstore(4, contractAddress)
+            mstore(36, value)
+
+            // Call Proxy contract transferFrom function using constructed calldata
+            result := call(
+                gas,   // Forward all gas
+                proxy, // Proxy.sol deployment address
+                0,     // Don't send any ETH
+                0,     // Pointer to start of calldata
+                68,   // Length of calldata
+                0,     // Output location
+                0      // We don't expect any output
+            )
+
+            // Restore stack memory
+            mstore(0, tmp1)
+            mstore(4, tmp2)
+            mstore(36, tmp3)
+        }
+
+        if (result == 0) {
+            revert(MINT_FAILED);
         }
     }
 
