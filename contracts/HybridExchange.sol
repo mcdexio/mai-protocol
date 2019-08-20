@@ -19,6 +19,7 @@
 pragma solidity ^0.4.24;
 pragma experimental ABIEncoderV2;
 
+
 import "./lib/SafeMath.sol";
 import "./lib/LibOrder.sol";
 import "./lib/LibMath.sol";
@@ -30,7 +31,6 @@ import "./interfaces/IMarketContractPool.sol";
 import "./interfaces/IMarketContract.sol";
 import "./interfaces/IERC20.sol";
 import "./lib/MathLib.sol";
-import "./Proxy.sol";
 
 contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchangeErrors {
     using SafeMath for uint256;
@@ -388,6 +388,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
         // buy + sell, and all long or all short, do exchange
         if (isSell(takerOrderParam.data) != isSell(makerOrderParam.data)) {
             require(makerOrderInfo.filledAmount <= makerOrderParam.baseTokenAmount, MAKER_ORDER_OVER_MATCH);
+
             if(!isMarketBuy(takerOrderParam.data)) {
                 takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(result.baseTokenFilledAmount);
                 require(takerOrderInfo.filledAmount <= takerOrderParam.baseTokenAmount, TAKER_ORDER_OVER_MATCH);
@@ -395,6 +396,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
                 takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(result.quoteTokenFilledAmount);
                 require(takerOrderInfo.filledAmount <= takerOrderParam.quoteTokenAmount, TAKER_ORDER_OVER_MATCH);
             }
+
             result.fillAction = FillAction.EXCHANGE;
         } else {
             // buy + buy, sell + sell
@@ -410,31 +412,20 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
         } else {
             result.buyer = result.taker;
         }
-        
-        uint256 rebateRate = getMakerRebateRateFromOrderData(makerOrderParam.data);
-        if (rebateRate > 0) {
-            // If the rebate rate is not zero, maker pays no fees.
-            result.makerFee = 0;
 
-            // RebateRate will never exceed REBATE_RATE_BASE, so rebateFee will never exceed the fees paid by the taker.
-            result.makerRebate = result.quoteTokenFilledAmount.mul(takerFeeRate).mul(rebateRate).div(
-                FEE_RATE_BASE.mul(DISCOUNT_RATE_BASE).mul(REBATE_RATE_BASE)
-            );
-        } else {
-            uint256 makerRawFeeRate = getAsMakerFeeRateFromOrderData(makerOrderParam.data);
-            result.makerRebate = 0;
+        uint256 makerRawFeeRate = getAsMakerFeeRateFromOrderData(makerOrderParam.data);
+        result.makerRebate = 0;
 
-            // maker fee will be reduced, but still >= 0
-            uint256 makerFeeRate = getFinalFeeRate(
-                makerOrderParam.trader,
-                makerRawFeeRate,
-                isParticipantRelayer
-            );
+        // maker fee will be reduced, but still >= 0
+        uint256 makerFeeRate = getFinalFeeRate(
+            makerOrderParam.trader,
+            makerRawFeeRate,
+            isParticipantRelayer
+        );
 
-            result.makerFee = result.quoteTokenFilledAmount.mul(makerFeeRate).div(
-                FEE_RATE_BASE.mul(DISCOUNT_RATE_BASE)
-            );
-        }
+        result.makerFee = result.quoteTokenFilledAmount.mul(makerFeeRate).div(
+            FEE_RATE_BASE.mul(DISCOUNT_RATE_BASE)
+        );
 
         result.takerFee = result.quoteTokenFilledAmount.mul(takerFeeRate).div(
             FEE_RATE_BASE.mul(DISCOUNT_RATE_BASE)

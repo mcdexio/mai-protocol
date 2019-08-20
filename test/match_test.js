@@ -40,7 +40,7 @@ contract('Match', async accounts => {
     const u3 = accounts[6];
     const u4 = accounts[7];
 
-    const marketContractAddress = "0x3A92C58C7152B3b2d5F56E8d47Ce87d668b47B47";
+    const marketContractAddress = "0x482eCdD2458398E6dc52336719B26b4DEaaB22Ed";
     beforeEach(async () => {
         const contracts = await getContracts();
         exchange = contracts.exchange;
@@ -281,7 +281,7 @@ contract('Match', async accounts => {
             matchConfigs.orderAsset
         ).send({ from: relayer, gas: 8000000 });
     }
-    /*
+    
     it('buy long + buy short = mint -- single', async () => {
         await initBalances(collateralToken, admin, [
             { address: u1, amount: toWei("10000") },
@@ -477,7 +477,7 @@ contract('Match', async accounts => {
                 await matchTest(config);
             });
     });
-    */
+    
 
     it('buy long + sell long = exchange -- multi', async () => {
         await initBalances(collateralToken, admin, [
