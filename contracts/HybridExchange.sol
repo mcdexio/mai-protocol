@@ -107,9 +107,9 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
         address maker;
         address taker;
         address buyer;
-        uint256 makerFee;
-        uint256 makerRebate;
-        uint256 takerFee;
+        uint256 makerFee;                   // makerFee in order data
+        uint256 makerRebate;                // 0
+        uint256 takerFee;                   // takerFee in order data
         uint256 makerGasFee;
         uint256 takerGasFee;
         uint256 baseTokenFilledAmount;
@@ -413,15 +413,13 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
             result.buyer = result.taker;
         }
 
+        // makerFee
+        // 1. rawFeeRate from data
         uint256 makerRawFeeRate = getAsMakerFeeRateFromOrderData(makerOrderParam.data);
         result.makerRebate = 0;
 
-        // maker fee will be reduced, but still >= 0
-        uint256 makerFeeRate = getFinalFeeRate(
-            makerOrderParam.trader,
-            makerRawFeeRate,
-            isParticipantRelayer
-        );
+        // 2. final fee rate = rawFeeRate * 100
+        uint256 makerFeeRate = makerRawFeeRate.mul(DISCOUNT_RATE_BASE);
 
         result.makerFee = result.quoteTokenFilledAmount.mul(makerFeeRate).div(
             FEE_RATE_BASE.mul(DISCOUNT_RATE_BASE)
@@ -573,7 +571,18 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
 
         for (uint256 i = 0; i < results.length; i++) {
             if (results[i].fillAction == FillAction.EXCHANGE) {
-                 // taker -> maker
+                /**  for FillAction.EXCHANGE
+                 *
+                 *   taker      -- baseTokenFilledAmount                            --> maker
+                 *   maker      -- quoteTokenFilledAmount + makerFee + makerGasFee  --> relayer
+                 *   relayer    -- quoteTokenFilledAmount - takerFee - takerGasFee  --> taker
+                 *
+                 *   taker get:     quoteTokenFilledAmount  (-takerFee -takerGasFee)
+                 *   maker get:     baseTokenFilledAmount   (-makerFee -makerGasFee)
+                 *   relayer get:   makerFee + makerGasFee + takerFee + takerGasFee
+                 *
+                 **/
+                // taker -> maker
                 transferFrom(
                     orderContext.takerPositionToken,
                     results[i].taker,
@@ -589,26 +598,40 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
                         add(results[i].makerFee).
                         add(results[i].makerGasFee)
                 );
+                // relayer -> taker
                 totalTakerQuoteTokenFilledAmount = totalTakerQuoteTokenFilledAmount.add(
                     results[i].quoteTokenFilledAmount.
-                        add(results[i].makerFee).
-                        add(results[i].makerGasFee)
-                        .sub(results[i].takerFee)
+                        sub(results[i].takerFee)
                 );
             } else if (results[i].fillAction == FillAction.REDEEM) {
                 totalTakerQuoteTokenRedeemedAmount = totalTakerQuoteTokenRedeemedAmount.add(
-                    doRedeem(results[i], orderAddressSet, orderContext).sub(results[i].takerFee)
+                    doRedeem(results[i], orderAddressSet, orderContext).
+                        sub(results[i].takerFee)
                 );
             } else {
                 revert("UNSUPPORTED_MATCHING_PAIR");
             }
             emitMatchEvent(results[i], orderAddressSet);
         }
-        transfer(
-            orderContext.collateralToken,
-            results[0].taker,
-            totalTakerQuoteTokenFilledAmount.add(totalTakerQuoteTokenRedeemedAmount).sub(results[0].takerGasFee)
-        );
+        // relayer -> taker
+        if (totalTakerQuoteTokenFilledAmount > 0) {
+            transferFrom(
+                orderContext.collateralToken,
+                orderAddressSet.relayer,
+                results[0].taker,
+                totalTakerQuoteTokenFilledAmount.
+                    sub(results[0].takerGasFee)
+            );
+        }
+        // proxy -> taker
+        if (totalTakerQuoteTokenRedeemedAmount > 0) {
+            transfer(
+                orderContext.collateralToken,
+                results[0].taker,
+                totalTakerQuoteTokenFilledAmount.
+                    sub(results[0].takerGasFee)
+            );
+        }
     }
 
     // TODO: not a good name, but no better idea now
@@ -625,6 +648,17 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
         internal
         returns (uint256)
     {
+        /**  for FillAction.REDEEM
+         *
+         *   taker      -- takerPositionToken                               --> maker
+         *   maker      -- makerPositionToken                               --> relayer
+         *   proxy      -- quoteTokenFilledAmount - takerFee - takerGasFee - makerFee - makerGasFee  --> taker
+         *
+         *   taker get:     quoteTokenFilledAmount  (-takerFee -takerGasFee)
+         *   maker get:     quoteTokenFilledAmount  (-makerFee -makerGasFee)
+         *   proxy get:   makerFee + makerGasFee + takerFee + takerGasFee - mintFee
+         *
+         **/
         // taker -> proxy
         transferFrom(
             orderContext.takerPositionToken,
@@ -639,12 +673,15 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
             proxyAddress,
             result.baseTokenFilledAmount
         );
+        // proxy <- at least quoteTokenFilledAmount
         redeemPositionTokens(orderAddressSet.marketContractAddress, result.baseTokenFilledAmount);
         // replayer -> maker
         transfer(
             orderContext.collateralToken,
             result.maker,
-            result.quoteTokenFilledAmount
+            result.quoteTokenFilledAmount.
+                sub(result.makerFee).
+                sub(result.makerGasFee)
         );
         uint256 collateralToReturn = MathLib.multiply(result.baseTokenFilledAmount, orderContext.collateralPerUnit);
         return collateralToReturn.sub(result.quoteTokenFilledAmount);
@@ -684,16 +721,29 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
         internal
     {
         uint256 totalFee = 0;
+        uint256 totalMintFee = 0;
 
         for (uint256 i = 0; i < results.length; i++) {
             if (results[i].fillAction == FillAction.EXCHANGE) {
+                /**  for FillAction.EXCHANGE
+                 *
+                 *   maker      -- quoteTokenFilledAmount                           --> taker
+                 *   taker      -- baseTokenFilledAmount - makerFee - makerGasFee   --> maker
+                 *   taker      -- takerFee + takerGasFee + makerFee + makerGasFee  --> relayer
+                 *
+                 *   taker get:     quoteTokenFilledAmount  (-takerFee -takerGasFee)
+                 *   maker get:     baseTokenFilledAmount   (-makerFee -makerGasFee)
+                 *   relayer get:   makerFee + makerGasFee + takerFee + takerGasFee
+                 *
+                 **/
+                // maker -> taker
                 transferFrom(
                     orderContext.takerPositionToken,
                     results[i].maker,
                     results[i].taker,
                     results[i].baseTokenFilledAmount
                 );
-
+                // taker -> maker
                 transferFrom(
                     orderContext.collateralToken,
                     results[i].taker,
@@ -709,19 +759,32 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
                     add(results[i].takerGasFee);
 
             } else if (results[i].fillAction == FillAction.MINT) {
-                doMint(results[i], orderAddressSet, orderContext);
+                totalMintFee = totalMintFee.add(
+                    doMint(results[i], orderAddressSet, orderContext)
+                );
             } else {
                 revert("UNSUPPORTED_MATCHING_PAIR");
             }
 
             emitMatchEvent(results[i], orderAddressSet);
         }
-        transferFrom(
-            orderContext.collateralToken,
-            results[0].taker,
-            orderAddressSet.relayer,
-            totalFee
-        );
+        if (totalFee > 0) {
+            transferFrom(
+                orderContext.collateralToken,
+                results[0].taker,
+                orderAddressSet.relayer,
+                totalFee
+            );
+        }
+
+        if (totalMintFee > 0) {
+            transfer(
+                orderContext.collateralToken,
+                results[0].taker,
+                totalMintFee.
+                    sub(results[0].takerGasFee)
+            );
+        }
     }
 
     function doMint(
@@ -732,40 +795,51 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
         internal
         returns (uint256)
     {
+        /**  for FillAction.MINT
+        *
+        *   maker      -- quoteTokenFilledAmount + makerFee + makerGasFee   --> proxy
+        *   taker      -- quoteTokenFilledAmount + takerFee + takerGasFee   --> proxy
+        *   proxy      -- baseTokenFilledAmount                             --> maker
+        *   proxy      -- baseTokenFilledAmount                             --> taker
+        *
+        *   taker get:     quoteTokenFilledAmount  (-takerFee -takerGasFee)
+        *   maker get:     baseTokenFilledAmount   (-makerFee -makerGasFee)
+        *   relayer get:   makerFee + makerGasFee + takerFee + takerGasFee
+        *
+        **/
         // baseTokenFilledAmount
         uint256 neededCollateral = MathLib.multiply(
             result.baseTokenFilledAmount,
-            orderContext.collateralPerUnit.add(orderContext.collateralTokenFeePerUnit)
+            orderContext.collateralPerUnit.
+                add(orderContext.collateralTokenFeePerUnit)
         );
-        // taker -> relayer
-        transferFrom(
-            orderContext.collateralToken,
-            result.taker,
-            proxyAddress,
-            neededCollateral.sub(result.quoteTokenFilledAmount)
-        );
-        // maker -> relayer
+        // maker -> proxy
         transferFrom(
             orderContext.collateralToken,
             result.maker,
             proxyAddress,
-            result.quoteTokenFilledAmount
+            result.quoteTokenFilledAmount.
+                add(result.makerFee).
+                add(result.makerGasFee)
         );
-
+        // taker -> proxy
+        transferFrom(
+            orderContext.collateralToken,
+            result.taker,
+            proxyAddress,
+            neededCollateral.sub(result.quoteTokenFilledAmount).
+                add(result.takerFee).
+                add(result.takerGasFee)
+        );
+        // proxy <- long/short position tokens
         mintPositionTokens(orderAddressSet.marketContractAddress, result.baseTokenFilledAmount);
-
         // proxy -> maker
         transfer(
             getMakerPositionToken(orderContext),
             result.maker,
             result.baseTokenFilledAmount
         );
-        // proxy -> taker
-        transfer(
-            orderContext.takerPositionToken,
-            result.taker,
-            result.baseTokenFilledAmount
-        );
+        return result.baseTokenFilledAmount;
     }
 
 /**

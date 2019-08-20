@@ -26,6 +26,13 @@ module.exports = {
             port: 6545,
             gas: 0xfffffffffff,
             gasPrice: 0x01
+        },
+        tc: {
+            host: '10.30.204.93',
+            port: 8545,
+            network_id: '*',
+            gas: 8000000,
+            gasPrice: 20000000000,
         }
     },
     solc: {
