@@ -28,18 +28,23 @@ module.exports = {
             gasPrice: 0x01
         },
         tc: {
-            host: '10.30.204.93',
+            host: '10.30.204.89',
             port: 8545,
             network_id: '*',
             gas: 8000000,
             gasPrice: 20000000000,
         }
     },
-    solc: {
-        optimizer: {
-            enabled: true,
-            runs: 1000000
-        }
+    compilers: {
+        solc: {
+            version: "0.4.24",
+            settings: {
+                optimizer: {
+                    enabled: true,
+                    runs: 200
+                }
+            },
+        },
     },
     mocha: {
         enableTimeouts: false

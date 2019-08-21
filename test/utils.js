@@ -40,20 +40,30 @@ const getContracts = async () => {
     const proxy = await newContract(Proxy);
     // console.log('Proxy address', web3.toChecksumAddress(proxy._address));
 
-    const hot = await newContract(TestToken, 'HydroToken', 'Hot', 18);
-    // console.log('Hydro Token address', web3.toChecksumAddress(hot._address));
-
-    const exchange = await newContract(HybridExchange, proxy._address, hot._address);
+    const exchange = await newContract(HybridExchange, proxy._address);
     // console.log('Dxchange address', web3.toChecksumAddress(exchange._address));
-
     await proxy.methods.addAddress(exchange._address).send({ from: web3.eth.coinbase });
 
     return {
-        hot,
         proxy,
         exchange
     };
 };
+
+const deployContracts = async (owner) => {
+    const proxy = await newContract(Proxy);
+    // console.log('Proxy address', web3.toChecksumAddress(proxy._address));
+
+    const exchange = await newContract(HybridExchange, proxy._address);
+    // console.log('Dxchange address', web3.toChecksumAddress(exchange._address));
+    await proxy.methods.addAddress(exchange._address).send({ from: owner });
+
+    return {
+        proxy,
+        exchange
+    };
+};
+
 
 const clone = x => JSON.parse(JSON.stringify(x));
 
@@ -63,5 +73,6 @@ module.exports = {
     newContractAt,
     getContracts,
     clone,
-    setHotAmount
+    setHotAmount,
+    deployContracts
 };

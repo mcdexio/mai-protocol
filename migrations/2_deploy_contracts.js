@@ -16,20 +16,16 @@ module.exports = function(deployer, network, accounts) {
                         .deploy(Proxy)
                         .then(function(proxyInstance) {
                             return deployer
-                                .deploy(TestToken, 'HydroToken', 'Hot', 18)
+                                .deploy(HybridExchange, Proxy.address)
                                 .then(function() {
-                                    return deployer
-                                        .deploy(HybridExchange, Proxy.address, TestToken.address)
+                                    return proxyInstance
+                                        .addAddress(HybridExchange.address)
                                         .then(function() {
-                                            return proxyInstance
-                                                .addAddress(HybridExchange.address)
-                                                .then(function() {
-                                                    console.log(
-                                                        "Proxy initialized with", 
-                                                        HybridExchange.address
-                                                    );
-                                                })
-                                        });
+                                            console.log(
+                                                "Proxy initialized with", 
+                                                HybridExchange.address
+                                            );
+                                        })
                                 });
                         });
                 });

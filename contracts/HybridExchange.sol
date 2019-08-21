@@ -25,14 +25,13 @@ import "./lib/LibOrder.sol";
 import "./lib/LibMath.sol";
 import "./lib/LibSignature.sol";
 import "./lib/LibRelayer.sol";
-import "./lib/LibDiscount.sol";
 import "./lib/LibExchangeErrors.sol";
 import "./interfaces/IMarketContractPool.sol";
 import "./interfaces/IMarketContract.sol";
 import "./interfaces/IERC20.sol";
 import "./lib/MathLib.sol";
 
-contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchangeErrors {
+contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
     using SafeMath for uint256;
 
     uint256 public constant FEE_RATE_BASE = 100000;
@@ -123,9 +122,8 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
         MatchResult result
     );
 
-    constructor(address _proxyAddress, address hotTokenAddress)
-        LibDiscount(hotTokenAddress)
-        public
+    constructor(address _proxyAddress)
+        public 
     {
         proxyAddress = _proxyAddress;
     }
@@ -166,19 +164,15 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
 
         OrderContext memory orderContext = makeOrderContext(orderAddressSet, takerOrderParam);
 
-        uint256 takerFeeRate = getTakerFeeRate(takerOrderParam, false);
+        uint256 takerFeeRate = getTakerFeeRate(takerOrderParam);
         OrderInfo memory takerOrderInfo = getOrderInfo(takerOrderParam, orderAddressSet, orderContext);
 
         // Calculate which orders match for settlement.
         MatchResult[] memory results = new MatchResult[](makerOrderParams.length);
-        uint256 takerUnitPrice = takerOrderParam.quoteTokenAmount.div(takerOrderParam.baseTokenAmount);
         for (uint256 i = 0; i < makerOrderParams.length; i++) {
             require(!isMarketOrder(makerOrderParams[i].data), MAKER_ORDER_CAN_NOT_BE_MARKET_ORDER);
-            // by yz: cannot match (Buy Long + Sell Short) or (Buy Short + Sell Long)
             require(!((isSell(takerOrderParam.data) != isSell(makerOrderParams[i].data)) &&
                 (isLong(takerOrderParam.data) != isLong(makerOrderParams[i].data))), INVALID_SIDE);
-            // TODO: validate rules
-            // validatePrice(takerOrderParam, makerOrderParams[i]);
 
             OrderInfo memory makerOrderInfo = getOrderInfo(makerOrderParams[i], orderAddressSet, orderContext);
 
@@ -188,25 +182,27 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
                 makerOrderParams[i],
                 makerOrderInfo,
                 baseTokenFilledAmounts[i],
-                takerFeeRate,
-                false
+                takerFeeRate
             );
-            if (results[i].fillAction != FillAction.EXCHANGE) {
-                uint256 unitPrice = makerOrderParams[i].quoteTokenAmount
-                    .div(makerOrderParams[i].baseTokenAmount)
-                    .add(takerUnitPrice);
-                if (results[i].fillAction == FillAction.REDEEM) {
-                    require(
-                        unitPrice <= orderContext.collateralPerUnit,
-                        "REDEEM_PRICE_NOT_MET"
-                    );
-                } else {
-                    require(
-                        unitPrice >= orderContext.collateralPerUnit
-                            .add(orderContext.collateralTokenFeePerUnit),
-                        "MINT_PRICE_NOT_MET"
-                    );
-                }
+
+            if (results[i].fillAction == FillAction.EXCHANGE) {
+                validatePrice(takerOrderParam, makerOrderParams[i]);
+            } else if (results[i].fillAction == FillAction.REDEEM) {
+                validateRedeemPrice(
+                    results[i],
+                    takerOrderParam,
+                    makerOrderParams[i],
+                    orderContext
+                );
+            } else if (results[i].fillAction == FillAction.MINT) {
+                validateMintPrice(
+                    results[i],
+                    takerOrderParam,
+                    makerOrderParams[i],
+                    orderContext
+                );
+            } else {
+                revert("UNSUPPORTED_FILL_ACTION");
             }
             // Update amount filled for this maker order.
             filled[makerOrderInfo.orderHash] = makerOrderInfo.filledAmount;
@@ -216,6 +212,73 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
 
         settleResults(results, takerOrderParam, orderAddressSet, orderContext);
     }
+
+    /**
+     * Validates that the maker and taker orders can be matched based on the listed prices.
+     *
+     * If the taker submitted a sell order, the matching maker order must have a price greater than
+     * or equal to the price the taker is willing to sell for.
+     *
+     * Since the price of an order is computed by order.quoteTokenAmount / order.baseTokenAmount
+     * we can establish the following formula:
+     *
+     *    takerOrder.quoteTokenAmount        makerOrder.quoteTokenAmount
+     *   -----------------------------  <=  -----------------------------
+     *     takerOrder.baseTokenAmount        makerOrder.baseTokenAmount
+     *
+     * To avoid precision loss from division, we modify the formula to avoid division entirely.
+     * In shorthand, this becomes:
+     *
+     *   takerOrder.quote * makerOrder.base <= takerOrder.base * makerOrder.quote
+     *
+     * We can apply this same process to buy orders - if the taker submitted a buy order then
+     * the matching maker order must have a price less than or equal to the price the taker is
+     * willing to pay. This means we can use the same result as above, but simply flip the
+     * sign of the comparison operator.
+     *
+     * The function will revert the transaction if the orders cannot be matched.
+     *
+     * @param takerOrderParam The OrderParam object representing the taker's order data
+     * @param makerOrderParam The OrderParam object representing the maker's order data
+     */
+    function validatePrice(OrderParam memory takerOrderParam, OrderParam memory makerOrderParam)
+        internal
+        pure
+    {
+        uint256 left = takerOrderParam.quoteTokenAmount.mul(makerOrderParam.baseTokenAmount);
+        uint256 right = takerOrderParam.baseTokenAmount.mul(makerOrderParam.quoteTokenAmount);
+        require(isSell(takerOrderParam.data) ? left <= right : left >= right, INVALID_MATCH);
+    }
+
+    function validateRedeemPrice(
+        MatchResult memory result,
+        OrderParam memory takerOrderParam,
+        OrderParam memory makerOrderParam,
+        OrderContext memory orderContext
+    )
+        internal
+        pure
+    {
+        uint256 left = takerOrderParam.quoteTokenAmount.mul(makerOrderParam.baseTokenAmount);
+        uint256 right = takerOrderParam.baseTokenAmount.mul(makerOrderParam.quoteTokenAmount);
+        require(left.add(right) <= orderContext.collateralPerUnit, "REDEEM_PRICE_NOT_MET");
+    }
+
+    function validateMintPrice(
+        MatchResult memory result,
+        OrderParam memory takerOrderParam,
+        OrderParam memory makerOrderParam,
+        OrderContext memory orderContext
+    )
+        internal
+        pure
+    {
+        uint256 left = takerOrderParam.quoteTokenAmount.mul(makerOrderParam.baseTokenAmount);
+        uint256 right = takerOrderParam.baseTokenAmount.mul(makerOrderParam.quoteTokenAmount);
+        uint256 totalFee = left.add(right).add(result.makerFee).add(result.takerFee);
+        require(totalFee >= orderContext.collateralPerUnit.add(orderContext.collateralTokenFeePerUnit), "MINT_PRICE_NOT_MET");
+    }
+
 
     /**
      * Cancels an order, preventing it from being matched. In practice, matching mode relayers will
@@ -310,43 +373,6 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
     }
 
     /**
-     * Validates that the maker and taker orders can be matched based on the listed prices.
-     *
-     * If the taker submitted a sell order, the matching maker order must have a price greater than
-     * or equal to the price the taker is willing to sell for.
-     *
-     * Since the price of an order is computed by order.quoteTokenAmount / order.baseTokenAmount
-     * we can establish the following formula:
-     *
-     *    takerOrder.quoteTokenAmount        makerOrder.quoteTokenAmount
-     *   -----------------------------  <=  -----------------------------
-     *     takerOrder.baseTokenAmount        makerOrder.baseTokenAmount
-     *
-     * To avoid precision loss from division, we modify the formula to avoid division entirely.
-     * In shorthand, this becomes:
-     *
-     *   takerOrder.quote * makerOrder.base <= takerOrder.base * makerOrder.quote
-     *
-     * We can apply this same process to buy orders - if the taker submitted a buy order then
-     * the matching maker order must have a price less than or equal to the price the taker is
-     * willing to pay. This means we can use the same result as above, but simply flip the
-     * sign of the comparison operator.
-     *
-     * The function will revert the transaction if the orders cannot be matched.
-     *
-     * @param takerOrderParam The OrderParam object representing the taker's order data
-     * @param makerOrderParam The OrderParam object representing the maker's order data
-     */
-    function validatePrice(OrderParam memory takerOrderParam, OrderParam memory makerOrderParam)
-        internal
-        pure
-    {
-        uint256 left = takerOrderParam.quoteTokenAmount.mul(makerOrderParam.baseTokenAmount);
-        uint256 right = takerOrderParam.baseTokenAmount.mul(makerOrderParam.quoteTokenAmount);
-        require(isSell(takerOrderParam.data) ? left <= right : left >= right, INVALID_MATCH);
-    }
-
-    /**
      * Construct a MatchResult from matching taker and maker order data, which will be used when
      * settling the orders and transferring token.
      *
@@ -355,7 +381,6 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
      * @param makerOrderParam The OrderParam object representing the maker's order data
      * @param makerOrderInfo The OrderInfo object representing the current maker order state
      * @param takerFeeRate The rate used to calculate the fee charged to the taker
-     * @param isParticipantRelayer Whether this relayer is participating in hot discount
      * @return MatchResult object containing data that will be used during order settlement.
      */
     function getMatchResult(
@@ -364,11 +389,10 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
         OrderParam memory makerOrderParam,
         OrderInfo memory makerOrderInfo,
         uint256 baseTokenFilledAmount,
-        uint256 takerFeeRate,
-        bool isParticipantRelayer
+        uint256 takerFeeRate
     )
         internal
-        view
+        pure
         returns (MatchResult memory result)
     {
         result.baseTokenFilledAmount = baseTokenFilledAmount;
@@ -416,55 +440,28 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
         // makerFee
         // 1. rawFeeRate from data
         uint256 makerRawFeeRate = getAsMakerFeeRateFromOrderData(makerOrderParam.data);
-        result.makerRebate = 0;
+        
+        result.makerFee = result.quoteTokenFilledAmount.
+            mul(makerRawFeeRate).
+            div(FEE_RATE_BASE);
 
-        // 2. final fee rate = rawFeeRate * 100
-        uint256 makerFeeRate = makerRawFeeRate.mul(DISCOUNT_RATE_BASE);
-
-        result.makerFee = result.quoteTokenFilledAmount.mul(makerFeeRate).div(
-            FEE_RATE_BASE.mul(DISCOUNT_RATE_BASE)
-        );
-
-        result.takerFee = result.quoteTokenFilledAmount.mul(takerFeeRate).div(
-            FEE_RATE_BASE.mul(DISCOUNT_RATE_BASE)
-        );
+        result.takerFee = result.quoteTokenFilledAmount.
+            mul(takerFeeRate).
+            div(FEE_RATE_BASE);
     }
 
     /**
      * Get the rate used to calculate the taker fee.
      *
      * @param orderParam The OrderParam object representing the taker order data.
-     * @param isParticipantRelayer Whether this relayer is participating in hot discount.
      * @return The final potentially discounted rate to use for the taker fee.
      */
-    function getTakerFeeRate(OrderParam memory orderParam, bool isParticipantRelayer)
+    function getTakerFeeRate(OrderParam memory orderParam)
         internal
-        view
+        pure
         returns(uint256)
     {
-        uint256 rawRate = getAsTakerFeeRateFromOrderData(orderParam.data);
-        return getFinalFeeRate(orderParam.trader, rawRate, isParticipantRelayer);
-    }
-
-    /**
-     * Take a fee rate and calculate the potentially discounted rate for this trader based on
-     * HOT token ownership.
-     *
-     * @param trader The address of the trader who made the order.
-     * @param rate The raw rate which we will discount if needed.
-     * @param isParticipantRelayer Whether this relayer is participating in hot discount.
-     * @return The final potentially discounted rate.
-     */
-    function getFinalFeeRate(address trader, uint256 rate, bool isParticipantRelayer)
-        internal
-        view
-        returns(uint256)
-    {
-        if (isParticipantRelayer) {
-            return rate.mul(getDiscountedRate(trader));
-        } else {
-            return rate.mul(DISCOUNT_RATE_BASE);
-        }
+        return getAsTakerFeeRateFromOrderData(orderParam.data);
     }
 
     /**
@@ -721,7 +718,6 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
         internal
     {
         uint256 totalFee = 0;
-        uint256 totalMintFee = 0;
 
         for (uint256 i = 0; i < results.length; i++) {
             if (results[i].fillAction == FillAction.EXCHANGE) {
@@ -759,9 +755,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
                     add(results[i].takerGasFee);
 
             } else if (results[i].fillAction == FillAction.MINT) {
-                totalMintFee = totalMintFee.add(
-                    doMint(results[i], orderAddressSet, orderContext)
-                );
+                doMint(results[i], orderAddressSet, orderContext);
             } else {
                 revert("UNSUPPORTED_MATCHING_PAIR");
             }
@@ -774,15 +768,6 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
                 results[0].taker,
                 orderAddressSet.relayer,
                 totalFee
-            );
-        }
-
-        if (totalMintFee > 0) {
-            transfer(
-                orderContext.collateralToken,
-                results[0].taker,
-                totalMintFee.
-                    sub(results[0].takerGasFee)
             );
         }
     }
@@ -810,8 +795,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
         // baseTokenFilledAmount
         uint256 neededCollateral = MathLib.multiply(
             result.baseTokenFilledAmount,
-            orderContext.collateralPerUnit.
-                add(orderContext.collateralTokenFeePerUnit)
+            orderContext.collateralPerUnit
         );
         // maker -> proxy
         transferFrom(
@@ -827,7 +811,8 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
             orderContext.collateralToken,
             result.taker,
             proxyAddress,
-            neededCollateral.sub(result.quoteTokenFilledAmount).
+            neededCollateral.
+                sub(result.quoteTokenFilledAmount).
                 add(result.takerFee).
                 add(result.takerGasFee)
         );
@@ -839,7 +824,11 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibDiscount, LibExchan
             result.maker,
             result.baseTokenFilledAmount
         );
-        return result.baseTokenFilledAmount;
+        transfer(
+            orderContext.takerPositionToken,
+            result.taker,
+            result.baseTokenFilledAmount
+        );
     }
 
 /**

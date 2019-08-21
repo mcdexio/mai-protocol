@@ -2,7 +2,7 @@ const assert = require('assert');
 const MarketContract = artifacts.require('../interfaces/IMarketContract.sol');
 const IERC20 = artifacts.require('./interfaces/IERC20.sol');
 const BigNumber = require('bignumber.js');
-const { newContract, getWeb3, setHotAmount, getContracts, clone } = require('./utils');
+const { newContract, getWeb3, setHotAmount, getContracts, deployContracts, clone } = require('./utils');
 const { generateOrderData, isValidSignature, getOrderHash } = require('../sdk/sdk');
 const { fromRpcSig } = require('ethereumjs-util');
 
@@ -28,7 +28,7 @@ const fromWei = x => {
 const infinity = '999999999999999999999999999999999999999999';
 
 contract('Match', async accounts => {
-    let exchange, proxy, hot;
+    let exchange, proxy;
     let marketContract, collateralToken, longPositionToken, shortPositionToken;
     let orderAsset;
     let tokens;
@@ -40,12 +40,12 @@ contract('Match', async accounts => {
     const u3 = accounts[6];
     const u4 = accounts[7];
 
-    const marketContractAddress = "0x482eCdD2458398E6dc52336719B26b4DEaaB22Ed";
+    const marketContractAddress = "0xF47A65320427032931137c46c98715B5Bc43d1A1";
     beforeEach(async () => {
-        const contracts = await getContracts();
+        console.log(deployContracts);
+        const contracts = await deployContracts(admin);
         exchange = contracts.exchange;
         proxy = contracts.proxy;
-        hot = contracts.hot;
 
         marketContract = await getContract(MarketContract, marketContractAddress);
         collateralToken = await getContract(IERC20, await marketContract.methods.COLLATERAL_TOKEN_ADDRESS().call());
@@ -186,11 +186,11 @@ contract('Match', async accounts => {
             side: 'buy',
             type: 'limit',
             expiredAtSeconds: 3500000000,
-            asMakerFeeRate: 0,
-            asTakerFeeRate: 0,
+            asMakerFeeRate: 100,
+            asTakerFeeRate: 300,
             baseTokenAmount: toBase(amount),
             quoteTokenAmount: toWei(quote),
-            gasTokenAmount: toWei('0.1')
+            gasTokenAmount: toWei('1.45')
         };
         return await buildOrder(orderParam, longPositionToken._address, collateralToken._address, true);
     }
@@ -203,11 +203,11 @@ contract('Match', async accounts => {
             side: 'sell',
             type: 'limit',
             expiredAtSeconds: 3500000000,
-            asMakerFeeRate: 0,
-            asTakerFeeRate: 0,
+            asMakerFeeRate: 100,
+            asTakerFeeRate: 300,
             baseTokenAmount: toBase(amount),
             quoteTokenAmount: toWei(quote),
-            gasTokenAmount: toWei('0.1')
+            gasTokenAmount: toWei('0.45')
         };
         return await buildOrder(orderParam, longPositionToken._address, collateralToken._address, true);
     }
@@ -220,11 +220,11 @@ contract('Match', async accounts => {
             side: 'buy',
             type: 'limit',
             expiredAtSeconds: 3500000000,
-            asMakerFeeRate: 0,
-            asTakerFeeRate: 0,
+            asMakerFeeRate: 100,
+            asTakerFeeRate: 300,
             baseTokenAmount: toBase(amount),
             quoteTokenAmount: toWei(quote),
-            gasTokenAmount: toWei('0.1')
+            gasTokenAmount: toWei('1.45')
         };
         return await buildOrder(orderParam, shortPositionToken._address, collateralToken._address, false);
     }
@@ -237,11 +237,11 @@ contract('Match', async accounts => {
             side: 'sell',
             type: 'limit',
             expiredAtSeconds: 3500000000,
-            asMakerFeeRate: 0,
-            asTakerFeeRate: 0,
+            asMakerFeeRate: 100,
+            asTakerFeeRate: 300,
             baseTokenAmount: toBase(amount),
             quoteTokenAmount: toWei(quote),
-            gasTokenAmount: toWei('0.1')
+            gasTokenAmount: toWei('0.45')
         };
         return await buildOrder(orderParam, shortPositionToken._address, collateralToken._address, false);
     }
@@ -291,19 +291,19 @@ contract('Match', async accounts => {
             takerOrder: {
                 creator: buildBuyLongOrder,
                 user: u2,
-                amount: 1,
-                quote: 5000,
+                amount: 0.1,
+                quote: 30,
             },
             makerOrders: [
                 {
                     creator: buildBuyShortOrder,
                     user: u1,
-                    amount: 1,
-                    quote: 4000,
+                    amount: 0.1,
+                    quote: 70,
                 }
             ],
             filledAmounts: [
-                toBase("1")
+                toBase("0.1")
             ],
             orderAsset: orderAsset,
         }
@@ -316,6 +316,7 @@ contract('Match', async accounts => {
             });
     });
 
+    /*
     it('buy long + buy short = mint == multi', async () => {
 
         console.log(toBase("0.25"));
@@ -520,4 +521,5 @@ contract('Match', async accounts => {
                 await matchTest(config);
             });
     });
+    */
 });
