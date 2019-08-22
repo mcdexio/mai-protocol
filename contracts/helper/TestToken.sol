@@ -13,7 +13,7 @@ library SafeMath {
             return 0;
         }
         uint256 c = a * b;
-        assert(c / a == b);
+        require(c / a == b, "MUL_ERROR");
         return c;
     }
 
@@ -25,13 +25,12 @@ library SafeMath {
     }
 
     function sub(uint256 a, uint256 b) internal pure returns (uint256) {
-        assert(b <= a);
+        require(b <= a, "SUB_ERROR");
         return a - b;
     }
 
     function add(uint256 a, uint256 b) internal pure returns (uint256) {
         uint256 c = a + b;
-        assert(c >= a);
         return c;
     }
 }
@@ -51,12 +50,11 @@ contract BasicToken is ERC20Basic {
     * @param _value The amount to be transferred.
     */
     function transfer(address _to, uint256 _value) public returns (bool) {
-        require(_to != address(0));
-        require(_value <= balances[msg.sender]);
+        require(_to != address(0), "INVALID_ADDRESS");
+        require(_value <= balances[msg.sender], "INSUFFICIENT_FUNDS");
 
-        // SafeMath.sub will throw if there is not enough balance.
         balances[msg.sender] = balances[msg.sender].sub(_value);
-        balances[_to] = balances[_to].add(_value);
+        balances[_to] = balances[_to] + _value;
         emit Transfer(msg.sender, _to, _value);
         return true;
     }
@@ -186,10 +184,37 @@ contract TestToken is StandardToken {
     uint8 public decimals = 18;
     uint public totalSupply = 1560000000 * 10**18;
 
+    address public owner;
+    mapping(address => bool) public whitelist;
+
+    event Mint(address indexed _to, uint _value);
+    event Burn(address indexed _to, uint _value);
+
     constructor(string _name, string _symbol, uint8 _decimals) public {
         name = _name;
         symbol = _symbol;
         decimals = _decimals;
         balances[msg.sender] = totalSupply;
+        whitelist[msg.sender] = true;
+        owner = msg.sender;
+    }
+
+    function setWhitelist(address who, bool enable) public {
+        require(msg.sender == owner, "OWNER_ONLY");
+        whitelist[who] = enable;
+    }
+
+    function mint(address _to, uint _value) public {
+        require(whitelist[msg.sender] == true, "WHITELISTED_ONLY");
+        balances[_to] = balances[_to].add(_value);
+        totalSupply = totalSupply.add(_value);
+        emit Mint(_to, _value);
+    }
+
+    function burn(address _from, uint _value) public {
+        require(whitelist[msg.sender] == true, "WHITELISTED_ONLY");
+        balances[_from] = balances[_from].sub(_value);
+        totalSupply = totalSupply.sub(_value);
+        emit Burn(_from, _value);
     }
 }

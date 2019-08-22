@@ -1,8 +1,6 @@
 const assert = require('assert');
-const MarketContract = artifacts.require('../interfaces/IMarketContract.sol');
-const IERC20 = artifacts.require('./interfaces/IERC20.sol');
 const BigNumber = require('bignumber.js');
-const { newContract, getWeb3, setHotAmount, getContracts, deployContracts, clone } = require('./utils');
+const { getWeb3, getContracts, getMarketContracts } = require('./utils');
 const { generateOrderData, isValidSignature, getOrderHash } = require('../sdk/sdk');
 const { fromRpcSig } = require('ethereumjs-util');
 
@@ -29,45 +27,31 @@ const infinity = '999999999999999999999999999999999999999999';
 
 contract('Match', async accounts => {
     let exchange, proxy;
-    let marketContract, collateralToken, longPositionToken, shortPositionToken;
-    let orderAsset;
-    let tokens;
+    let mpx, collateral, long, short;
 
     const relayer = accounts[9];
     const admin = accounts[0];
+
     const u1 = accounts[4];
     const u2 = accounts[5];
     const u3 = accounts[6];
-    const u4 = accounts[7];
 
-    const marketContractAddress = "0xF47A65320427032931137c46c98715B5Bc43d1A1";
     beforeEach(async () => {
-        console.log(deployContracts);
-        const contracts = await deployContracts(admin);
+        const contracts = await getContracts();
         exchange = contracts.exchange;
         proxy = contracts.proxy;
 
-        marketContract = await getContract(MarketContract, marketContractAddress);
-        collateralToken = await getContract(IERC20, await marketContract.methods.COLLATERAL_TOKEN_ADDRESS().call());
-        longPositionToken = await getContract(IERC20, await marketContract.methods.LONG_POSITION_TOKEN().call());
-        shortPositionToken = await getContract(IERC20, await marketContract.methods.SHORT_POSITION_TOKEN().call());
-
-        orderAsset = {
-            marketContractAddress: marketContractAddress,
-            relayer: relayer,
-            takerPositionToken: marketContractAddress,
-            collateralToken: marketContractAddress,
-            collateralPerUnit: marketContractAddress,
-            collateralTokenDecimals: 0,
-            positionTokenDecimals: 0,
-        }
-        tokens = {
-            "CTK  ": collateralToken,
-            "SHORT": shortPositionToken,
-            "LONG ": longPositionToken,
-        }
+        const mpxContracs = await getMarketContracts({
+            cap: 8500e10,
+            floor: 7500e10,
+            multiplier: 1000,
+            feeRate: 300,
+        });
+        mpx = mpxContracs.mpx;
+        collateral = mpxContracs.collateral;
+        long = mpxContracs.long;
+        short = mpxContracs.short;
     });
-    const sendParams = { from: admin, gas: 8000000 };
 
     const getOrderSignature = async (order, baseToken, quoteToken) => {
         const copyedOrder = JSON.parse(JSON.stringify(order));
@@ -88,7 +72,7 @@ contract('Match', async accounts => {
         order.orderHash = orderHash;
     };
 
-    const buildOrder = async (orderParam, baseTokenAddress, quoteTokenAddress, isLong) => {
+    const buildOrder = async (orderParam, baseTokenAddress, quoteTokenAddress) => {
         const order = {
             trader: orderParam.trader,
             relayer: orderParam.relayer,
@@ -102,7 +86,7 @@ contract('Match', async accounts => {
                 orderParam.makerRebateRate || '0',
                 Math.round(Math.random() * 10000000),
                 false,
-                isLong,
+                orderParam.position === 'long',
             ),
             baseTokenAmount: orderParam.baseTokenAmount,
             quoteTokenAmount: orderParam.quoteTokenAmount,
@@ -114,23 +98,27 @@ contract('Match', async accounts => {
         return order;
     };
 
-    const getContract = async (contract, address) => {
-        const w = getWeb3();
-        const instance = new w.eth.Contract(contract.abi, address);
-        return instance;
-    };
-
-    const initBalances = async (token, owner, userAmounts) => {
-        for (let j = 0; j < userAmounts.length; j++) {
-            const userAddress = userAmounts[j].address;
-            const amount = userAmounts[j].amount;
-
-            const userRemain = await token.methods.balanceOf(userAddress).call();
-            await token.methods.transfer(owner, userRemain).send({ from: userAddress });
-            await token.methods.transfer(userAddress, amount).send({ from: owner });
-            await token.methods.approve(proxy._address, infinity).send({ from: userAddress });
-        }
-    };
+    const buildMpxOrder = async (config) => {
+        const orderParam = {
+            trader: config.trader,
+            relayer,
+            version: 2,
+            side: config.side,
+            type: 'limit',
+            expiredAtSeconds: 3500000000,
+            asMakerFeeRate: config.makerFeeRate || '0',
+            asTakerFeeRate: config.takerFeeRate || '0',
+            baseTokenAmount: config.baseAmount,
+            quoteTokenAmount: config.quoteAmount,
+            gasTokenAmount: config.gasAmount || toWei(0.1),
+            position: config.position,
+        };
+        return await buildOrder(
+            orderParam, 
+            config.position === 'long' ? long._address: short._address, 
+            collateral._address
+        );
+    }
 
     const getNormalizedBalance = async (contract, user) => {
         const decimals = await contract.methods.decimals().call();
@@ -178,150 +166,240 @@ contract('Match', async accounts => {
         }
     }
 
-    const buildBuyLongOrder = async (user, amount, quote) => {
-        const orderParam = {
-            trader: user,
-            relayer,
-            version: 2,
-            side: 'buy',
-            type: 'limit',
-            expiredAtSeconds: 3500000000,
-            asMakerFeeRate: 100,
-            asTakerFeeRate: 300,
-            baseTokenAmount: toBase(amount),
-            quoteTokenAmount: toWei(quote),
-            gasTokenAmount: toWei('1.45')
-        };
-        return await buildOrder(orderParam, longPositionToken._address, collateralToken._address, true);
-    }
 
-    const buildSellLongOrder = async (user, amount, quote) => {
-        const orderParam = {
-            trader: user,
-            relayer,
-            version: 2,
-            side: 'sell',
-            type: 'limit',
-            expiredAtSeconds: 3500000000,
-            asMakerFeeRate: 100,
-            asTakerFeeRate: 300,
-            baseTokenAmount: toBase(amount),
-            quoteTokenAmount: toWei(quote),
-            gasTokenAmount: toWei('0.45')
-        };
-        return await buildOrder(orderParam, longPositionToken._address, collateralToken._address, true);
-    }
+    /*
+    matchConfigs    - initialBalances   { token: user: amount }
+                    - taker             object
+                    - makers            []
+                    - orderAsset        {}
+                    - filledAmounts     []
+                    - expectBalances    {}
+                    - users
+                    - tokens 
+                    - admin
+                    - gasLimit
+    */
 
-    const buildBuyShortOrder = async (user, amount, quote) => {
-        const orderParam = {
-            trader: user,
-            relayer,
-            version: 2,
-            side: 'buy',
-            type: 'limit',
-            expiredAtSeconds: 3500000000,
-            asMakerFeeRate: 100,
-            asTakerFeeRate: 300,
-            baseTokenAmount: toBase(amount),
-            quoteTokenAmount: toWei(quote),
-            gasTokenAmount: toWei('1.45')
-        };
-        return await buildOrder(orderParam, shortPositionToken._address, collateralToken._address, false);
-    }
+    const matchTest = async (matchConfigs, beforeMatching = undefined, afterMatching = undefined) => {
+        const gasLimit = matchConfigs.gasLimit || 8000000;
+        const admin = matchConfigs.admin;
+        const users = matchConfigs.users || {};
+        const tokens = matchConfigs.tokens || {};
 
-    const buildSellShortOrder = async (user, amount, quote) => {
-        const orderParam = {
-            trader: user,
-            relayer,
-            version: 2,
-            side: 'sell',
-            type: 'limit',
-            expiredAtSeconds: 3500000000,
-            asMakerFeeRate: 100,
-            asTakerFeeRate: 300,
-            baseTokenAmount: toBase(amount),
-            quoteTokenAmount: toWei(quote),
-            gasTokenAmount: toWei('0.45')
-        };
-        return await buildOrder(orderParam, shortPositionToken._address, collateralToken._address, false);
-    }
+        const call = async (method) => {
+            return await method.call();
+        }
+        const send = async (user, method) => {
+            return await method.send({ from: user, gasLimit: gasLimit });
+        }
 
-    const matchTest = async (matchConfigs) => {
-        const takerOrder = await matchConfigs.takerOrder.creator(
-            matchConfigs.takerOrder.user,
-            matchConfigs.takerOrder.amount,
-            matchConfigs.takerOrder.quote,
-        );
-        await longPositionToken.methods.approve(proxy._address, infinity).send({ from: matchConfigs.takerOrder.user });
-        await shortPositionToken.methods.approve(proxy._address, infinity).send({ from: matchConfigs.takerOrder.user });
+        // initialBalances
+        const initialBalances = matchConfigs.initialBalances;
+        if (initialBalances !== undefined) {
+            console.log("===> initialBalances")
+            for (let i = 0; i < Object.keys(initialBalances).length; i++) {
+                const tokenName = Object.keys(initialBalances)[i];
+                const token = tokens[tokenName];
+                for (let j = 0; j < Object.keys(initialBalances[tokenName]).length; j++) {
+                    const userName = Object.keys(initialBalances[tokenName])[j];
+                    const user = users[userName];
+                    const amount = initialBalances[tokenName][userName];
+                    if (amount > 0) {
+                        await send(admin, token.methods.mint(user, amount));
+                    }
+                    await send(user, token.methods.approve(proxy._address, infinity));
+                }
+            }
+        }
 
+        // build orders
+        console.log("===> buildOrders")
+        const takerOrder = await buildMpxOrder(matchConfigs.takerOrder);
         let makerOrders = [];
         for (let i = 0; i < matchConfigs.makerOrders.length; i++) {
-            const makerOrder = await matchConfigs.makerOrders[i].creator(
-                matchConfigs.makerOrders[i].user,
-                matchConfigs.makerOrders[i].amount,
-                matchConfigs.makerOrders[i].quote,
-            );
-            await longPositionToken.methods.approve(proxy._address, infinity).send({ from: matchConfigs.makerOrders[i].user });
-            await shortPositionToken.methods.approve(proxy._address, infinity).send({ from: matchConfigs.makerOrders[i].user });
+            const makerOrder = await buildMpxOrder(matchConfigs.makerOrders[i]);
             makerOrders.push(makerOrder);
         }
 
-        console.log("==> approve");
-        await collateralToken.methods.approve(proxy._address, infinity).send({ from: relayer });
-        await longPositionToken.methods.approve(proxy._address, infinity).send({ from: relayer });
-        await shortPositionToken.methods.approve(proxy._address, infinity).send({ from: relayer });
-        await proxy.methods.approveMarketContractPool(marketContractAddress).send({ from: admin });
+        // prepare
+        await send(admin, proxy.methods.approveMarketContractPool(mpx._address));
 
-        console.log("==> matching")
-        await exchange.methods.matchOrders(
+        if (beforeMatching !== undefined) {
+            beforeMatching();
+        }
+        // matching
+        console.log("===> matching")
+        await send(relayer, exchange.methods.matchOrders(
             takerOrder,
             makerOrders,
             matchConfigs.filledAmounts,
             matchConfigs.orderAsset
-        ).send({ from: relayer, gas: 8000000 });
+        ));
+        if (afterMatching !== undefined) {
+            afterMatching();
+        }
+
+        // expect balances
+        const expectBalances = matchConfigs.expectBalances;
+        if (expectBalances !== undefined) {
+            console.log("===> check balance")
+            for (let i = 0; i < Object.keys(expectBalances).length; i++) {
+                const tokenName = Object.keys(expectBalances)[i];
+                const token = tokens[tokenName];
+
+                for (let j = 0; j < Object.keys(expectBalances[tokenName]).length; j++) {
+                    const userName = Object.keys(expectBalances[tokenName])[j];
+                    const user = users[userName];
+                    const expect = expectBalances[tokenName][userName];
+                    const actural = await call(token.methods.balanceOf(user));
+                    assert.equal(expect, actural, userName + " has unexpected balance");
+                }
+            }
+        }
     }
     
-    it('buy long + buy short = mint -- single', async () => {
-        await initBalances(collateralToken, admin, [
-            { address: u1, amount: toWei("10000") },
-            { address: u2, amount: toWei("10000") },
-        ]);
-        const config = {
+    /*
+        matchConfigs    - initialBalances   { token: user: amount }
+                    - taker             object
+                    - makers            []
+                    - orderAsset        {}
+                    - filledAmounts     []
+                    - expectBalances    {}
+                    - users
+                    - tokens 
+                    - admin
+                    - gasLimit
+    */
+    it('buy(long) + buy(short) = mint', async () => {
+        const testConfig = {
+            initialBalances: {
+                collateral: {
+                    u1: toWei(10000),
+                    u2: toWei(10000),
+                    relayer: 0,
+                },
+                long: { u1: 0, u2: 0, relayer: 0 },
+                short: { u1: 0, u2: 0, relayer: 0 },
+            },
             takerOrder: {
-                creator: buildBuyLongOrder,
-                user: u2,
-                amount: 0.1,
-                quote: 30,
+                trader: u2,
+                side: "buy",
+                position: "long",
+                baseAmount: toBase(0.1),
+                quoteAmount: toWei(40),
+                takerFeeRate: 250,
             },
             makerOrders: [
                 {
-                    creator: buildBuyShortOrder,
-                    user: u1,
-                    amount: 0.1,
-                    quote: 70,
+                    trader: u1,
+                    side: "buy",
+                    position: "short",
+                    baseAmount: toBase(0.1),
+                    quoteAmount: toWei(70),
+                    makerFeeRate: 250,
                 }
             ],
             filledAmounts: [
-                toBase("0.1")
+                toBase(0.1)
             ],
-            orderAsset: orderAsset,
+            expectBalances: {
+                collateral: {
+                    u1: toWei(10000 - 70 - 2 - 0.1),
+                    u2: toWei(10000 - 30 - 2 - 0.1),
+                },
+                long: { 
+                    u1: 0, 
+                    u2: toBase(0.1),
+                },
+                short: {
+                    u1: toBase(0.1), 
+                    u2: 0
+                },
+            },
+            orderAsset: {
+                marketContractAddress: mpx._address,
+                relayer: relayer,
+            },
+            users: { admin: admin, u1: u1, u2: u2, u3: u3, relayer: relayer },
+            tokens: { collateral: collateral, long: long, short: short },
+            admin: admin,
+            gasLimit: 8000000,
         }
-
-        await withBalanceWatcher(
-            tokens,
-            { u1: u1, u2: u2, proxy: proxy._address },
-            async () => {
-                await matchTest(config);
-            });
+        await matchTest(testConfig);
     });
+
+    it('sell(long) + sell(short) = redeem', async () => {
+        const testConfig = {
+            initialBalances: {
+                collateral: {
+                    u1: 0,
+                    u2: 0,
+                    relayer: 0,
+                },
+                long: { 
+                    u1: toBase(0.1), 
+                    u2: 0, 
+                    relayer: 0 },
+                short: { 
+                    u1: 0, 
+                    u2: toBase(0.1), 
+                    relayer: 0 
+                },
+            },
+            takerOrder: {
+                trader: u2,
+                side: "sell",
+                position: "short",
+                baseAmount: toBase(0.1),
+                quoteAmount: toWei(40),
+                takerFeeRate: 250,
+            },
+            makerOrders: [
+                {
+                    trader: u1,
+                    side: "sell",
+                    position: "long",
+                    baseAmount: toBase(0.1),
+                    quoteAmount: toWei(50),
+                    makerFeeRate: 250,
+                }
+            ],
+            filledAmounts: [
+                toBase(0.1)
+            ],
+            expectBalances: {
+                collateral: {
+                    u1: toWei(50 - 2 - 0.1),
+                    u2: toWei(50 - 2 - 0.1),
+                },
+                long: { 
+                    u1: 0, 
+                    u2: 0,
+                },
+                short: {
+                    u1: 0, 
+                    u2: 0,
+                },
+            },
+            orderAsset: {
+                marketContractAddress: mpx._address,
+                relayer: relayer,
+            },
+            users: { admin: admin, u1: u1, u2: u2, u3: u3, relayer: relayer },
+            tokens: { collateral: collateral, long: long, short: short },
+            admin: admin,
+            gasLimit: 8000000,
+        }
+        await matchTest(testConfig);
+    });
+
 
     /*
     it('buy long + buy short = mint == multi', async () => {
 
         console.log(toBase("0.25"));
 
-        await initBalances(collateralToken, admin, [
+        await initialBalances(collateral, admin, [
             { address: u1, amount: toWei("10000") },
             { address: u2, amount: toWei("10000") },
             { address: u3, amount: toWei("10000") },
@@ -446,7 +524,7 @@ contract('Match', async accounts => {
     
 
     it('buy long + sell long = exchange -- single', async () => {
-        await initBalances(collateralToken, admin, [
+        await initialBalances(collateral, admin, [
             { address: u1, amount: toWei("10000") },
             { address: u2, amount: toWei("10000") },
         ]);
@@ -481,7 +559,7 @@ contract('Match', async accounts => {
     
 
     it('buy long + sell long = exchange -- multi', async () => {
-        await initBalances(collateralToken, admin, [
+        await initialBalances(collateral, admin, [
             { address: u1, amount: toWei("10000") },
             { address: u2, amount: toWei("10000") },
             { address: u3, amount: toWei("10000") },

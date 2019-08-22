@@ -1,8 +1,10 @@
 const Web3 = require('web3');
 const Proxy = artifacts.require('./Proxy.sol');
 const HybridExchange = artifacts.require('./HybridExchange.sol');
-const TestToken = artifacts.require('./helper/TestToken.sol');
 const BigNumber = require('bignumber.js');
+const TestToken = artifacts.require('helper/TestToken.sol');
+const TestMarketContract = artifacts.require('helper/TestMarketContract.sol');
+
 
 BigNumber.config({ EXPONENTIAL_AT: 1000 });
 
@@ -42,7 +44,9 @@ const getContracts = async () => {
 
     const exchange = await newContract(HybridExchange, proxy._address);
     // console.log('Dxchange address', web3.toChecksumAddress(exchange._address));
-    await proxy.methods.addAddress(exchange._address).send({ from: web3.eth.coinbase });
+    const accounts = await web3.eth.getAccounts();
+
+    await proxy.methods.addAddress(exchange._address).send({ from: accounts[0] });
 
     return {
         proxy,
@@ -50,20 +54,36 @@ const getContracts = async () => {
     };
 };
 
-const deployContracts = async (owner) => {
-    const proxy = await newContract(Proxy);
-    // console.log('Proxy address', web3.toChecksumAddress(proxy._address));
+const getMarketContracts = async (configs) => {
+    const collateral = await newContract(TestToken, "Collateral Token", "CTK", 18);
+    const long = await newContract(TestToken, "Long Position Token", "lBTC", 5);
+    const short = await newContract(TestToken, "Short Position Token", "sBTC", 5);
+    const mpx = await newContract(
+        TestMarketContract,
+        collateral._address,
+        long._address,
+        short._address,
+        configs.cap,
+        configs.floor,
+        configs.multiplier,
+        configs.feeRate
+    );
 
-    const exchange = await newContract(HybridExchange, proxy._address);
-    // console.log('Dxchange address', web3.toChecksumAddress(exchange._address));
-    await proxy.methods.addAddress(exchange._address).send({ from: owner });
+    const accounts = await web3.eth.getAccounts();
+
+    await Promise.all([
+        collateral.methods.setWhitelist(mpx._address, true).send({ from: accounts[0] }),
+        long.methods.setWhitelist(mpx._address, true).send({ from: accounts[0] }),
+        short.methods.setWhitelist(mpx._address, true).send({ from: accounts[0] }),
+    ]);
 
     return {
-        proxy,
-        exchange
-    };
-};
-
+        collateral,
+        long,
+        short,
+        mpx,
+    }
+}
 
 const clone = x => JSON.parse(JSON.stringify(x));
 
@@ -74,5 +94,5 @@ module.exports = {
     getContracts,
     clone,
     setHotAmount,
-    deployContracts
+    getMarketContracts
 };

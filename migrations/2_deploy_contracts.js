@@ -15,6 +15,10 @@ module.exports = function(deployer, network, accounts) {
                     return deployer
                         .deploy(Proxy)
                         .then(function(proxyInstance) {
+                            console.log(
+                                "Proxy deployed at", 
+                                Proxy.address
+                            );
                             return deployer
                                 .deploy(HybridExchange, Proxy.address)
                                 .then(function() {

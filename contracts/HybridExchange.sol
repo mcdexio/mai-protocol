@@ -44,8 +44,6 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
      */
     address public proxyAddress;
 
-    address public contractPoolAddress;
-
     /**
      * Mapping of orderHash => amount
      * Generally the amount will be specified in base token units, however in the case of a market
@@ -100,6 +98,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         address takerPositionToken;             // position token: long or short
         uint256 collateralPerUnit;              // required collateral + mint fee
         uint256 collateralTokenFeePerUnit;      // required collateral + mint fee
+        uint256 middleCollateralPerUnit;        // middle price of cap and floor
     }
 
     struct MatchResult {
@@ -123,7 +122,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
     );
 
     constructor(address _proxyAddress)
-        public 
+        public
     {
         proxyAddress = _proxyAddress;
     }
@@ -143,6 +142,10 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             orderContext.longPositionToken : orderContext.shortPositionToken;
         orderContext.collateralPerUnit = marketContract.COLLATERAL_PER_UNIT();
         orderContext.collateralTokenFeePerUnit = marketContract.COLLATERAL_TOKEN_FEE_PER_UNIT();
+        orderContext.middleCollateralPerUnit = marketContract.PRICE_CAP().
+            add(marketContract.PRICE_FLOOR()).
+            mul(marketContract.QTY_MULTIPLIER()).
+            div(2);
     }
 
     /**
@@ -181,6 +184,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
                 takerOrderInfo,
                 makerOrderParams[i],
                 makerOrderInfo,
+                orderContext,
                 baseTokenFilledAmounts[i],
                 takerFeeRate
             );
@@ -259,8 +263,8 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         internal
         pure
     {
-        uint256 left = takerOrderParam.quoteTokenAmount.mul(makerOrderParam.baseTokenAmount);
-        uint256 right = takerOrderParam.baseTokenAmount.mul(makerOrderParam.quoteTokenAmount);
+        uint256 left = takerOrderParam.quoteTokenAmount.div(takerOrderParam.baseTokenAmount);
+        uint256 right = makerOrderParam.quoteTokenAmount.div(makerOrderParam.baseTokenAmount);
         require(left.add(right) <= orderContext.collateralPerUnit, "REDEEM_PRICE_NOT_MET");
     }
 
@@ -273,8 +277,8 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         internal
         pure
     {
-        uint256 left = takerOrderParam.quoteTokenAmount.mul(makerOrderParam.baseTokenAmount);
-        uint256 right = takerOrderParam.baseTokenAmount.mul(makerOrderParam.quoteTokenAmount);
+        uint256 left = takerOrderParam.quoteTokenAmount.mul(takerOrderParam.baseTokenAmount);
+        uint256 right = makerOrderParam.quoteTokenAmount.mul(makerOrderParam.baseTokenAmount);
         uint256 totalFee = left.add(right).add(result.makerFee).add(result.takerFee);
         require(totalFee >= orderContext.collateralPerUnit.add(orderContext.collateralTokenFeePerUnit), "MINT_PRICE_NOT_MET");
     }
@@ -388,6 +392,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         OrderInfo memory takerOrderInfo,
         OrderParam memory makerOrderParam,
         OrderInfo memory makerOrderInfo,
+        OrderContext memory orderContext,
         uint256 baseTokenFilledAmount,
         uint256 takerFeeRate
     )
@@ -407,12 +412,9 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             result.makerGasFee = makerOrderParam.gasTokenAmount;
         }
 
-        makerOrderInfo.filledAmount = makerOrderInfo.filledAmount.add(result.baseTokenFilledAmount);
-
         // buy + sell, and all long or all short, do exchange
         if (isSell(takerOrderParam.data) != isSell(makerOrderParam.data)) {
-            require(makerOrderInfo.filledAmount <= makerOrderParam.baseTokenAmount, MAKER_ORDER_OVER_MATCH);
-
+            result.fillAction = FillAction.EXCHANGE;
             if(!isMarketBuy(takerOrderParam.data)) {
                 takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(result.baseTokenFilledAmount);
                 require(takerOrderInfo.filledAmount <= takerOrderParam.baseTokenAmount, TAKER_ORDER_OVER_MATCH);
@@ -420,14 +422,15 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
                 takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(result.quoteTokenFilledAmount);
                 require(takerOrderInfo.filledAmount <= takerOrderParam.quoteTokenAmount, TAKER_ORDER_OVER_MATCH);
             }
-
-            result.fillAction = FillAction.EXCHANGE;
         } else {
-            // buy + buy, sell + sell
             result.fillAction = isSell(takerOrderParam.data)? FillAction.REDEEM: FillAction.MINT;
             takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(result.baseTokenFilledAmount);
+            require(takerOrderInfo.filledAmount <= takerOrderParam.baseTokenAmount, TAKER_ORDER_OVER_MATCH);
         }
 
+        makerOrderInfo.filledAmount = makerOrderInfo.filledAmount.add(result.baseTokenFilledAmount);
+        require(makerOrderInfo.filledAmount <= makerOrderParam.baseTokenAmount, MAKER_ORDER_OVER_MATCH);
+        
         result.maker = makerOrderParam.trader;
         result.taker = takerOrderParam.trader;
 
@@ -441,11 +444,13 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         // 1. rawFeeRate from data
         uint256 makerRawFeeRate = getAsMakerFeeRateFromOrderData(makerOrderParam.data);
         
-        result.makerFee = result.quoteTokenFilledAmount.
+        result.makerFee = result.baseTokenFilledAmount.
+            mul(orderContext.middleCollateralPerUnit).
             mul(makerRawFeeRate).
             div(FEE_RATE_BASE);
 
-        result.takerFee = result.quoteTokenFilledAmount.
+        result.takerFee = result.baseTokenFilledAmount.
+            mul(orderContext.middleCollateralPerUnit).
             mul(takerFeeRate).
             div(FEE_RATE_BASE);
     }
@@ -625,7 +630,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             transfer(
                 orderContext.collateralToken,
                 results[0].taker,
-                totalTakerQuoteTokenFilledAmount.
+                totalTakerQuoteTokenRedeemedAmount.
                     sub(results[0].takerGasFee)
             );
         }
