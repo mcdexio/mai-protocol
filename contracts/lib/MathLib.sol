@@ -14,7 +14,7 @@
     limitations under the License.
 */
 // pragma solidity 0.5.2;
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.2;
 
 
 /// @title Math function library with overflow protection inspired by Open Zeppelin

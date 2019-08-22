@@ -16,7 +16,7 @@
 
 */
 
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.2;
 
 /**
  * @title LibRelayer provides two distinct features for relayers. 

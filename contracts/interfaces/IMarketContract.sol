@@ -1,85 +1,85 @@
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.2;
 
-contract IMarketContract {
+interface IMarketContract {
     // constants
     function CONTRACT_NAME()
-        public
+        external 
         view
-        returns (string);
+        returns (string memory);
     function COLLATERAL_TOKEN_ADDRESS()
-        public
+        external
         view
         returns (address);
     function COLLATERAL_POOL_ADDRESS()
-        public
+        external
         view
         returns (address);
     function PRICE_CAP()
-        public
+        external
         view
         returns (uint);
     function PRICE_FLOOR()
-        public
+        external
         view
         returns (uint);
     function PRICE_DECIMAL_PLACES()
-        public
+        external
         view
         returns (uint);
     function QTY_MULTIPLIER()
-        public
+        external
         view
         returns (uint);
     function COLLATERAL_PER_UNIT()
-        public
+        external
         view
         returns (uint);
     function COLLATERAL_TOKEN_FEE_PER_UNIT()
-        public
+        external
         view
         returns (uint);
     function MKT_TOKEN_FEE_PER_UNIT()
-        public
+        external
         view
         returns (uint);
     function EXPIRATION()
-        public
+        external
         view
         returns (uint);
     function SETTLEMENT_DELAY()
-        public
+        external
         view
         returns (uint);
     function LONG_POSITION_TOKEN()
-        public
+        external
         view
         returns (address);
     function SHORT_POSITION_TOKEN()
-        public
+        external
         view
         returns (address);
 
     // state variable
     function lastPrice()
-        public
+        external
         view
         returns (uint);
     function settlementPrice()
-        public
+        external
         view
         returns (uint); 
     function settlementTimeStamp()
-        public
+        external
         view
         returns (uint);
     function isSettled()
-        public
+        external
         view
         returns (bool); 
 
     // methods
     function isPostSettlementDelay()
-        public
+        external
         view
         returns (bool);
 }

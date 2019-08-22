@@ -16,7 +16,7 @@
 
 */
 
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.2;
 
 import "./lib/SafeMath.sol";
 import "./lib/LibWhitelist.sol";
@@ -46,7 +46,7 @@ contract Proxy is LibWhitelist {
         emit Withdraw(msg.sender, amount);
     }
 
-    function () public payable {
+    function () external payable {
         depositEther();
     }
 
