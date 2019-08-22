@@ -1,10 +1,10 @@
 pragma solidity ^0.4.24;
 
-contract IERC20 {
+interface IERC20 {
     function decimals() public view returns (uint8);
 
     /// @return total amount of tokens
-    function totalSupply() public pure returns (uint) {}
+    function totalSupply() public pure returns (uint);
 
     /// @param _owner The address from which the balance will be retrieved
     /// @return The balance

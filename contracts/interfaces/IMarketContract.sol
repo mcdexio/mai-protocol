@@ -1,11 +1,11 @@
 pragma solidity ^0.4.24;
 
-contract IMarketContract {
+interface IMarketContract {
     // constants
     function CONTRACT_NAME()
         public
         view
-        returns (string);
+        returns (string memory);
     function COLLATERAL_TOKEN_ADDRESS()
         public
         view
