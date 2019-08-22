@@ -744,6 +744,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
                     results[i].taker,
                     results[i].baseTokenFilledAmount
                 );
+                
                 // taker -> maker
                 transferFrom(
                     orderContext.collateralToken,
@@ -901,7 +902,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         }
 
         if (result == 0) {
-            revert(TRANSFER_FROM_FAILED);
+            revert(TRANSFER_FAILED);
         }
     }
 

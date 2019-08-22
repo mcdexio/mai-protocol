@@ -36,6 +36,7 @@ contract LibExchangeErrors {
 
     string constant MAKER_ONLY_ORDER_CANNOT_BE_TAKER = "MAKER_ONLY_ORDER_CANNOT_BE_TAKER";
 
+    string constant TRANSFER_FAILED = "TRANSFER_FAILED";
     string constant MINT_POSITION_TOKENS_FAILED = "MINT_FAILED";
     string constant REDEEM_POSITION_TOKENS_FAILED = "REDEEM_FAILED";
 }
