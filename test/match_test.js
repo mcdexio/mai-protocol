@@ -84,7 +84,7 @@ contract('Match', async accounts => {
                 orderParam.asMakerFeeRate,
                 orderParam.asTakerFeeRate,
                 orderParam.makerRebateRate || '0',
-                Math.round(Math.random() * 10000000),
+                Math.round(10000000),
                 false,
                 orderParam.position === 'long',
             ),
@@ -256,7 +256,6 @@ contract('Match', async accounts => {
         }
     }
 
-    /*
     it('buy(long) + buy(short) = mint', async () => {
         const testConfig = {
             initialBalances: {
@@ -537,15 +536,16 @@ contract('Match', async accounts => {
             ],
             expectedBalances: {
                 u1: {
-                    collateral: toWei(300 + 260 - 10 - 0.1),
-                    short: 0, 
+                    collateral: toWei(300 + 260 - 20 - 0.1),
+                    short: 0,
                 },
                 u2: {
                     collateral: toWei(10000 - 300 - 10 - 0.1),
-                    short: toBase(0.1), 
+                    short: toBase(0.5), 
                 },
                 u3: {
-                    collateral: toWei(240 - 2 - 0.1),
+                    collateral: toWei(240 - 10 - 0.1),
+                    long: toBase(0.5),
                 }
             },
             orderAsset: {
@@ -559,7 +559,70 @@ contract('Match', async accounts => {
         }
         await matchTest(testConfig);
     });
-    */
+    
+    it('buy(short) + [sell(short) + buy(long)] = exchange + mint', async () => {
+        const testConfig = {
+            initialBalances: {
+                u1: { collateral: toWei(10000) },
+                u2: { short: toBase(1)  },
+                u3: { collateral: toWei(10000) },
+                relayer: { },
+            },
+            takerOrder: {
+                trader: u1,
+                side: "buy",
+                position: "short",
+                baseAmount: toBase(1),
+                quoteAmount: toWei(600),
+                takerFeeRate: 250,
+            },
+            makerOrders: [
+                {
+                    trader: u2,
+                    side: "sell",
+                    position: "short",
+                    baseAmount: toBase(0.5),
+                    quoteAmount: toWei(300),
+                    makerFeeRate: 250,
+                },
+                {
+                    trader: u3,
+                    side: "buy",
+                    position: "long",
+                    baseAmount: toBase(0.5),
+                    quoteAmount: toWei(200),
+                    makerFeeRate: 250,
+                }
+            ],
+            filledAmounts: [
+                toBase(0.5),
+                toBase(0.5),
+            ],
+            expectedBalances: {
+                u1: {
+                    collateral: toWei(10000 - 300 - 20 - 0.1 - 300),
+                    short: toBase(1),
+                },
+                u2: {
+                    collateral: toWei(300 - 10 - 0.1),
+                    short: toBase(0.5), 
+                },
+                u3: {
+                    collateral: toWei(10000 - 200 - 10 - 0.1),
+                    long: toBase(0.5),
+                }
+            },
+            orderAsset: {
+                marketContractAddress: mpx._address,
+                relayer: relayer,
+            },
+            users: { admin: admin, u1: u1, u2: u2, u3: u3, relayer: relayer },
+            tokens: { collateral: collateral, long: long, short: short },
+            admin: admin,
+            gasLimit: 8000000,
+        }
+        await matchTest(testConfig);
+    });
 
     it('tc', async () => {
         const testConfig = {
@@ -648,7 +711,7 @@ contract('Match', async accounts => {
             ],
             expectedBalances: {
                 u1: {
-                    collateral: toWei(10000 - 200 - 8 - 0.1 - 300 - 12 - 0.1),
+                    collateral: toWei(10000 - 200 - 8 - 0.1 - 300 - 12),
                     long: toBase(1.8),
                 },
                 u2: {

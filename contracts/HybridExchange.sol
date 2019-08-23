@@ -627,11 +627,14 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         }
         // proxy -> taker
         if (totalTakerQuoteTokenRedeemedAmount > 0) {
+            if (totalTakerQuoteTokenFilledAmount == 0) {
+                totalTakerQuoteTokenRedeemedAmount = totalTakerQuoteTokenRedeemedAmount.
+                    sub(results[0].takerGasFee);
+            }
             transfer(
                 orderContext.collateralToken,
                 results[0].taker,
-                totalTakerQuoteTokenRedeemedAmount.
-                    sub(results[0].takerGasFee)
+                totalTakerQuoteTokenRedeemedAmount
             );
         }
     }
