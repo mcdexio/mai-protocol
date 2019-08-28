@@ -19,6 +19,7 @@
 pragma solidity ^0.4.24;
 
 import "./lib/SafeMath.sol";
+import "./lib/LibOwnable.sol";
 import "./lib/LibWhitelist.sol";
 import "./interfaces/IMarketContractPool.sol";
 import "./interfaces/IMarketContract.sol";
@@ -33,6 +34,7 @@ contract Proxy is LibWhitelist {
 
     event Deposit(address owner, uint256 amount);
     event Withdraw(address owner, uint256 amount);
+    event WithdrawFee(address owner, uint256 amount);
     event Transfer(address indexed from, address indexed to, uint256 value);
 
     function depositEther() public payable {
@@ -52,11 +54,24 @@ contract Proxy is LibWhitelist {
 
     function approveMarketContractPool(address contractAddress)
         public
+        onlyOwner
     {
         IMarketContract marketContract = IMarketContract(contractAddress);
 
         IERC20 collateralToken = IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS());
         collateralToken.approve(marketContract.COLLATERAL_POOL_ADDRESS(), INFINITY);
+    }
+
+    function withdrawMarketCollateralFee(address contractAddress, uint256 amount)
+        public
+        onlyOwner
+    {
+        IMarketContract marketContract = IMarketContract(contractAddress);
+
+        IERC20 collateralToken = IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS());
+        collateralToken.transfer(msg.sender, amount);
+
+        emit WithdrawFee(msg.sender, amount);
     }
 
     /// @dev Invoking transferFrom.

@@ -26,7 +26,7 @@ module.exports = function(deployer, network, accounts) {
                                         .addAddress(HybridExchange.address)
                                         .then(function() {
                                             console.log(
-                                                "Proxy initialized with", 
+                                                "Proxy whitelist initialized with", 
                                                 HybridExchange.address
                                             );
                                         })

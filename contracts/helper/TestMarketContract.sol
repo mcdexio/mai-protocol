@@ -27,6 +27,7 @@ contract TestMarketContract {
     address public COLLATERAL_POOL_ADDRESS;
     address public LONG_POSITION_TOKEN;
     address public SHORT_POSITION_TOKEN;
+    address public MARKET_TOKEN_ADDRESS;
 
     event Mint(address indexed to, uint value);
     event Redeem(address indexed to, uint value);
@@ -35,6 +36,7 @@ contract TestMarketContract {
         address collateralToken,
         address longPositionToken,
         address shortPositionToken,
+        address marketToken,
         uint cap,
         uint floor,
         uint multiplier,
@@ -46,6 +48,7 @@ contract TestMarketContract {
         COLLATERAL_TOKEN_ADDRESS = collateralToken;
         LONG_POSITION_TOKEN = longPositionToken;
         SHORT_POSITION_TOKEN = shortPositionToken;
+        MARKET_TOKEN_ADDRESS = marketToken;
 
         PRICE_CAP = cap;
         PRICE_FLOOR = floor;
@@ -59,6 +62,9 @@ contract TestMarketContract {
             mul(multiplier).
             mul(feeRate).
             div(100000);
+
+        MKT_TOKEN_FEE_PER_UNIT = COLLATERAL_TOKEN_FEE_PER_UNIT.
+            div(2);
     }
 
     function isPostSettlementDelay()
@@ -70,16 +76,37 @@ contract TestMarketContract {
     }
 
     function mintPositionTokens(
-        address contractAddress,
+        address,
         uint qtyToMint,
-        bool deprecated
+        bool isAttemptToPayInMKT
     )
         external
     {
         IERC20 collateral = IERC20(COLLATERAL_TOKEN_ADDRESS);
-        uint collateralRequired = COLLATERAL_PER_UNIT.add(COLLATERAL_TOKEN_FEE_PER_UNIT).mul(qtyToMint);
-        collateral.transferFrom(msg.sender, address(this), collateralRequired);
-        
+        uint collateralRequired = COLLATERAL_PER_UNIT.mul(qtyToMint);
+        if (isAttemptToPayInMKT) {
+            IERC20 mtk = IERC20(MARKET_TOKEN_ADDRESS);
+            uint mktFeeRequired = MKT_TOKEN_FEE_PER_UNIT.mul(qtyToMint);
+
+            collateral.transferFrom(
+                msg.sender,
+                address(this),
+                collateralRequired);
+            mtk.transferFrom(
+                msg.sender,
+                address(this),
+                mktFeeRequired
+            );
+
+        } else {
+            uint collateralFeeRequired = COLLATERAL_TOKEN_FEE_PER_UNIT.mul(qtyToMint);
+            collateral.transferFrom(
+                msg.sender,
+                address(this),
+                collateralRequired.add(collateralFeeRequired)
+            );
+        }
+
         IMintable long = IMintable(LONG_POSITION_TOKEN);
         IMintable short = IMintable(SHORT_POSITION_TOKEN);
         long.mint(msg.sender, qtyToMint);

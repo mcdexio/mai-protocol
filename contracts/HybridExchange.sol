@@ -127,7 +127,10 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         proxyAddress = _proxyAddress;
     }
 
-    function makeOrderContext(OrderAddressSet memory orderAddressSet, OrderParam memory takerOrderParam)
+    function makeOrderContext(
+        OrderAddressSet memory orderAddressSet,
+        OrderParam memory takerOrderParam
+    )
         internal
         view
         returns (OrderContext memory orderContext)
@@ -177,7 +180,11 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             require(!((isSell(takerOrderParam.data) != isSell(makerOrderParams[i].data)) &&
                 (isLong(takerOrderParam.data) != isLong(makerOrderParams[i].data))), INVALID_SIDE);
 
-            OrderInfo memory makerOrderInfo = getOrderInfo(makerOrderParams[i], orderAddressSet, orderContext);
+            OrderInfo memory makerOrderInfo = getOrderInfo(
+                makerOrderParams[i],
+                orderAddressSet,
+                orderContext
+            );
 
             results[i] = getMatchResult(
                 takerOrderParam,
@@ -255,7 +262,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
     }
 
     function validateRedeemPrice(
-        MatchResult memory result,
+        MatchResult memory,
         OrderParam memory takerOrderParam,
         OrderParam memory makerOrderParam,
         OrderContext memory orderContext
@@ -280,7 +287,10 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         uint256 left = takerOrderParam.quoteTokenAmount.mul(takerOrderParam.baseTokenAmount);
         uint256 right = makerOrderParam.quoteTokenAmount.mul(makerOrderParam.baseTokenAmount);
         uint256 totalFee = left.add(right).add(result.makerFee).add(result.takerFee);
-        require(totalFee >= orderContext.collateralPerUnit.add(orderContext.collateralTokenFeePerUnit), "MINT_PRICE_NOT_MET");
+        require(
+            totalFee >= orderContext.collateralPerUnit.add(orderContext.collateralTokenFeePerUnit),
+            "MINT_PRICE_NOT_MET"
+        );
     }
 
 
@@ -430,7 +440,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
 
         makerOrderInfo.filledAmount = makerOrderInfo.filledAmount.add(result.baseTokenFilledAmount);
         require(makerOrderInfo.filledAmount <= makerOrderParam.baseTokenAmount, MAKER_ORDER_OVER_MATCH);
-        
+
         result.maker = makerOrderParam.trader;
         result.taker = takerOrderParam.trader;
 
@@ -443,7 +453,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         // makerFee
         // 1. rawFeeRate from data
         uint256 makerRawFeeRate = getAsMakerFeeRateFromOrderData(makerOrderParam.data);
-        
+
         result.makerFee = result.baseTokenFilledAmount.
             mul(orderContext.middleCollateralPerUnit).
             mul(makerRawFeeRate).
@@ -516,6 +526,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
      * @param results List of MatchResult objects representing each individual trade to settle.
      * @param takerOrderParam The OrderParam object representing the taker order data.
      * @param orderAddressSet An object containing addresses common across each order.
+     * @param orderContext An object containing order related information.
      */
     function settleResults(
         MatchResult[] memory results,
@@ -558,6 +569,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
      *
      * @param results A list of MatchResult objects representing each individual trade to settle.
      * @param orderAddressSet An object containing addresses common across each order.
+     * @param orderContext An object containing order related information.
      */
     function settleTakerSell(
         MatchResult[] memory results,
@@ -639,12 +651,48 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         }
     }
 
-    // TODO: not a good name, but no better idea now
-    function getMakerPositionToken(OrderContext memory orderContext) internal pure returns (address) {
-        return (orderContext.takerPositionToken == orderContext.longPositionToken)?
+    /**
+     * Function helps converting positionToken to the oppsite side.
+     * Eg: long -> short, short -> long.
+     *
+     * @param orderContext An object containing order related information.
+     */
+    function getOppositePositionToken(
+        OrderContext memory orderContext,
+        address tokenAddress
+    )
+        internal
+        pure
+        returns (address)
+    {
+        require(
+            tokenAddress == orderContext.longPositionToken ||
+            tokenAddress == orderContext.shortPositionToken,
+            "UNEXPECTED_TOKEN"
+        );
+        return (tokenAddress == orderContext.longPositionToken)?
             orderContext.shortPositionToken : orderContext.longPositionToken;
     }
 
+    /**
+     * Redeem position tokens which is specified by market protocol contract. Exchange collects
+     * long and short tokens from both taker and makers, then calls mint method of market protocol
+     * contract pool. The amount of tokens collected from maker and taker must be equal.
+     *
+     *  for FillAction.MINT
+     *
+     *   taker -- takerPositionToken --> maker
+     *   maker -- makerPositionToken --> relayer
+     *   proxy -- quoteToken - takerFee - takerGasFee - makerFee - makerGasFee --> taker
+     *
+     *   taker get: quoteTokenFilledAmount  (-takerFee -takerGasFee)
+     *   maker get: quoteTokenFilledAmount  (-makerFee -makerGasFee)
+     *   proxy get: makerFee + makerGasFee + takerFee + takerGasFee - mintFee
+     *
+     * @param result A MatchResult object representing an individual trade to settle.
+     * @param orderAddressSet An object containing addresses common across each order.
+     * @param orderContext An object containing order related information.
+     */
     function doRedeem(
         MatchResult memory result,
         OrderAddressSet memory orderAddressSet,
@@ -653,17 +701,6 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         internal
         returns (uint256)
     {
-        /**  for FillAction.REDEEM
-         *
-         *   taker      -- takerPositionToken                               --> maker
-         *   maker      -- makerPositionToken                               --> relayer
-         *   proxy      -- quoteTokenFilledAmount - takerFee - takerGasFee - makerFee - makerGasFee  --> taker
-         *
-         *   taker get:     quoteTokenFilledAmount  (-takerFee -takerGasFee)
-         *   maker get:     quoteTokenFilledAmount  (-makerFee -makerGasFee)
-         *   proxy get:   makerFee + makerGasFee + takerFee + takerGasFee - mintFee
-         *
-         **/
         // taker -> proxy
         transferFrom(
             orderContext.takerPositionToken,
@@ -673,7 +710,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         );
         // maker -> proxy
         transferFrom(
-            getMakerPositionToken(orderContext),
+            getOppositePositionToken(orderContext, orderContext.takerPositionToken),
             result.maker,
             proxyAddress,
             result.baseTokenFilledAmount
@@ -717,6 +754,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
      *
      * @param results A list of MatchResult objects representing each individual trade to settle.
      * @param orderAddressSet An object containing addresses common across each order.
+     * @param orderContext An object containing order related information.
      */
     function settleTakerBuy(
         MatchResult[] memory results,
@@ -747,7 +785,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
                     results[i].taker,
                     results[i].baseTokenFilledAmount
                 );
-                
+
                 // taker -> maker
                 transferFrom(
                     orderContext.collateralToken,
@@ -781,6 +819,27 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         }
     }
 
+
+    /**
+     * Mint position tokens which is specified by market protocol contract. Exchange collects
+     * collaterals from both taker and makers, then calls mint method of market protocol contract
+     * pool.
+     *
+     *  for FillAction.MINT
+     *
+     *   maker      -- quoteTokenFilledAmount + makerFee + makerGasFee   --> proxy
+     *   taker      -- quoteTokenFilledAmount + takerFee + takerGasFee   --> proxy
+     *   proxy      -- baseTokenFilledAmount                             --> maker
+     *   proxy      -- baseTokenFilledAmount                             --> taker
+     *
+     *   taker get:     quoteTokenFilledAmount  (-takerFee -takerGasFee)
+     *   maker get:     baseTokenFilledAmount   (-makerFee -makerGasFee)
+     *   relayer get:   makerFee + makerGasFee + takerFee + takerGasFee
+     *
+     * @param result MatchResult object representing an individual trade to settle.
+     * @param orderAddressSet An object containing addresses common across each order.
+     * @param orderContext An object containing order related information.
+     */
     function doMint(
         MatchResult memory result,
         OrderAddressSet memory orderAddressSet,
@@ -789,18 +848,6 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         internal
         returns (uint256)
     {
-        /**  for FillAction.MINT
-        *
-        *   maker      -- quoteTokenFilledAmount + makerFee + makerGasFee   --> proxy
-        *   taker      -- quoteTokenFilledAmount + takerFee + takerGasFee   --> proxy
-        *   proxy      -- baseTokenFilledAmount                             --> maker
-        *   proxy      -- baseTokenFilledAmount                             --> taker
-        *
-        *   taker get:     quoteTokenFilledAmount  (-takerFee -takerGasFee)
-        *   maker get:     baseTokenFilledAmount   (-makerFee -makerGasFee)
-        *   relayer get:   makerFee + makerGasFee + takerFee + takerGasFee
-        *
-        **/
         // baseTokenFilledAmount
         uint256 neededCollateral = MathLib.multiply(
             result.baseTokenFilledAmount,
@@ -829,7 +876,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         mintPositionTokens(orderAddressSet.marketContractAddress, result.baseTokenFilledAmount);
         // proxy -> maker
         transfer(
-            getMakerPositionToken(orderContext),
+            getOppositePositionToken(orderContext, orderContext.takerPositionToken),
             result.maker,
             result.baseTokenFilledAmount
         );
@@ -840,8 +887,8 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         );
     }
 
-/**
-     * A helper function to call the transferFrom function in Proxy.sol with solidity assembly.
+    /**
+     * A helper function to call the transfer function in Proxy.sol with solidity assembly.
      * Copying the data in order to make an external call can be expensive, but performing the
      * operations in assembly seems to reduce gas cost.
      *
@@ -1088,7 +1135,9 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         }
     }
 
-    function emitMatchEvent(MatchResult memory result, OrderAddressSet memory orderAddressSet) internal {
+    function emitMatchEvent(MatchResult memory result, OrderAddressSet memory orderAddressSet)
+        internal
+    {
         emit Match(
             orderAddressSet, result
         );

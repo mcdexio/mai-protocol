@@ -4,7 +4,7 @@ const HybridExchange = artifacts.require('./HybridExchange.sol');
 const BigNumber = require('bignumber.js');
 const TestToken = artifacts.require('helper/TestToken.sol');
 const TestMarketContract = artifacts.require('helper/TestMarketContract.sol');
-
+const ExchangePool = artifacts.require('./ExchangePool.sol');
 
 BigNumber.config({ EXPONENTIAL_AT: 1000 });
 
@@ -43,6 +43,7 @@ const getContracts = async () => {
     // console.log('Proxy address', web3.toChecksumAddress(proxy._address));
 
     const exchange = await newContract(HybridExchange, proxy._address);
+
     // console.log('Dxchange address', web3.toChecksumAddress(exchange._address));
     const accounts = await web3.eth.getAccounts();
 
@@ -58,17 +59,21 @@ const getMarketContracts = async (configs) => {
     const collateral = await newContract(TestToken, "Collateral Token", "CTK", 18);
     const long = await newContract(TestToken, "Long Position Token", "lBTC", 5);
     const short = await newContract(TestToken, "Short Position Token", "sBTC", 5);
+    const mkt = await newContract(TestToken, "Market Token", "MTK", 18);
     const mpx = await newContract(
         TestMarketContract,
         collateral._address,
         long._address,
         short._address,
+        mkt._address,
         configs.cap,
         configs.floor,
         configs.multiplier,
         configs.feeRate
     );
-
+    
+    const pool = await newContract(ExchangePool, mkt._address);
+    
     const accounts = await web3.eth.getAccounts();
 
     await Promise.all([
@@ -82,6 +87,8 @@ const getMarketContracts = async (configs) => {
         long,
         short,
         mpx,
+        mkt,
+        pool,
     }
 }
 
