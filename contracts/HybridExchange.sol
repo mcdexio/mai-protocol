@@ -171,7 +171,11 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         OrderContext memory orderContext = makeOrderContext(orderAddressSet, takerOrderParam);
 
         uint256 takerFeeRate = getTakerFeeRate(takerOrderParam);
-        OrderInfo memory takerOrderInfo = getOrderInfo(takerOrderParam, orderAddressSet, orderContext);
+        OrderInfo memory takerOrderInfo = getOrderInfo(
+            takerOrderParam,
+            orderAddressSet,
+            orderContext
+        );
 
         // Calculate which orders match for settlement.
         MatchResult[] memory results = new MatchResult[](makerOrderParams.length);
@@ -330,7 +334,10 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         view
         returns (OrderInfo memory orderInfo)
     {
-        require(getOrderVersion(orderParam.data) == SUPPORTED_ORDER_VERSION, ORDER_VERSION_NOT_SUPPORTED);
+        require(
+            getOrderVersion(orderParam.data) == SUPPORTED_ORDER_VERSION,
+            ORDER_VERSION_NOT_SUPPORTED
+        );
 
         Order memory order = getOrderFromOrderParam(orderParam, orderAddressSet, orderContext);
         orderInfo.orderHash = getOrderHash(order);
@@ -426,20 +433,40 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         if (isSell(takerOrderParam.data) != isSell(makerOrderParam.data)) {
             result.fillAction = FillAction.EXCHANGE;
             if(!isMarketBuy(takerOrderParam.data)) {
-                takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(result.baseTokenFilledAmount);
-                require(takerOrderInfo.filledAmount <= takerOrderParam.baseTokenAmount, TAKER_ORDER_OVER_MATCH);
+                takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(
+                    result.baseTokenFilledAmount
+                );
+                require(
+                    takerOrderInfo.filledAmount <= takerOrderParam.baseTokenAmount,
+                    TAKER_ORDER_OVER_MATCH
+                );
             } else {
-                takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(result.quoteTokenFilledAmount);
-                require(takerOrderInfo.filledAmount <= takerOrderParam.quoteTokenAmount, TAKER_ORDER_OVER_MATCH);
+                takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(
+                    result.quoteTokenFilledAmount
+                );
+                require(
+                    takerOrderInfo.filledAmount <= takerOrderParam.quoteTokenAmount,
+                    TAKER_ORDER_OVER_MATCH
+                );
             }
         } else {
             result.fillAction = isSell(takerOrderParam.data)? FillAction.REDEEM: FillAction.MINT;
-            takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(result.baseTokenFilledAmount);
-            require(takerOrderInfo.filledAmount <= takerOrderParam.baseTokenAmount, TAKER_ORDER_OVER_MATCH);
+            takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(
+                result.baseTokenFilledAmount
+            );
+            require(
+                takerOrderInfo.filledAmount <= takerOrderParam.baseTokenAmount,
+                TAKER_ORDER_OVER_MATCH
+            );
         }
 
-        makerOrderInfo.filledAmount = makerOrderInfo.filledAmount.add(result.baseTokenFilledAmount);
-        require(makerOrderInfo.filledAmount <= makerOrderParam.baseTokenAmount, MAKER_ORDER_OVER_MATCH);
+        makerOrderInfo.filledAmount = makerOrderInfo.filledAmount.add(
+            result.baseTokenFilledAmount
+        );
+        require(
+            makerOrderInfo.filledAmount <= makerOrderParam.baseTokenAmount,
+            MAKER_ORDER_OVER_MATCH
+        );
 
         result.maker = makerOrderParam.trader;
         result.taker = takerOrderParam.trader;
@@ -582,6 +609,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         uint256 totalTakerQuoteTokenFilledAmount = 0;
         // total amount of redeemed
         uint256 totalTakerQuoteTokenRedeemedAmount = 0;
+        uint256 totalTakerQuoteTokenFeeAmount = 0;
 
         for (uint256 i = 0; i < results.length; i++) {
             if (results[i].fillAction == FillAction.EXCHANGE) {
@@ -614,39 +642,48 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
                 );
                 // relayer -> taker
                 totalTakerQuoteTokenFilledAmount = totalTakerQuoteTokenFilledAmount.add(
-                    results[i].quoteTokenFilledAmount.
-                        sub(results[i].takerFee)
+                    results[i].quoteTokenFilledAmount.sub(results[i].takerFee)
                 );
             } else if (results[i].fillAction == FillAction.REDEEM) {
                 totalTakerQuoteTokenRedeemedAmount = totalTakerQuoteTokenRedeemedAmount.add(
-                    doRedeem(results[i], orderAddressSet, orderContext).
-                        sub(results[i].takerFee)
+                    doRedeem(results[i], orderAddressSet, orderContext)
+                );
+                totalTakerQuoteTokenFeeAmount = totalTakerQuoteTokenFeeAmount.add(
+                    results[i].takerFee.add(results[i].makerFee).add(results[i].makerGasFee)
                 );
             } else {
                 revert("UNSUPPORTED_MATCHING_PAIR");
             }
             emitMatchEvent(results[i], orderAddressSet);
         }
-        // relayer -> taker
+        // transfer accumulative exchanged collateral to taker
         if (totalTakerQuoteTokenFilledAmount > 0) {
             transferFrom(
                 orderContext.collateralToken,
                 orderAddressSet.relayer,
                 results[0].taker,
-                totalTakerQuoteTokenFilledAmount.
-                    sub(results[0].takerGasFee)
+                totalTakerQuoteTokenFilledAmount.sub(results[0].takerGasFee)
             );
         }
-        // proxy -> taker
+        // transfer accumulative redeemed collateral to taker
         if (totalTakerQuoteTokenRedeemedAmount > 0) {
+            // if totalTakerQuoteTokenFilledAmount not handle gasFee
             if (totalTakerQuoteTokenFilledAmount == 0) {
                 totalTakerQuoteTokenRedeemedAmount = totalTakerQuoteTokenRedeemedAmount.
                     sub(results[0].takerGasFee);
+                totalTakerQuoteTokenFeeAmount = totalTakerQuoteTokenFeeAmount.
+                    add(results[0].takerGasFee);
             }
             transfer(
                 orderContext.collateralToken,
                 results[0].taker,
                 totalTakerQuoteTokenRedeemedAmount
+            );
+            // transfer all fees to relayer
+            transfer(
+                orderContext.collateralToken,
+                orderAddressSet.relayer,
+                totalTakerQuoteTokenFeeAmount
             );
         }
     }
@@ -725,8 +762,12 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
                 sub(result.makerFee).
                 sub(result.makerGasFee)
         );
-        uint256 collateralToReturn = MathLib.multiply(result.baseTokenFilledAmount, orderContext.collateralPerUnit);
-        return collateralToReturn.sub(result.quoteTokenFilledAmount);
+        uint256 collateralToReturn = MathLib.multiply(
+            result.baseTokenFilledAmount,
+            orderContext.collateralPerUnit);
+        return collateralToReturn.
+            sub(result.quoteTokenFilledAmount).
+            sub(result.takerFee);
     }
 
 
@@ -764,6 +805,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         internal
     {
         uint256 totalFee = 0;
+        uint256 remainingMintFee = 0;
 
         for (uint256 i = 0; i < results.length; i++) {
             if (results[i].fillAction == FillAction.EXCHANGE) {
@@ -802,7 +844,9 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
                     add(results[i].takerGasFee);
 
             } else if (results[i].fillAction == FillAction.MINT) {
-                doMint(results[i], orderAddressSet, orderContext);
+                remainingMintFee = remainingMintFee.add(
+                    doMint(results[i], orderAddressSet, orderContext)
+                );
             } else {
                 revert("UNSUPPORTED_MATCHING_PAIR");
             }
@@ -815,6 +859,13 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
                 results[0].taker,
                 orderAddressSet.relayer,
                 totalFee
+            );
+        }
+        if (remainingMintFee > 0) {
+            transfer(
+                orderContext.collateralToken,
+                orderAddressSet.relayer,
+                remainingMintFee
             );
         }
     }
@@ -853,6 +904,15 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             result.baseTokenFilledAmount,
             orderContext.collateralPerUnit
         );
+        uint256 neededCollateralTokenFee = MathLib.multiply(
+            result.baseTokenFilledAmount,
+            orderContext.collateralTokenFeePerUnit
+        );
+        uint256 totalFee = result.makerFee.add(result.takerFee);
+
+        // fail on a very low fee, if any
+        require(totalFee >= neededCollateralTokenFee, "INSUFFICIENT_MINT_FEE");
+
         // maker -> proxy
         transferFrom(
             orderContext.collateralToken,
@@ -885,6 +945,10 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             result.taker,
             result.baseTokenFilledAmount
         );
+        return totalFee.
+            add(result.takerGasFee).
+            add(result.makerGasFee).
+            sub(neededCollateralTokenFee);
     }
 
     /**

@@ -269,6 +269,7 @@ contract('Match', async accounts => {
             initialBalances: {
                 u1: { collateral: toWei(10000) },
                 u2: { collateral: toWei(10000) },
+                relayer: {},
             },
             takerOrder: {
                 trader: u2,
@@ -299,7 +300,8 @@ contract('Match', async accounts => {
                 u2: {
                     collateral: toWei(10000 - 30 - 2 - 0.1),
                     long: toBase(0.1),
-                }
+                },
+                relayer: { collateral: toWei(2, 2, 0.1, 0.1, -2.4) },
             },
             orderAsset: {
                 marketContractAddress: mpx._address,
@@ -318,6 +320,7 @@ contract('Match', async accounts => {
             initialBalances: {
                 u1: { long: toBase(0.1) },
                 u2: { short: toBase(0.1) },
+                relayer: {},
             },
             takerOrder: {
                 trader: u2,
@@ -343,6 +346,7 @@ contract('Match', async accounts => {
             expectedBalances: {
                 u1: { collateral: toWei(50 - 2 - 0.1) },
                 u2: { collateral: toWei(50 - 2 - 0.1) },
+                relayer: { collateral: toWei(2, 2, 0.1, 0.1) },
             },
             orderAsset: {
                 marketContractAddress: mpx._address,
@@ -391,7 +395,8 @@ contract('Match', async accounts => {
                 u2: {
                     collateral: toWei(100 - 50 - 2 - 0.1),
                     long: toBase(0.1), 
-                }
+                },
+                relayer: { collateral: toWei(2, 2, 0.1, 0.1) },
             },
             orderAsset: {
                 marketContractAddress: mpx._address,
@@ -440,7 +445,8 @@ contract('Match', async accounts => {
                 u2: {
                     collateral: toWei(100 - 50 - 2 - 0.1),
                     short: toBase(0.1), 
-                }
+                },
+                relayer: { collateral: toWei(2, 2, 0.1, 0.1) },
             },
             orderAsset: {
                 marketContractAddress: mpx._address,
@@ -554,6 +560,9 @@ contract('Match', async accounts => {
                 u3: {
                     collateral: toWei(240 - 10 - 0.1),
                     long: toBase(0.5),
+                },
+                relayer: {
+                    collateral: toWei(20, 0.1, 10, 0.1, 10, 0.1)
                 }
             },
             orderAsset: {
@@ -618,7 +627,10 @@ contract('Match', async accounts => {
                 u3: {
                     collateral: toWei(10000 - 200 - 10 - 0.1),
                     long: toBase(0.5),
-                }
+                },
+                relayer: { 
+                    collateral: toWei(20, 0.1, 10, 0.1, 10, 0.1, -12) 
+                },
             },
             orderAsset: {
                 marketContractAddress: mpx._address,
@@ -630,99 +642,6 @@ contract('Match', async accounts => {
             gasLimit: 8000000,
         }
         await matchTest(testConfig);
-    });
-
-    it('draw collateral', async () => {
-        const testConfig = {
-            initialBalances: {
-                u1: { collateral: toWei(10000) },
-                u2: { short: toBase(1)  },
-                u3: { collateral: toWei(10000) },
-                relayer: { },
-            },
-            takerOrder: {
-                trader: u1,
-                side: "buy",
-                position: "short",
-                baseAmount: toBase(1),
-                quoteAmount: toWei(600),
-                takerFeeRate: 250,
-            },
-            makerOrders: [
-                {
-                    trader: u2,
-                    side: "sell",
-                    position: "short",
-                    baseAmount: toBase(0.5),
-                    quoteAmount: toWei(300),
-                    makerFeeRate: 250,
-                },
-                {
-                    trader: u3,
-                    side: "buy",
-                    position: "long",
-                    baseAmount: toBase(0.5),
-                    quoteAmount: toWei(200),
-                    makerFeeRate: 250,
-                }
-            ],
-            filledAmounts: [
-                toBase(0.5),
-                toBase(0.5),
-            ],
-            expectedBalances: {
-                u1: {
-                    collateral: toWei(10000 - 300 - 20 - 0.1 - 300),
-                    short: toBase(1),
-                },
-                u2: {
-                    collateral: toWei(300 - 10 - 0.1),
-                    short: toBase(0.5), 
-                },
-                u3: {
-                    collateral: toWei(10000 - 200 - 10 - 0.1),
-                    long: toBase(0.5),
-                },
-                proxy: {
-                    collateral: toWei(10, 0.1, 10, -12),
-                }
-            },
-            orderAsset: {
-                marketContractAddress: mpx._address,
-                relayer: relayer,
-            },
-            users: { admin: admin, u1: u1, u2: u2, u3: u3, relayer: relayer, proxy: proxy._address },
-            tokens: { collateral: collateral, long: long, short: short },
-            admin: admin,
-            gasLimit: 8000000,
-        }
-        await matchTest(testConfig);
-
-        const balanceOfAdmin = await collateral.methods.balanceOf(admin).call();
-        const balanceOfProxy = await collateral.methods.balanceOf(proxy._address).call();
-        assert.equal(balanceOfProxy,  toWei(10, 0.1, 10, -12));
-
-        const err = await proxy.methods.withdrawMarketCollateralFee(mpx._address, balanceOfProxy)
-            .send({
-                from: relayer,
-                gas: 8000000,
-            })
-            .catch(err => {
-                return err
-            });
-        assert.equal(err.message.includes("NOT_OWNER"), true);
-
-        await proxy.methods.withdrawMarketCollateralFee(mpx._address, balanceOfProxy)
-            .send({
-                from: admin,
-                gas: 8000000,
-            });
-
-        assert.equal(await collateral.methods.balanceOf(proxy._address).call(),  0);
-        assert.equal(
-            await collateral.methods.balanceOf(admin).call(), 
-            (new BigNumber(balanceOfAdmin)).plus(new BigNumber(balanceOfProxy)).toFixed()
-        );
     });
 
     it('tc', async () => {
@@ -774,6 +693,9 @@ contract('Match', async accounts => {
                     collateral: toWei(10000 - 200 - 8 - 0.1),
                     short: toBase(2.2), 
                 },
+                relayer: {
+                    collateral: toWei(8, 8, 0.1, 0.1, -9.6),
+                }
             },
             orderAsset: {
                 marketContractAddress: mpx._address,
@@ -820,6 +742,9 @@ contract('Match', async accounts => {
                     short: toBase(2.2), 
                     long: 0,
                 },
+                relayer: {
+                    collateral: toWei(8, 8, 0.1, 0.1, -9.6, 12, 12, 0.1),
+                }
             },
             orderAsset: {
                 marketContractAddress: mpx._address,

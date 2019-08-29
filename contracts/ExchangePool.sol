@@ -10,7 +10,7 @@ import "./interfaces/IERC20.sol";
 
 contract ExchangePool is LibOwnable, LibWhitelist {
     using SafeMath for uint256;
-    
+
     uint256 public constant INFINITY = 999999999999999999999999999999999999999999;
 
     address public marketTokenAddress;
@@ -70,11 +70,17 @@ contract ExchangePool is LibOwnable, LibWhitelist {
 
     /**
      * Mint position tokens with collateral within contract for further usage.
+     * Called by administrator periodly to adjust the ratio of collateral to position tokens.
+     * Not like in mintPositionTokens, payInMKT will force using mkt to pay fee.
+     *
+     * @param marketContractAddress Address of market contract.
+     * @param qtyToMint Quantity of position tokens to mint.
+     * @param payInMKT Try to use mkt as mint fee, only when pool has enough mkt tokens.
      */
     function internalMintPositionTokens(
         address marketContractAddress,
         uint qtyToMint,
-        bool isAttemptToPayInMKT
+        bool payInMKT
     )
         external
         onlyOwner
@@ -86,7 +92,7 @@ contract ExchangePool is LibOwnable, LibWhitelist {
         marketContractPool.mintPositionTokens(
             marketContractAddress,
             qtyToMint,
-            isAttemptToPayInMKT
+            payInMKT
         );
 
         emit InternalMint(marketContractAddress, qtyToMint);
@@ -108,7 +114,18 @@ contract ExchangePool is LibOwnable, LibWhitelist {
         emit InternalRedeem(marketContractAddress, qtyToRedeem);
     }
 
-    // use by market caller
+    /**
+     * Send asked position Tokens msg.sender. Tokens will be directly transfer to sender when pool
+     * has enough position tokens in it, otherwise tokens will be minted from market contract pool.
+     * Position tokens are always tranferred in pairs (long == short).
+     * isAttemptToPayInMKT is not a promising but an attempt. It works only when the amount of mkt
+     * tokens in pool could fully cover the mint fee of position tokens, or the fee would still be
+     * paid in collateral token.
+     *
+     * @param marketContractAddress Address of market contract.
+     * @param qtyToMint Quantity of position tokens to mint.
+     * @param isAttemptToPayInMKT Try to use mkt as mint fee, only when pool has enough mkt tokens.
+     */
     function mintPositionTokens(
         address marketContractAddress,
         uint qtyToMint,
@@ -117,6 +134,8 @@ contract ExchangePool is LibOwnable, LibWhitelist {
         external
         onlyAddressInWhitelist
     {
+        require(qtyToMint > 0, "INVALID_AMOUNT");
+
         IMarketContract marketContract = IMarketContract(marketContractAddress);
         IERC20 collateralToken = IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS());
         IERC20 longPositionToken = IERC20(marketContract.LONG_POSITION_TOKEN());
@@ -178,6 +197,8 @@ contract ExchangePool is LibOwnable, LibWhitelist {
         external
         onlyAddressInWhitelist
     {
+        require(qtyToRedeem > 0, "INVALID_AMOUNT");
+
         IMarketContract marketContract = IMarketContract(marketContractAddress);
         IERC20 collateralToken = IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS());
         IERC20 longPositionToken = IERC20(marketContract.LONG_POSITION_TOKEN());

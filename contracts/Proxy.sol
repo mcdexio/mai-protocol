@@ -25,8 +25,10 @@ import "./interfaces/IMarketContractPool.sol";
 import "./interfaces/IMarketContract.sol";
 import "./interfaces/IERC20.sol";
 
-contract Proxy is LibWhitelist {
+contract Proxy is LibOwnable, LibWhitelist {
     using SafeMath for uint256;
+
+    address public minterAddress;
 
     uint256 public constant INFINITY = 999999999999999999999999999999999999999999;
 
@@ -52,14 +54,23 @@ contract Proxy is LibWhitelist {
         depositEther();
     }
 
-    function approveMarketContractPool(address contractAddress)
-        public
-        onlyOwner
-    {
+    /// @param _minterAddress Address of minter.
+    function setMinterAddress(address _minterAddress) public onlyOwner {
+        minterAddress = _minterAddress;
+    }
+
+    /// Approve transfer from proxy for mint or redeem. This method must be called immediately
+    /// after every trading pair added to dex system.
+    /// @param contractAddress Address of market contract.
+    function approveMarketContractPool(address contractAddress) public onlyOwner {
         IMarketContract marketContract = IMarketContract(contractAddress);
 
         IERC20 collateralToken = IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS());
-        collateralToken.approve(marketContract.COLLATERAL_POOL_ADDRESS(), INFINITY);
+        if (minterAddress != 0) {
+            collateralToken.approve(minterAddress, INFINITY);
+        } else {
+            collateralToken.approve(marketContract.COLLATERAL_POOL_ADDRESS(), INFINITY);
+        }
     }
 
     function withdrawMarketCollateralFee(address contractAddress, uint256 amount)
@@ -122,8 +133,13 @@ contract Proxy is LibWhitelist {
         external
         onlyAddressInWhitelist
     {
-        IMarketContract marketContract = IMarketContract(contractAddress);
-        IMarketContractPool marketContractPool = IMarketContractPool(marketContract.COLLATERAL_POOL_ADDRESS());
+        IMarketContractPool marketContractPool;
+        if (minterAddress != 0) {
+            marketContractPool = IMarketContractPool(minterAddress);
+        } else {
+            IMarketContract marketContract = IMarketContract(contractAddress);
+            marketContractPool = IMarketContractPool(marketContract.COLLATERAL_POOL_ADDRESS());
+        }
         marketContractPool.mintPositionTokens(contractAddress, qtyToMint, false);
     }
 
@@ -134,8 +150,13 @@ contract Proxy is LibWhitelist {
         external
         onlyAddressInWhitelist
     {
-        IMarketContract marketContract = IMarketContract(contractAddress);
-        IMarketContractPool marketContractPool = IMarketContractPool(marketContract.COLLATERAL_POOL_ADDRESS());
+        IMarketContractPool marketContractPool;
+        if (minterAddress != 0) {
+            marketContractPool = IMarketContractPool(minterAddress);
+        } else {
+            IMarketContract marketContract = IMarketContract(contractAddress);
+            marketContractPool = IMarketContractPool(marketContract.COLLATERAL_POOL_ADDRESS());
+        }
         marketContractPool.redeemPositionTokens(contractAddress, qtyToMint);
     }
 
@@ -191,7 +212,7 @@ contract Proxy is LibWhitelist {
 
             // call ERC20 Token contract transferFrom function
             let result := call(gas, token, 0, 0, 100, 0, 32)
-            
+
             // Some ERC20 Token contract doesn't return any value when calling the transferFrom function successfully.
             // So we consider the transferFrom call is successful in either case below.
             //   1. call successfully and nothing return.
