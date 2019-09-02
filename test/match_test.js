@@ -9,7 +9,7 @@ const weis = new BigNumber('1000000000000000000');
 
 const toBase = (...xs) => {
     let sum = new BigNumber(0);
-    for (var x of xs) {    
+    for (var x of xs) {
         sum = sum.plus(new BigNumber(x).times(bases));
     }
     return sum.toFixed();
@@ -21,7 +21,7 @@ const fromBase = x => {
 
 const toWei = (...xs) => {
     let sum = new BigNumber(0);
-    for (var x of xs) {    
+    for (var x of xs) {
         sum = sum.plus(new BigNumber(x).times(weis));
     }
     return sum.toFixed();
@@ -122,8 +122,8 @@ contract('Match', async accounts => {
             position: config.position,
         };
         return await buildOrder(
-            orderParam, 
-            config.position === 'long' ? long._address: short._address, 
+            orderParam,
+            config.position === 'long' ? long._address: short._address,
             collateral._address
         );
     }
@@ -183,7 +183,7 @@ contract('Match', async accounts => {
                     - filledAmounts     []
                     - expectedBalances    {}
                     - users
-                    - tokens 
+                    - tokens
                     - admin
                     - gasLimit
     */
@@ -208,7 +208,7 @@ contract('Match', async accounts => {
                 const userName = Object.keys(initialBalances)[i];
                 for (let j = 0; j < Object.keys(tokens).length; j++) {
                     const tokenName = Object.keys(tokens)[j];
-                    
+
                     const user = users[userName];
                     const token = tokens[tokenName];
                     const amount = initialBalances[userName][tokenName] || 0;
@@ -390,11 +390,11 @@ contract('Match', async accounts => {
             expectedBalances: {
                 u1: {
                     collateral: toWei(50 - 2 - 0.1),
-                    long: 0, 
+                    long: 0,
                 },
                 u2: {
                     collateral: toWei(100 - 50 - 2 - 0.1),
-                    long: toBase(0.1), 
+                    long: toBase(0.1),
                 },
                 relayer: { collateral: toWei(2, 2, 0.1, 0.1) },
             },
@@ -409,7 +409,7 @@ contract('Match', async accounts => {
         }
         await matchTest(testConfig);
     });
-   
+
     it('sell(short) + buy(short) = exchange', async () => {
         const testConfig = {
             initialBalances: {
@@ -440,11 +440,11 @@ contract('Match', async accounts => {
             expectedBalances: {
                 u1: {
                     collateral: toWei(50 - 2 - 0.1),
-                    short: 0, 
+                    short: 0,
                 },
                 u2: {
                     collateral: toWei(100 - 50 - 2 - 0.1),
-                    short: toBase(0.1), 
+                    short: toBase(0.1),
                 },
                 relayer: { collateral: toWei(2, 2, 0.1, 0.1) },
             },
@@ -491,11 +491,11 @@ contract('Match', async accounts => {
             expectedBalances: {
                 u1: {
                     collateral: toWei(50 - 2 - 0.1),
-                    short: 0, 
+                    short: 0,
                 },
                 u2: {
                     collateral: toWei(100 - 50 - 2 - 0.1),
-                    short: toBase(0.1), 
+                    short: toBase(0.1),
                 }
             },
             orderAsset: {
@@ -555,7 +555,7 @@ contract('Match', async accounts => {
                 },
                 u2: {
                     collateral: toWei(10000 - 300 - 10 - 0.1),
-                    short: toBase(0.5), 
+                    short: toBase(0.5),
                 },
                 u3: {
                     collateral: toWei(240 - 10 - 0.1),
@@ -576,7 +576,7 @@ contract('Match', async accounts => {
         }
         await matchTest(testConfig);
     });
-    
+
     it('buy(short) + [sell(short) + buy(long)] = exchange + mint', async () => {
         const testConfig = {
             initialBalances: {
@@ -622,14 +622,14 @@ contract('Match', async accounts => {
                 },
                 u2: {
                     collateral: toWei(300 - 10 - 0.1),
-                    short: toBase(0.5), 
+                    short: toBase(0.5),
                 },
                 u3: {
                     collateral: toWei(10000 - 200 - 10 - 0.1),
                     long: toBase(0.5),
                 },
-                relayer: { 
-                    collateral: toWei(20, 0.1, 10, 0.1, 10, 0.1, -12) 
+                relayer: {
+                    collateral: toWei(20, 0.1, 10, 0.1, 10, 0.1, -12)
                 },
             },
             orderAsset: {
@@ -647,14 +647,14 @@ contract('Match', async accounts => {
     it('tc', async () => {
         const testConfig = {
             initialBalances: {
-                u1: { 
+                u1: {
                     collateral: toWei(10000),
-                    long: toBase(0.8) 
+                    long: toBase(0.8)
                 },
-                u2: { 
+                u2: {
                     collateral: toWei(10000),
                     long: toBase(0.6),
-                    short: toBase(1.8),  
+                    short: toBase(1.8),
                 },
                 u3: {
 
@@ -691,7 +691,7 @@ contract('Match', async accounts => {
                 },
                 u2: {
                     collateral: toWei(10000 - 200 - 8 - 0.1),
-                    short: toBase(2.2), 
+                    short: toBase(2.2),
                 },
                 relayer: {
                     collateral: toWei(8, 8, 0.1, 0.1, -9.6),
@@ -739,7 +739,7 @@ contract('Match', async accounts => {
                 },
                 u2: {
                     collateral: toWei(10000 - 200 - 8 - 0.1 + 300 - 12 - 0.1),
-                    short: toBase(2.2), 
+                    short: toBase(2.2),
                     long: 0,
                 },
                 relayer: {

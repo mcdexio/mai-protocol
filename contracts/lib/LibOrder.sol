@@ -30,28 +30,26 @@ contract LibOrder is EIP712, LibSignature, LibMath {
     struct Order {
         address trader;
         address relayer;
-        address baseToken;
-        address quoteToken;
-        uint256 baseTokenAmount;
-        uint256 quoteTokenAmount;
+        address marketContractAddress;
+        uint256 amount;
+        uint256 price;
         uint256 gasTokenAmount;
 
         /**
          * Data contains the following values packed into 32 bytes
          * ╔════════════════════╤═══════════════════════════════════════════════════════════╗
-         * ║                        │ length(bytes)   desc                                                  ║
+         * ║                    │ length(bytes)   desc                                      ║
          * ╟────────────────────┼───────────────────────────────────────────────────────────╢
-         * ║ version                │ 1               order version                                         ║
-         * ║ side                   │ 1               0: buy, 1: sell                                       ║
-         * ║ isMarketOrder          │ 1               0: limitOrder, 1: marketOrder                         ║
-         * ║ expiredAt              │ 5               order expiration time in seconds                      ║
-         * ║ asMakerFeeRate         │ 2               maker fee rate (base 100,000)                         ║
-         * ║ asTakerFeeRate         │ 2               taker fee rate (base 100,000)                         ║
-         * ║ makerRebateRate        │ 2               rebate rate for maker (base 100)                      ║
-         * ║ salt                   │ 8               salt                                                  ║
-         * ║ isMakerOnly            │ 1               is maker only                                         ║
-         * ║ isLongMaker            │ 1               0: for short token, 1: for long token                 ║
-         * ║                        │ 8               reserved                                              ║
+         * ║ version            │ 1               order version                             ║
+         * ║ side               │ 1               0: buy (long), 1: sell (short)            ║
+         * ║ isMarketOrder      │ 1               0: limitOrder, 1: marketOrder             ║
+         * ║ expiredAt          │ 5               order expiration time in seconds          ║
+         * ║ asMakerFeeRate     │ 2               maker fee rate (base 100,000)             ║
+         * ║ asTakerFeeRate     │ 2               taker fee rate (base 100,000)             ║
+         * ║ makerRebateRate    │ 2               rebate rate for maker (base 100)          ║
+         * ║ salt               │ 8               salt                                      ║
+         * ║ isMakerOnly        │ 1               is maker only                             ║
+         * ║                    │ 9               reserved                                  ║
          * ╚════════════════════╧═══════════════════════════════════════════════════════════╝
          */
         bytes32 data;
@@ -65,7 +63,9 @@ contract LibOrder is EIP712, LibSignature, LibMath {
     }
 
     enum FillAction {
-        EXCHANGE,
+        BUY,
+        SELL,
+        EXCHANGE, // deprecated
         MINT,
         REDEEM
     }
@@ -102,10 +102,9 @@ contract LibOrder is EIP712, LibSignature, LibMath {
          *         EIP712_ORDER_TYPE,
          *         bytes32(order.trader),
          *         bytes32(order.relayer),
-         *         bytes32(order.baseToken),
-         *         bytes32(order.quoteToken),
-         *         order.baseTokenAmount,
-         *         order.quoteTokenAmount,
+         *         bytes32(order.marketContractAddress),
+         *         order.amount,
+         *         order.price,
          *         order.gasTokenAmount,
          *         order.data
          *     )

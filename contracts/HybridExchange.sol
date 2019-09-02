@@ -68,9 +68,9 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
      */
     struct OrderParam {
         address trader;
-        uint256 baseTokenAmount;
-        uint256 quoteTokenAmount;
-        uint256 gasTokenAmount;
+        uint256 amount;
+        uint256 price;
+        uint256 gasAmount;
         bytes32 data;
         OrderSignature signature;
     }
@@ -83,93 +83,82 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
     struct OrderInfo {
         bytes32 orderHash;
         uint256 filledAmount;
+
+        mapping (bool => uint256) margins;
+        mapping (bool => uint256) balances;
     }
 
     struct OrderAddressSet {
-        address marketContractAddress;
+        address marketContract;
         address relayer;
     }
 
     struct OrderContext {
-        address marketContractPoolAddress;      // pool address
-        address collateralToken;                // collateral token
-        address longPositionToken;              // position token: long or short
-        address shortPositionToken;             // position token: long or short
-        address takerPositionToken;             // position token: long or short
-        uint256 collateralPerUnit;              // required collateral + mint fee
-        uint256 collateralTokenFeePerUnit;      // required collateral + mint fee
-        uint256 middleCollateralPerUnit;        // middle price of cap and floor
+        IMarketContract marketContractPool;         // pool address
+        IERC20 ctk;                        // collateral token
+        IERC20 longPos;                    // position token: long or short
+        IERC20 shortPos;                   // position token: long or short
     }
 
     struct MatchResult {
         address maker;
         address taker;
-        address buyer;
         uint256 makerFee;                   // makerFee in order data
-        uint256 makerRebate;                // 0
         uint256 takerFee;                   // takerFee in order data
         uint256 makerGasFee;
         uint256 takerGasFee;
-        uint256 baseTokenFilledAmount;
-        uint256 quoteTokenFilledAmount;
+        uint256 posFilledAmount;
+        uint256 ctkFilledAmount;
         FillAction fillAction;
     }
-
 
     event Match(
         OrderAddressSet addressSet,
         MatchResult result
     );
 
-    constructor(address _proxyAddress)
-        public
-    {
+    constructor(address _proxyAddress) public {
         proxyAddress = _proxyAddress;
     }
 
-    function makeOrderContext(
+    function getOrderContext(
         OrderAddressSet memory orderAddressSet,
         OrderParam memory takerOrderParam
     )
         internal
-        view
+        pure
         returns (OrderContext memory orderContext)
     {
-        IMarketContract marketContract = IMarketContract(orderAddressSet.marketContractAddress);
-
-        orderContext.marketContractPoolAddress = marketContract.COLLATERAL_POOL_ADDRESS();
-        orderContext.collateralToken = marketContract.COLLATERAL_TOKEN_ADDRESS();
-        orderContext.longPositionToken = marketContract.LONG_POSITION_TOKEN();
-        orderContext.shortPositionToken = marketContract.SHORT_POSITION_TOKEN();
-        orderContext.takerPositionToken = isLong(takerOrderParam.data)?
-            orderContext.longPositionToken : orderContext.shortPositionToken;
-        orderContext.collateralPerUnit = marketContract.COLLATERAL_PER_UNIT();
-        orderContext.collateralTokenFeePerUnit = marketContract.COLLATERAL_TOKEN_FEE_PER_UNIT();
-        orderContext.middleCollateralPerUnit = marketContract.PRICE_CAP().
-            add(marketContract.PRICE_FLOOR()).
-            mul(marketContract.QTY_MULTIPLIER()).
-            div(2);
+        orderContext.marketContract = IMarketContract(orderAddressSet.marketContract);
+        orderContext.ctk = IERC20(orderContext.marketContract.COLLATERAL_TOKEN_ADDRESS());
+        orderContext.longPos = IERC20(orderContext.marketContract.LONG_POSITION_TOKEN());
+        orderContext.shortPos = IERC20(orderContext.marketContract.SHORT_POSITION_TOKEN());
+        return orderContext;
     }
 
-    /**
-     * Match taker order to a list of maker orders. Common addresses are passed in
-     * separately as an OrderAddressSet to reduce call size data and save gas.
-     *
-     * @param takerOrderParam A OrderParam object representing the order from the taker.
-     * @param makerOrderParams An array of OrderParam objects representing orders from a list of makers.
-     * @param orderAddressSet An object containing addresses common across each order.
-     */
+    function calculateMiddleCollateralPerUnit(OrderContext memory orderContext)
+        internal
+        pure
+        returns (uint256)
+    {
+        return orderContext.marketContract.PRICE_CAP()
+            .add(orderContext.marketContract.PRICE_FLOOR())
+            .mul(orderContext.marketContract.QTY_MULTIPLIER())
+            .div(2);
+    }
+
     function matchOrders(
         OrderParam memory takerOrderParam,
         OrderParam[] memory makerOrderParams,
-        uint256[] memory baseTokenFilledAmounts,
+        uint256[] memory posFilledAmounts,
         OrderAddressSet memory orderAddressSet
-    ) public {
+    )
+        public
+    {
         require(canMatchOrdersFrom(orderAddressSet.relayer), INVALID_SENDER);
         require(!isMakerOnly(takerOrderParam.data), MAKER_ONLY_ORDER_CANNOT_BE_TAKER);
 
-        OrderContext memory orderContext = makeOrderContext(orderAddressSet, takerOrderParam);
-
+        OrderContext memory orderContext = getOrderContext(orderAddressSet, takerOrderParam);
         uint256 takerFeeRate = getTakerFeeRate(takerOrderParam);
         OrderInfo memory takerOrderInfo = getOrderInfo(
             takerOrderParam,
@@ -177,124 +166,465 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             orderContext
         );
 
-        // Calculate which orders match for settlement.
-        MatchResult[] memory results = new MatchResult[](makerOrderParams.length);
+        uint256 resultIndex;
+        // Each matched pair will produce two results at most (exchange + mint, exchange + redeem).
+        MatchResult[] memory results = new MatchResult[](makerOrderParams.length * 2);
         for (uint256 i = 0; i < makerOrderParams.length; i++) {
-            require(!isMarketOrder(makerOrderParams[i].data), MAKER_ORDER_CAN_NOT_BE_MARKET_ORDER);
-            require(!((isSell(takerOrderParam.data) != isSell(makerOrderParams[i].data)) &&
-                (isLong(takerOrderParam.data) != isLong(makerOrderParams[i].data))), INVALID_SIDE);
+            require(
+                !isMarketOrder(makerOrderParams[i].data),
+                MAKER_ORDER_CAN_NOT_BE_MARKET_ORDER
+            );
+            require(
+                isSell(takerOrderParam.data) != isSell(makerOrderParams[i].data),
+                INVALID_SIDE
+            );
 
             OrderInfo memory makerOrderInfo = getOrderInfo(
                 makerOrderParams[i],
                 orderAddressSet,
                 orderContext
             );
-
-            results[i] = getMatchResult(
-                takerOrderParam,
-                takerOrderInfo,
-                makerOrderParams[i],
-                makerOrderInfo,
-                orderContext,
-                baseTokenFilledAmounts[i],
-                takerFeeRate
-            );
-
-            if (results[i].fillAction == FillAction.EXCHANGE) {
-                validatePrice(takerOrderParam, makerOrderParams[i]);
-            } else if (results[i].fillAction == FillAction.REDEEM) {
-                validateRedeemPrice(
-                    results[i],
+            MatchResult memory result;
+            uint256 filledAmount;
+            for (uint256 toFillAmount = posFilledAmounts[i]; toFillAmount > 0;) {
+                (result, filledAmount) = getMatchResult(
                     takerOrderParam,
+                    takerOrderInfo,
                     makerOrderParams[i],
-                    orderContext
+                    makerOrderInfo,
+                    orderContext,
+                    toFillAmount,
+                    takerFeeRate
                 );
-            } else if (results[i].fillAction == FillAction.MINT) {
-                validateMintPrice(
-                    results[i],
-                    takerOrderParam,
-                    makerOrderParams[i],
-                    orderContext
-                );
-            } else {
-                revert("UNSUPPORTED_FILL_ACTION");
+                toFillAmount = toFillAmount.sub(filledAmount);
+                results[resultIndex] = result;
+                resultIndex++;
             }
-            // Update amount filled for this maker order.
             filled[makerOrderInfo.orderHash] = makerOrderInfo.filledAmount;
         }
-        // Update amount filled for this taker order.
         filled[takerOrderInfo.orderHash] = takerOrderInfo.filledAmount;
 
         settleResults(results, takerOrderParam, orderAddressSet, orderContext);
     }
 
-    /**
-     * Validates that the maker and taker orders can be matched based on the listed prices.
-     *
-     * If the taker submitted a sell order, the matching maker order must have a price greater than
-     * or equal to the price the taker is willing to sell for.
-     *
-     * Since the price of an order is computed by order.quoteTokenAmount / order.baseTokenAmount
-     * we can establish the following formula:
-     *
-     *    takerOrder.quoteTokenAmount        makerOrder.quoteTokenAmount
-     *   -----------------------------  <=  -----------------------------
-     *     takerOrder.baseTokenAmount        makerOrder.baseTokenAmount
-     *
-     * To avoid precision loss from division, we modify the formula to avoid division entirely.
-     * In shorthand, this becomes:
-     *
-     *   takerOrder.quote * makerOrder.base <= takerOrder.base * makerOrder.quote
-     *
-     * We can apply this same process to buy orders - if the taker submitted a buy order then
-     * the matching maker order must have a price less than or equal to the price the taker is
-     * willing to pay. This means we can use the same result as above, but simply flip the
-     * sign of the comparison operator.
-     *
-     * The function will revert the transaction if the orders cannot be matched.
-     *
-     * @param takerOrderParam The OrderParam object representing the taker's order data
-     * @param makerOrderParam The OrderParam object representing the maker's order data
-     */
-    function validatePrice(OrderParam memory takerOrderParam, OrderParam memory makerOrderParam)
+
+    function calcuteLongMargin(OrderContext memory orderContext, OrderParam memory orderParam)
         internal
         pure
+        returns (uint256)
     {
-        uint256 left = takerOrderParam.quoteTokenAmount.mul(makerOrderParam.baseTokenAmount);
-        uint256 right = takerOrderParam.baseTokenAmount.mul(makerOrderParam.quoteTokenAmount);
-        require(isSell(takerOrderParam.data) ? left <= right : left >= right, INVALID_MATCH);
+        return orderParam.price.sub(orderContext.priceFloor);
+    }
+
+    function calcuteShortMargin(OrderContext memory orderContext, OrderParam memory orderParam)
+        internal
+        pure
+        returns (uint256)
+    {
+        return orderContext.priceCap.sub(orderParam.price);
+    }
+
+    /**
+     * Construct a MatchResult from matching taker and maker order data, which will be used when
+     * settling the orders and transferring token.
+     *
+     * @param takerOrderParam The OrderParam object representing the taker's order data
+     * @param takerOrderInfo The OrderInfo object representing the current taker order state
+     * @param makerOrderParam The OrderParam object representing the maker's order data
+     * @param makerOrderInfo The OrderInfo object representing the current maker order state
+     * @param takerFeeRate The rate used to calculate the fee charged to the taker
+     * @return MatchResult object containing data that will be used during order settlement.
+     */
+     /*
+    function getMatchResult(
+        OrderParam memory takerOrderParam,
+        OrderInfo memory takerOrderInfo,
+        OrderParam memory makerOrderParam,
+        OrderInfo memory makerOrderInfo,
+        OrderContext memory orderContext,
+        uint256 posFilledAmount,
+        uint256 takerFeeRate
+    )
+        internal
+        pure
+        returns (MatchResult memory result, uint256 filledAmount)
+    {
+        // Each order only pays gas once, so only pay gas when nothing has been filled yet.
+        if (takerOrderInfo.filledAmount == 0) {
+            result.takerGasFee = takerOrderParam.gasAmount;
+        }
+        if (makerOrderInfo.filledAmount == 0) {
+            result.makerGasFee = makerOrderParam.gasAmount;
+        }
+
+        if (isSell(takerOrderParam.data)) {
+            // SHORT:
+            // if taker is short, then maker must be long
+            //      condition A: taker has long token;
+            //      condition B: taker has no long token;
+            //
+            // A: taker has long token, sell or redeem;
+            //      condition 1: maker has short token, then redeem;
+            //      condition 2: maker has no short token, then exchange;
+            //
+            // B: taker has no long token, buy or mint;
+            //      condition 1: maker has short token, then exchange;
+            //      condition 2: maker has no short token, then mint;
+            if (takerPosBalance.longPos > 0) {
+                if (makerPosBalance.shortPos > 0) {
+                    // do redeem
+                    filledAmount = min(
+                        min(
+                            takerPosBalance.longPos,
+                            posFilledAmount
+                        ),
+                        min(
+                            makerPosBalance.shortPos,
+                            posFilledAmount
+                        )
+                    );
+                    takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(filledAmount);
+                    makerOrderInfo.filledAmount = makerOrderInfo.filledAmount.add(filledAmount);
+                    takerPosBalance.longPos =
+                        takerPosBalance.longPos.sub(filledAmount);
+                    makerPosBalance.shortPos =
+                        makerPosBalance.shortPos.sub(filledAmount);
+
+                    result.fillAction = FillAction.REDEEM;
+                } else {
+                    // do exchange
+                    filledAmount = min(
+                        takerPosBalance.longPos,
+                        posFilledAmount
+                    );
+
+                    takerPosBalance.longPos =
+                        takerPosBalance.longPos.sub(filledAmount);
+                    makerPosBalance.longPos =
+                        makerPosBalance.longPos.add(filledAmount);
+
+                    result.fillAction = FillAction.EXCHANGE;
+                    require(takerUnitMargin <= makerUnitMargin, INVALID_MATCH);
+                }
+            } else {
+                if (makerPosBalance.shortPos > 0) {
+                    // do exchange
+                    filledAmount = min(
+                        makerPosBalance.shortPos,
+                        posFilledAmount
+                    );
+
+                    makerPosBalance.shortPos =
+                        makerPosBalance.shortPos.sub(filledAmount);
+                    takerPosBalance.shortPos =
+                        takerPosBalance.shortPos.add(filledAmount);
+
+                    result.fillAction = FillAction.EXCHANGE;
+                    require(makerUnitMargin <= takerUnitMargin, INVALID_MATCH);
+                } else {
+                    // do mint
+                    filledAmount = posFilledAmount;
+                    takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(filledAmount);
+                    makerOrderInfo.filledAmount = makerOrderInfo.filledAmount.add(filledAmount);
+                    takerPosBalance.longPos =
+                        takerPosBalance.longPos.add(filledAmount);
+                    makerPosBalance.shortPos =
+                        makerPosBalance.shortPos.add(filledAmount);
+
+                    result.fillAction = FillAction.MINT;
+                }
+            }
+        } else {
+            // if taker is long, then maker must be short
+            //      condition A: taker has short token;
+            //      condition B: taker has no short token;
+            //
+            // A: taker has short token, sell or redeem;
+            //      condition 1: maker has long token, then redeem;
+            //      condition 2: maker has no long token, then exchange;
+            //
+            // B: taker has no short token, buy or mint;
+            //      condition 1: maker has long token, then exchange;
+            //      condition 2: maker has no long token, then mint;
+            if (takerPosBalance.shortPos > 0) {
+                if (makerPosBalance.longPos > 0) {
+                    // do redeem
+                    filledAmount = min(
+                        min(
+                            takerPosBalance.shortPos,
+                            posFilledAmount
+                        ),
+                        min(
+                            makerPosBalance.longPos,
+                            posFilledAmount
+                        )
+                    );
+                    takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(filledAmount);
+                    makerOrderInfo.filledAmount = makerOrderInfo.filledAmount.add(filledAmount);
+                    takerPosBalance.shortPos = takerPosBalance.shortPos.sub(filledAmount);
+                    makerPosBalance.longPos = makerPosBalance.longPos.sub(filledAmount);
+
+                    result.fillAction = FillAction.REDEEM;
+                } else {
+                    // do exchange
+                    filledAmount = min(
+                        takerPosBalance.shortPos,
+                        posFilledAmount
+                    );
+
+                    takerPosBalance.shortPos = takerPosBalance.shortPos.sub(filledAmount);
+                    makerPosBalance.shortPos = makerPosBalance.shortPos.add(filledAmount);
+
+                    result.fillAction = FillAction.EXCHANGE;
+                    require(takerUnitMargin <= makerUnitMargin, INVALID_MATCH);
+                }
+            } else {
+                if (makerPosBalance.longPos > 0) {
+                    // do exchange
+                    filledAmount = min(
+                        makerPosBalance.longPos,
+                        posFilledAmount
+                    );
+
+                    makerPosBalance.longPos = makerPosBalance.longPos.sub(filledAmount);
+                    takerPosBalance.longPos = takerPosBalance.longPos.add(filledAmount);
+
+                    result.fillAction = FillAction.EXCHANGE;
+                    require(makerUnitMargin <= takerUnitMargin, INVALID_MATCH);
+                } else {
+                    // do mint
+                    filledAmount = posFilledAmount;
+                    takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(filledAmount);
+                    makerOrderInfo.filledAmount = makerOrderInfo.filledAmount.add(filledAmount);
+                    takerPosBalance.shortPos = takerPosBalance.shortPos.add(filledAmount);
+                    makerPosBalance.longPos = makerPosBalance.longPos.add(filledAmount);
+
+                    result.fillAction = FillAction.MINT;
+                }
+            }
+        }
+        result.posFilledAmount = filledAmount;
+
+        require(takerOrderInfo.filledAmount <= takerOrderParam.amount, TAKER_ORDER_OVER_MATCH);
+        require(makerOrderInfo.filledAmount <= makerOrderParam.amount, TAKER_ORDER_OVER_MATCH);
+
+
+        result.maker = makerOrderParam.trader;
+        result.taker = takerOrderParam.trader;
+
+        uint256 makerRawFeeRate = getAsMakerFeeRateFromOrderData(makerOrderParam.data);
+        result.makerFee = result.posFilledAmount.
+            mul(orderContext.middleCollateralPerUnit).
+            mul(makerRawFeeRate).
+            div(FEE_RATE_BASE);
+        result.takerFee = result.posFilledAmount.
+            mul(orderContext.middleCollateralPerUnit).
+            mul(takerFeeRate).
+            div(FEE_RATE_BASE);
+
+
+        if (result.fillAction == FillAction.REDEEM) {
+            uint256 collateralReturned = orderContext.collateralPerUnit.mul(filledAmount);
+            uint256 collateralAsked = makerUnitMargin.add(takerUnitMargin).mul(filledAmount);
+            require(collateralReturned >= collateralAsked, INVALID_MATCH);
+        } else if (result.fillAction == FillAction.MINT) {
+            uint256 collateralRequired = orderContext.collateralPerUnit.
+                add(orderContext.collateralTokenFeePerUnit).
+                mul(filledAmount);
+            uint256 collateralBid = makerUnitMargin.
+                add(takerUnitMargin).
+                mul(filledAmount).
+                add(result.makerFee).
+                add(result.takerFee);
+            require(collateralRequired <= collateralBid, INVALID_MATCH);
+        }
+
+        return (result, filledAmount);
+    }
+    */
+
+    function getMatchResult(
+        OrderParam memory takerOrderParam,
+        OrderInfo memory takerOrderInfo,
+        OrderParam memory makerOrderParam,
+        OrderInfo memory makerOrderInfo,
+        OrderContext memory orderContext,
+        uint256 posFilledAmount,
+        uint256 takerFeeRate
+    )
+        internal
+        pure
+        returns (MatchResult memory result, uint256 filledAmount)
+    {
+        result = makeMatchResult(
+            takerOrderParam,
+            takerOrderInfo,
+            makerOrderParam,
+            makerOrderInfo,
+            orderContext,
+            posFilledAmount,
+            takerFeeRate
+        );
+
+        filledAmount = updateMatchResult(
+            result,
+            takerOrderParam,
+            takerOrderInfo,
+            makerOrderParam,
+            makerOrderInfo,
+            orderContext,
+            posFilledAmount
+        );
+        return (result, filledAmount);
+    }
+
+    function makeMatchResult(
+        OrderParam memory takerOrderParam,
+        OrderInfo memory takerOrderInfo,
+        OrderParam memory makerOrderParam,
+        OrderInfo memory makerOrderInfo,
+        OrderContext memory orderContext,
+        uint256 posFilledAmount,
+        uint256 takerFeeRate
+    )
+        internal
+        pure
+        returns (MatchResult memory result)
+    {
+        // Each order only pays gas once, so only pay gas when nothing has been filled yet.
+        if (takerOrderInfo.filledAmount == 0) {
+            result.takerGasFee = takerOrderParam.gasAmount;
+        }
+        if (makerOrderInfo.filledAmount == 0) {
+            result.makerGasFee = makerOrderParam.gasAmount;
+        }
+        // calculate fee
+        uint256 makerRawFeeRate = getAsMakerFeeRateFromOrderData(makerOrderParam.data);
+        result.makerFee = result.posFilledAmount.
+            mul(orderContext.middleCollateralPerUnit).
+            mul(makerRawFeeRate).
+            div(FEE_RATE_BASE);
+        result.takerFee = result.posFilledAmount.
+            mul(orderContext.middleCollateralPerUnit).
+            mul(takerFeeRate).
+            div(FEE_RATE_BASE);
+
+        return result;
+    }
+
+    function updateMatchResult(
+        MatchResult memory result,
+        OrderParam memory takerOrderParam,
+        OrderInfo memory takerOrderInfo,
+        OrderParam memory makerOrderParam,
+        OrderInfo memory makerOrderInfo,
+        OrderContext memory orderContext,
+        uint256 posFilledAmount
+    )
+        internal
+        returns (uint256 filledAmount)
+    {
+        bool side = isLong(takerOrderInfo.data);
+        bool oppsite = !side;
+
+        if (takerOrderInfo.balances[oppsite] > 0 && makerOrderInfo.balances[side] > 0) {
+            // do redeem
+            validateRedeemPrice(
+                takerOrderParam,
+                takerOrderInfo,
+                makerOrderParam,
+                makerOrderInfo,
+                orderContext
+            );
+            filledAmount = min(
+                min(takerOrderInfo.balances[oppsite], posFilledAmount),
+                makerOrderInfo.balances[side]
+            );
+            // update balances
+            takerOrderInfo.balances[oppsite] = takerOrderInfo.balances[oppsite].sub(filledAmount);
+            takerOrderInfo.balances[side] = takerOrderInfo.balances[side].sub(filledAmount);
+            result.fillAction = FillAction.REDEEM;
+
+       } else if (takerOrderInfo.balances[oppsite] > 0 && makerOrderInfo.balances[side] == 0) {
+            // do exchange, taker sell to maker
+            require(takerOrderInfo.margins[side] <= makerOrderInfo.margins[oppsite], "");
+
+            filledAmount = min(takerOrderInfo.balances[oppsite], posFilledAmount);
+            takerOrderInfo.balances[oppsite] = takerOrderInfo.balances[oppsite].sub(filledAmount);
+            makerOrderInfo.balances[oppsite] = makerOrderInfo.balances[oppsite].add(filledAmount);
+            result.fillAction = FillAction.SELL;
+
+       } else if (takerOrderInfo.balances[oppsite] == 0 && makerOrderInfo.balances[side] > 0) {
+            // do exchange, taker buy from maker
+            require(takerOrderInfo.margins[side] >= makerOrderInfo.margins[oppsite], "");
+
+            filledAmount = min(makerOrderInfo.balances[side], posFilledAmount);
+            takerOrderInfo.balances[oppsite] = takerOrderInfo.balances[oppsite].add(filledAmount);
+            makerOrderInfo.balances[oppsite] = makerOrderInfo.balances[oppsite].sub(filledAmount);
+            result.fillAction = FillAction.BUY;
+
+       } else if (takerOrderInfo.balances[oppsite] == 0 && makerOrderInfo.balances[side] == 0) {
+            // do mint
+            validateMintPrice(
+                takerOrderParam,
+                takerOrderInfo,
+                makerOrderParam,
+                makerOrderInfo,
+                orderContext
+            );
+            filledAmount = posFilledAmount;
+            // update balances
+            takerOrderInfo.balances[oppsite] = takerOrderInfo.balances[oppsite].add(filledAmount);
+            takerOrderInfo.balances[side] = takerOrderInfo.balances[side].add(filledAmount);
+            result.fillAction = FillAction.MINT;
+
+        } else {
+           revert("UNEXPECTED_MATCH");
+        }
+
+        // update filledAmount
+        takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(filledAmount);
+        makerOrderInfo.filledAmount = makerOrderInfo.filledAmount.add(filledAmount);
+        result.ctkFilledAmount = filledAmount;
+        return filledAmount;
     }
 
     function validateRedeemPrice(
         MatchResult memory,
         OrderParam memory takerOrderParam,
+        OrderInfo memory takerOrderInfo,
         OrderParam memory makerOrderParam,
+        OrderInfo memory makerOrderInfo,
         OrderContext memory orderContext
     )
         internal
         pure
     {
-        uint256 left = takerOrderParam.quoteTokenAmount.div(takerOrderParam.baseTokenAmount);
-        uint256 right = makerOrderParam.quoteTokenAmount.div(makerOrderParam.baseTokenAmount);
-        require(left.add(right) <= orderContext.collateralPerUnit, "REDEEM_PRICE_NOT_MET");
+        uint256 left = takerOrderInfo.margins[isSell(takerOrderParam.data)];
+        uint256 right = makerOrderInfo.margins[!isSell(takerOrderParam.data)];
+        require(
+            left.add(right) <= orderContext.marketContractPool.COLLATERAL_PER_UNIT(),
+            "REDEEM_PRICE_NOT_MET"
+        );
     }
 
     function validateMintPrice(
-        MatchResult memory result,
+        MatchResult memory matchResult,
         OrderParam memory takerOrderParam,
+        OrderInfo memory takerOrderInfo,
         OrderParam memory makerOrderParam,
+        OrderInfo memory makerOrderInfo,
         OrderContext memory orderContext
     )
         internal
         pure
     {
-        uint256 left = takerOrderParam.quoteTokenAmount.mul(takerOrderParam.baseTokenAmount);
-        uint256 right = makerOrderParam.quoteTokenAmount.mul(makerOrderParam.baseTokenAmount);
-        uint256 totalFee = left.add(right).add(result.makerFee).add(result.takerFee);
-        require(
-            totalFee >= orderContext.collateralPerUnit.add(orderContext.collateralTokenFeePerUnit),
-            "MINT_PRICE_NOT_MET"
-        );
+        uint256 left = takerOrderInfo.margins[isSell(takerOrderParam.data)];
+        uint256 right = makerOrderInfo.margins[!isSell(takerOrderParam.data)];            
+        uint256 total = left.add(right).add(result.makerFee).add(result.takerFee);
+        uint256 required = orderContext.marketContractPool.COLLATERAL_PER_UNIT()
+            .add(orderContext.marketContractPool.COLLATERAL_TOKEN_FEE_PER_UNIT());
+        require(total >= required, "MINT_PRICE_NOT_MET");
     }
 
 
@@ -360,6 +690,11 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             INVALID_ORDER_SIGNATURE
         );
 
+        orderInfo.longPosMargin = calcuteLongMargin(orderContext, orderParam);
+        orderInfo.shortPosMargin = calcuteShortMargin(orderContext, orderParam);
+        orderInfo.longPosBalance = orderContext.longPos.balanceOf(orderParam.trader);
+        orderInfo.shortPosBalance = orderContext.shortPos.balanceOf(orderParam.trader);
+
         return orderInfo;
     }
 
@@ -380,116 +715,12 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         returns (Order memory order)
     {
         order.trader = orderParam.trader;
-        order.baseTokenAmount = orderParam.baseTokenAmount;
-        order.quoteTokenAmount = orderParam.quoteTokenAmount;
-        order.gasTokenAmount = orderParam.gasTokenAmount;
-        order.data = orderParam.data;
-        if (isLong(orderParam.data)) {
-            order.baseToken = orderContext.longPositionToken;
-        } else {
-            order.baseToken = orderContext.shortPositionToken;
-        }
-        order.quoteToken = orderContext.collateralToken;
         order.relayer = orderAddressSet.relayer;
-    }
-
-    /**
-     * Construct a MatchResult from matching taker and maker order data, which will be used when
-     * settling the orders and transferring token.
-     *
-     * @param takerOrderParam The OrderParam object representing the taker's order data
-     * @param takerOrderInfo The OrderInfo object representing the current taker order state
-     * @param makerOrderParam The OrderParam object representing the maker's order data
-     * @param makerOrderInfo The OrderInfo object representing the current maker order state
-     * @param takerFeeRate The rate used to calculate the fee charged to the taker
-     * @return MatchResult object containing data that will be used during order settlement.
-     */
-    function getMatchResult(
-        OrderParam memory takerOrderParam,
-        OrderInfo memory takerOrderInfo,
-        OrderParam memory makerOrderParam,
-        OrderInfo memory makerOrderInfo,
-        OrderContext memory orderContext,
-        uint256 baseTokenFilledAmount,
-        uint256 takerFeeRate
-    )
-        internal
-        pure
-        returns (MatchResult memory result)
-    {
-        result.baseTokenFilledAmount = baseTokenFilledAmount;
-        result.quoteTokenFilledAmount = convertBaseToQuote(makerOrderParam, baseTokenFilledAmount);
-
-        // Each order only pays gas once, so only pay gas when nothing has been filled yet.
-        if (takerOrderInfo.filledAmount == 0) {
-            result.takerGasFee = takerOrderParam.gasTokenAmount;
-        }
-
-        if (makerOrderInfo.filledAmount == 0) {
-            result.makerGasFee = makerOrderParam.gasTokenAmount;
-        }
-
-        // buy + sell, and all long or all short, do exchange
-        if (isSell(takerOrderParam.data) != isSell(makerOrderParam.data)) {
-            result.fillAction = FillAction.EXCHANGE;
-            if(!isMarketBuy(takerOrderParam.data)) {
-                takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(
-                    result.baseTokenFilledAmount
-                );
-                require(
-                    takerOrderInfo.filledAmount <= takerOrderParam.baseTokenAmount,
-                    TAKER_ORDER_OVER_MATCH
-                );
-            } else {
-                takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(
-                    result.quoteTokenFilledAmount
-                );
-                require(
-                    takerOrderInfo.filledAmount <= takerOrderParam.quoteTokenAmount,
-                    TAKER_ORDER_OVER_MATCH
-                );
-            }
-        } else {
-            result.fillAction = isSell(takerOrderParam.data)? FillAction.REDEEM: FillAction.MINT;
-            takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(
-                result.baseTokenFilledAmount
-            );
-            require(
-                takerOrderInfo.filledAmount <= takerOrderParam.baseTokenAmount,
-                TAKER_ORDER_OVER_MATCH
-            );
-        }
-
-        makerOrderInfo.filledAmount = makerOrderInfo.filledAmount.add(
-            result.baseTokenFilledAmount
-        );
-        require(
-            makerOrderInfo.filledAmount <= makerOrderParam.baseTokenAmount,
-            MAKER_ORDER_OVER_MATCH
-        );
-
-        result.maker = makerOrderParam.trader;
-        result.taker = takerOrderParam.trader;
-
-        if(isSell(takerOrderParam.data)) {
-            result.buyer = result.maker;
-        } else {
-            result.buyer = result.taker;
-        }
-
-        // makerFee
-        // 1. rawFeeRate from data
-        uint256 makerRawFeeRate = getAsMakerFeeRateFromOrderData(makerOrderParam.data);
-
-        result.makerFee = result.baseTokenFilledAmount.
-            mul(orderContext.middleCollateralPerUnit).
-            mul(makerRawFeeRate).
-            div(FEE_RATE_BASE);
-
-        result.takerFee = result.baseTokenFilledAmount.
-            mul(orderContext.middleCollateralPerUnit).
-            mul(takerFeeRate).
-            div(FEE_RATE_BASE);
+        order.marketContract = orderAddressSet.marketContract;
+        order.amount = orderParam.amount;
+        order.price = orderParam.price;
+        order.gasAmount = orderParam.gasAmount;
+        order.data = orderParam.data;
     }
 
     /**
@@ -514,7 +745,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
      * @param amount An amount of base token.
      * @return The converted amount in quote token units.
      */
-    function convertBaseToQuote(OrderParam memory orderParam, uint256 amount)
+    function convertCollateralToPosition(OrderParam memory orderParam, uint256 amount)
         internal
         pure
         returns (uint256)
@@ -563,11 +794,13 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
     )
         internal
     {
+
+
         if (isSell(takerOrderParam.data)) {
-            // sell, exchange or redeem
+            // sell / redeem
             settleTakerSell(results, orderAddressSet, orderContext);
         } else {
-            // buy, exchange or mint
+            // buy / mint
             settleTakerBuy(results, orderAddressSet, orderContext);
         }
     }
@@ -615,34 +848,34 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             if (results[i].fillAction == FillAction.EXCHANGE) {
                 /**  for FillAction.EXCHANGE
                  *
-                 *   taker      -- baseTokenFilledAmount                            --> maker
-                 *   maker      -- quoteTokenFilledAmount + makerFee + makerGasFee  --> relayer
-                 *   relayer    -- quoteTokenFilledAmount - takerFee - takerGasFee  --> taker
+                 *   taker      -- posFilledAmount                            --> maker
+                 *   maker      -- ctkFilledAmount + makerFee + makerGasFee  --> relayer
+                 *   relayer    -- ctkFilledAmount - takerFee - takerGasFee  --> taker
                  *
-                 *   taker get:     quoteTokenFilledAmount  (-takerFee -takerGasFee)
-                 *   maker get:     baseTokenFilledAmount   (-makerFee -makerGasFee)
+                 *   taker get:     ctkFilledAmount  (-takerFee -takerGasFee)
+                 *   maker get:     posFilledAmount   (-makerFee -makerGasFee)
                  *   relayer get:   makerFee + makerGasFee + takerFee + takerGasFee
                  *
                  **/
                 // taker -> maker
                 transferFrom(
-                    orderContext.takerPositionToken,
+                    orderContext.takerPosToken,
                     results[i].taker,
                     results[i].maker,
-                    results[i].baseTokenFilledAmount
+                    results[i].posFilledAmount
                 );
                 // maker -> relayer
                 transferFrom(
-                    orderContext.collateralToken,
+                    orderContext.ctk,
                     results[i].maker,
                     orderAddressSet.relayer,
-                    results[i].quoteTokenFilledAmount.
+                    results[i].ctkFilledAmount.
                         add(results[i].makerFee).
                         add(results[i].makerGasFee)
                 );
                 // relayer -> taker
                 totalTakerQuoteTokenFilledAmount = totalTakerQuoteTokenFilledAmount.add(
-                    results[i].quoteTokenFilledAmount.sub(results[i].takerFee)
+                    results[i].ctkFilledAmount.sub(results[i].takerFee)
                 );
             } else if (results[i].fillAction == FillAction.REDEEM) {
                 totalTakerQuoteTokenRedeemedAmount = totalTakerQuoteTokenRedeemedAmount.add(
@@ -659,7 +892,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         // transfer accumulative exchanged collateral to taker
         if (totalTakerQuoteTokenFilledAmount > 0) {
             transferFrom(
-                orderContext.collateralToken,
+                orderContext.ctk,
                 orderAddressSet.relayer,
                 results[0].taker,
                 totalTakerQuoteTokenFilledAmount.sub(results[0].takerGasFee)
@@ -675,13 +908,13 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
                     add(results[0].takerGasFee);
             }
             transfer(
-                orderContext.collateralToken,
+                orderContext.ctk,
                 results[0].taker,
                 totalTakerQuoteTokenRedeemedAmount
             );
             // transfer all fees to relayer
             transfer(
-                orderContext.collateralToken,
+                orderContext.ctk,
                 orderAddressSet.relayer,
                 totalTakerQuoteTokenFeeAmount
             );
@@ -703,12 +936,12 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         returns (address)
     {
         require(
-            tokenAddress == orderContext.longPositionToken ||
-            tokenAddress == orderContext.shortPositionToken,
+            tokenAddress == orderContext.longPos ||
+            tokenAddress == orderContext.shortPos,
             "UNEXPECTED_TOKEN"
         );
-        return (tokenAddress == orderContext.longPositionToken)?
-            orderContext.shortPositionToken : orderContext.longPositionToken;
+        return (tokenAddress == orderContext.longPos)?
+            orderContext.shortPos : orderContext.longPos;
     }
 
     /**
@@ -718,12 +951,12 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
      *
      *  for FillAction.MINT
      *
-     *   taker -- takerPositionToken --> maker
+     *   taker -- takerPosToken --> maker
      *   maker -- makerPositionToken --> relayer
      *   proxy -- quoteToken - takerFee - takerGasFee - makerFee - makerGasFee --> taker
      *
-     *   taker get: quoteTokenFilledAmount  (-takerFee -takerGasFee)
-     *   maker get: quoteTokenFilledAmount  (-makerFee -makerGasFee)
+     *   taker get: ctkFilledAmount  (-takerFee -takerGasFee)
+     *   maker get: ctkFilledAmount  (-makerFee -makerGasFee)
      *   proxy get: makerFee + makerGasFee + takerFee + takerGasFee - mintFee
      *
      * @param result A MatchResult object representing an individual trade to settle.
@@ -740,33 +973,33 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
     {
         // taker -> proxy
         transferFrom(
-            orderContext.takerPositionToken,
+            orderContext.takerPosToken,
             result.taker,
             proxyAddress,
-            result.baseTokenFilledAmount
+            result.posFilledAmount
         );
         // maker -> proxy
         transferFrom(
-            getOppositePositionToken(orderContext, orderContext.takerPositionToken),
+            getOppositePositionToken(orderContext, orderContext.takerPosToken),
             result.maker,
             proxyAddress,
-            result.baseTokenFilledAmount
+            result.posFilledAmount
         );
-        // proxy <- at least quoteTokenFilledAmount
-        redeemPositionTokens(orderAddressSet.marketContractAddress, result.baseTokenFilledAmount);
+        // proxy <- at least ctkFilledAmount
+        redeemPositionTokens(orderAddressSet.marketContract, result.posFilledAmount);
         // replayer -> maker
         transfer(
-            orderContext.collateralToken,
+            orderContext.ctk,
             result.maker,
-            result.quoteTokenFilledAmount.
+            result.ctkFilledAmount.
                 sub(result.makerFee).
                 sub(result.makerGasFee)
         );
         uint256 collateralToReturn = MathLib.multiply(
-            result.baseTokenFilledAmount,
+            result.posFilledAmount,
             orderContext.collateralPerUnit);
         return collateralToReturn.
-            sub(result.quoteTokenFilledAmount).
+            sub(result.ctkFilledAmount).
             sub(result.takerFee);
     }
 
@@ -811,29 +1044,29 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             if (results[i].fillAction == FillAction.EXCHANGE) {
                 /**  for FillAction.EXCHANGE
                  *
-                 *   maker      -- quoteTokenFilledAmount                           --> taker
-                 *   taker      -- baseTokenFilledAmount - makerFee - makerGasFee   --> maker
+                 *   maker      -- ctkFilledAmount                           --> taker
+                 *   taker      -- posFilledAmount - makerFee - makerGasFee   --> maker
                  *   taker      -- takerFee + takerGasFee + makerFee + makerGasFee  --> relayer
                  *
-                 *   taker get:     quoteTokenFilledAmount  (-takerFee -takerGasFee)
-                 *   maker get:     baseTokenFilledAmount   (-makerFee -makerGasFee)
+                 *   taker get:     ctkFilledAmount  (-takerFee -takerGasFee)
+                 *   maker get:     posFilledAmount   (-makerFee -makerGasFee)
                  *   relayer get:   makerFee + makerGasFee + takerFee + takerGasFee
                  *
                  **/
                 // maker -> taker
                 transferFrom(
-                    orderContext.takerPositionToken,
+                    orderContext.takerPosToken,
                     results[i].maker,
                     results[i].taker,
-                    results[i].baseTokenFilledAmount
+                    results[i].posFilledAmount
                 );
 
                 // taker -> maker
                 transferFrom(
-                    orderContext.collateralToken,
+                    orderContext.ctk,
                     results[i].taker,
                     results[i].maker,
-                    results[i].quoteTokenFilledAmount.
+                    results[i].ctkFilledAmount.
                         sub(results[i].makerFee).
                         sub(results[i].makerGasFee)
                 );
@@ -855,7 +1088,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         }
         if (totalFee > 0) {
             transferFrom(
-                orderContext.collateralToken,
+                orderContext.ctk,
                 results[0].taker,
                 orderAddressSet.relayer,
                 totalFee
@@ -863,7 +1096,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         }
         if (remainingMintFee > 0) {
             transfer(
-                orderContext.collateralToken,
+                orderContext.ctk,
                 orderAddressSet.relayer,
                 remainingMintFee
             );
@@ -878,13 +1111,13 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
      *
      *  for FillAction.MINT
      *
-     *   maker      -- quoteTokenFilledAmount + makerFee + makerGasFee   --> proxy
-     *   taker      -- quoteTokenFilledAmount + takerFee + takerGasFee   --> proxy
-     *   proxy      -- baseTokenFilledAmount                             --> maker
-     *   proxy      -- baseTokenFilledAmount                             --> taker
+     *   maker      -- ctkFilledAmount + makerFee + makerGasFee   --> proxy
+     *   taker      -- ctkFilledAmount + takerFee + takerGasFee   --> proxy
+     *   proxy      -- posFilledAmount                             --> maker
+     *   proxy      -- posFilledAmount                             --> taker
      *
-     *   taker get:     quoteTokenFilledAmount  (-takerFee -takerGasFee)
-     *   maker get:     baseTokenFilledAmount   (-makerFee -makerGasFee)
+     *   taker get:     ctkFilledAmount  (-takerFee -takerGasFee)
+     *   maker get:     posFilledAmount   (-makerFee -makerGasFee)
      *   relayer get:   makerFee + makerGasFee + takerFee + takerGasFee
      *
      * @param result MatchResult object representing an individual trade to settle.
@@ -899,13 +1132,13 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         internal
         returns (uint256)
     {
-        // baseTokenFilledAmount
+        // posFilledAmount
         uint256 neededCollateral = MathLib.multiply(
-            result.baseTokenFilledAmount,
+            result.posFilledAmount,
             orderContext.collateralPerUnit
         );
         uint256 neededCollateralTokenFee = MathLib.multiply(
-            result.baseTokenFilledAmount,
+            result.posFilledAmount,
             orderContext.collateralTokenFeePerUnit
         );
         uint256 totalFee = result.makerFee.add(result.takerFee);
@@ -915,35 +1148,35 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
 
         // maker -> proxy
         transferFrom(
-            orderContext.collateralToken,
+            orderContext.ctk,
             result.maker,
             proxyAddress,
-            result.quoteTokenFilledAmount.
+            result.ctkFilledAmount.
                 add(result.makerFee).
                 add(result.makerGasFee)
         );
         // taker -> proxy
         transferFrom(
-            orderContext.collateralToken,
+            orderContext.ctk,
             result.taker,
             proxyAddress,
             neededCollateral.
-                sub(result.quoteTokenFilledAmount).
+                sub(result.ctkFilledAmount).
                 add(result.takerFee).
                 add(result.takerGasFee)
         );
         // proxy <- long/short position tokens
-        mintPositionTokens(orderAddressSet.marketContractAddress, result.baseTokenFilledAmount);
+        mintPositionTokens(orderAddressSet.marketContract, result.posFilledAmount);
         // proxy -> maker
         transfer(
-            getOppositePositionToken(orderContext, orderContext.takerPositionToken),
+            getOppositePositionToken(orderContext, orderContext.takerPosToken),
             result.maker,
-            result.baseTokenFilledAmount
+            result.posFilledAmount
         );
         transfer(
-            orderContext.takerPositionToken,
+            orderContext.takerPosToken,
             result.taker,
-            result.baseTokenFilledAmount
+            result.posFilledAmount
         );
         return totalFee.
             add(result.takerGasFee).
