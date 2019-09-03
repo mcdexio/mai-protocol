@@ -84,8 +84,8 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         bytes32 orderHash;
         uint256 filledAmount;
 
-        mapping (bool => uint256) margins;
-        mapping (bool => uint256) balances;
+        uint256[] margins; // index means side. [0] means short, [1] means long
+        uint256[] balances; // index means side. [0] means short, [1] means long
     }
 
     struct OrderAddressSet {
@@ -94,7 +94,8 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
     }
 
     struct OrderContext {
-        IMarketContract marketContractPool;         // pool address
+        IMarketContract marketContract;             // market contract
+        IMarketContractPool marketContractPool;     // market contract pool
         IERC20 ctk;                        // collateral token
         IERC20 longPos;                    // position token: long or short
         IERC20 shortPos;                   // position token: long or short
@@ -130,6 +131,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         returns (OrderContext memory orderContext)
     {
         orderContext.marketContract = IMarketContract(orderAddressSet.marketContract);
+        orderContext.marketContractPool = IMarketContractPool(orderContext.marketContract.COLLATERAL_POOL_ADDRESS());
         orderContext.ctk = IERC20(orderContext.marketContract.COLLATERAL_TOKEN_ADDRESS());
         orderContext.longPos = IERC20(orderContext.marketContract.LONG_POSITION_TOKEN());
         orderContext.shortPos = IERC20(orderContext.marketContract.SHORT_POSITION_TOKEN());
@@ -184,9 +186,10 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
                 orderAddressSet,
                 orderContext
             );
-            MatchResult memory result;
-            uint256 filledAmount;
-            for (uint256 toFillAmount = posFilledAmounts[i]; toFillAmount > 0;) {
+            uint256 toFillAmount = posFilledAmounts[i];
+            while (toFillAmount > 0) {
+                MatchResult memory result;
+                uint256 filledAmount;
                 (result, filledAmount) = getMatchResult(
                     takerOrderParam,
                     takerOrderInfo,
@@ -213,7 +216,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         pure
         returns (uint256)
     {
-        return orderParam.price.sub(orderContext.priceFloor);
+        return orderParam.price.sub(orderContext.marketContract.PRICE_FLOOR());
     }
 
     function calcuteShortMargin(OrderContext memory orderContext, OrderParam memory orderParam)
@@ -221,7 +224,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         pure
         returns (uint256)
     {
-        return orderContext.priceCap.sub(orderParam.price);
+        return orderContext.marketContract.PRICE_CAP().sub(orderParam.price);
     }
 
     /**
@@ -500,12 +503,13 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         }
         // calculate fee
         uint256 makerRawFeeRate = getAsMakerFeeRateFromOrderData(makerOrderParam.data);
+        uint256 middleCollateralPerUnit = calculateMiddleCollateralPerUnit(orderContext);
         result.makerFee = result.posFilledAmount.
-            mul(orderContext.middleCollateralPerUnit).
+            mul(middleCollateralPerUnit).
             mul(makerRawFeeRate).
             div(FEE_RATE_BASE);
         result.takerFee = result.posFilledAmount.
-            mul(orderContext.middleCollateralPerUnit).
+            mul(middleCollateralPerUnit).
             mul(takerFeeRate).
             div(FEE_RATE_BASE);
 
@@ -620,8 +624,8 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         pure
     {
         uint256 left = takerOrderInfo.margins[isSell(takerOrderParam.data)];
-        uint256 right = makerOrderInfo.margins[!isSell(takerOrderParam.data)];            
-        uint256 total = left.add(right).add(result.makerFee).add(result.takerFee);
+        uint256 right = makerOrderInfo.margins[!isSell(takerOrderParam.data)];
+        uint256 total = left.add(right).add(matchResult.makerFee).add(matchResult.takerFee);
         uint256 required = orderContext.marketContractPool.COLLATERAL_PER_UNIT()
             .add(orderContext.marketContractPool.COLLATERAL_TOKEN_FEE_PER_UNIT());
         require(total >= required, "MINT_PRICE_NOT_MET");
