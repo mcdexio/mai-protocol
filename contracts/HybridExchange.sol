@@ -211,7 +211,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         }
         filled[takerOrderInfo.orderHash] = takerOrderInfo.filledAmount;
 
-        settleResults(results, takerOrderParam, orderAddressSet, orderContext);
+        settleResults(results, resultIndex, takerOrderParam, orderAddressSet, orderContext);
     }
 
 
@@ -688,9 +688,9 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         orderInfo.filledAmount = filled[orderInfo.orderHash];
         uint8 status = uint8(OrderStatus.FILLABLE);
 
-        if (!isMarketBuy(order.data) && orderInfo.filledAmount >= order.baseTokenAmount) {
-            status = uint8(OrderStatus.FULLY_FILLED);
-        } else if (isMarketBuy(order.data) && orderInfo.filledAmount >= order.quoteTokenAmount) {
+        // TODO: review isMarketBuy(order.data)
+        // see https://github.com/HydroProtocol/protocol/blob/v1.1/contracts/HybridExchange.sol#L205
+        if (orderInfo.filledAmount >= order.amount) {
             status = uint8(OrderStatus.FULLY_FILLED);
         } else if (block.timestamp >= getExpiredAtFromOrderData(order.data)) {
             status = uint8(OrderStatus.EXPIRED);
@@ -730,10 +730,10 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
     {
         order.trader = orderParam.trader;
         order.relayer = orderAddressSet.relayer;
-        order.marketContract = orderAddressSet.marketContract;
+        order.marketContractAddress = orderAddressSet.marketContract;
         order.amount = orderParam.amount;
         order.price = orderParam.price;
-        order.gasAmount = orderParam.gasAmount;
+        order.gasTokenAmount = orderParam.gasAmount;
         order.data = orderParam.data;
     }
 
@@ -751,45 +751,45 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         return getAsTakerFeeRateFromOrderData(orderParam.data);
     }
 
-    /**
-     * Take an amount and convert it from base token units to quote token units based on the price
-     * in the order param.
-     *
-     * @param orderParam The OrderParam object containing the Order data.
-     * @param amount An amount of base token.
-     * @return The converted amount in quote token units.
-     */
-    function convertCollateralToPosition(OrderParam memory orderParam, uint256 amount)
-        internal
-        pure
-        returns (uint256)
-    {
-        return getPartialAmountFloor(
-            orderParam.quoteTokenAmount,
-            orderParam.baseTokenAmount,
-            amount
-        );
-    }
+    // /**
+    //  * Take an amount and convert it from base token units to quote token units based on the price
+    //  * in the order param.
+    //  *
+    //  * @param orderParam The OrderParam object containing the Order data.
+    //  * @param amount An amount of base token.
+    //  * @return The converted amount in quote token units.
+    //  */
+    // function convertCollateralToPosition(OrderParam memory orderParam, uint256 amount)
+    //     internal
+    //     pure
+    //     returns (uint256)
+    // {
+    //     return getPartialAmountFloor(
+    //         orderParam.quoteTokenAmount,
+    //         orderParam.baseTokenAmount,
+    //         amount
+    //     );
+    // }
 
-    /**
-     * Take an amount and convert it from quote token units to base token units based on the price
-     * in the order param.
-     *
-     * @param orderParam The OrderParam object containing the Order data.
-     * @param amount An amount of quote token.
-     * @return The converted amount in base token units.
-     */
-    function convertQuoteToBase(OrderParam memory orderParam, uint256 amount)
-        internal
-        pure
-        returns (uint256)
-    {
-        return getPartialAmountFloor(
-            orderParam.baseTokenAmount,
-            orderParam.quoteTokenAmount,
-            amount
-        );
-    }
+    // /**
+    //  * Take an amount and convert it from quote token units to base token units based on the price
+    //  * in the order param.
+    //  *
+    //  * @param orderParam The OrderParam object containing the Order data.
+    //  * @param amount An amount of quote token.
+    //  * @return The converted amount in base token units.
+    //  */
+    // function convertQuoteToBase(OrderParam memory orderParam, uint256 amount)
+    //     internal
+    //     pure
+    //     returns (uint256)
+    // {
+    //     return getPartialAmountFloor(
+    //         orderParam.baseTokenAmount,
+    //         orderParam.quoteTokenAmount,
+    //         amount
+    //     );
+    // }
 
     /**
      * Take a list of matches and settle them with the taker order, transferring tokens all tokens
@@ -802,20 +802,19 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
      */
     function settleResults(
         MatchResult[] memory results,
+        uint256 resultsLength,
         OrderParam memory takerOrderParam,
         OrderAddressSet memory orderAddressSet,
         OrderContext memory orderContext
     )
         internal
     {
-
-
         if (isSell(takerOrderParam.data)) {
             // sell / redeem
-            settleTakerSell(results, orderAddressSet, orderContext);
+            settleTakerSell(results, resultsLength, orderAddressSet, orderContext);
         } else {
             // buy / mint
-            settleTakerBuy(results, orderAddressSet, orderContext);
+            settleTakerBuy(results, resultsLength, orderAddressSet, orderContext);
         }
     }
 
@@ -847,6 +846,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
      */
     function settleTakerSell(
         MatchResult[] memory results,
+        uint256 resultsLength,
         OrderAddressSet memory orderAddressSet,
         OrderContext memory orderContext
     )
@@ -858,7 +858,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         uint256 totalTakerQuoteTokenRedeemedAmount = 0;
         uint256 totalTakerQuoteTokenFeeAmount = 0;
 
-        for (uint256 i = 0; i < results.length; i++) {
+        for (uint256 i = 0; i < resultsLength; i++) {
             if (results[i].fillAction == FillAction.EXCHANGE) {
                 /**  for FillAction.EXCHANGE
                  *
@@ -1046,6 +1046,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
      */
     function settleTakerBuy(
         MatchResult[] memory results,
+        uint256 resultsLength,
         OrderAddressSet memory orderAddressSet,
         OrderContext memory orderContext
     )
@@ -1054,7 +1055,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         uint256 totalFee = 0;
         uint256 remainingMintFee = 0;
 
-        for (uint256 i = 0; i < results.length; i++) {
+        for (uint256 i = 0; i < resultsLength; i++) {
             if (results[i].fillAction == FillAction.EXCHANGE) {
                 /**  for FillAction.EXCHANGE
                  *
