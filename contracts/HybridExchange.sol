@@ -1,4 +1,4 @@
-updateMatchResult/*
+/*
 
     Copyright 2018 The Hydro Protocol Foundation
 
@@ -529,12 +529,13 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         internal
         returns (uint256 filledAmount)
     {
-        bool side = isBuy(takerOrderParam.data);
-        bool oppsite = !side;
+        uint side = isSell(takerOrderParam.data) ? 1 : 0;
+        uint oppsite = side == 1 ? 0 : 1;
 
         if (takerOrderInfo.balances[oppsite] > 0 && makerOrderInfo.balances[side] > 0) {
             // do redeem
             validateRedeemPrice(
+                result,
                 takerOrderParam,
                 takerOrderInfo,
                 makerOrderParam,
@@ -547,7 +548,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             );
             // update balances
             takerOrderInfo.balances[oppsite] = takerOrderInfo.balances[oppsite].sub(filledAmount);
-            takerOrderInfo.balances[side] = takerOrderInfo.balances[side].sub(filledAmount);
+            makerOrderInfo.balances[side] = makerOrderInfo.balances[side].sub(filledAmount);
             result.fillAction = FillAction.REDEEM;
 
        } else if (takerOrderInfo.balances[oppsite] > 0 && makerOrderInfo.balances[side] == 0) {
@@ -564,13 +565,14 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             require(takerOrderInfo.margins[side] >= makerOrderInfo.margins[oppsite], "");
 
             filledAmount = min(makerOrderInfo.balances[side], posFilledAmount);
-            takerOrderInfo.balances[oppsite] = takerOrderInfo.balances[oppsite].add(filledAmount);
-            makerOrderInfo.balances[oppsite] = makerOrderInfo.balances[oppsite].sub(filledAmount);
+            takerOrderInfo.balances[side] = takerOrderInfo.balances[side].add(filledAmount);
+            makerOrderInfo.balances[side] = makerOrderInfo.balances[side].sub(filledAmount);
             result.fillAction = FillAction.BUY;
 
        } else if (takerOrderInfo.balances[oppsite] == 0 && makerOrderInfo.balances[side] == 0) {
             // do mint
             validateMintPrice(
+                result,
                 takerOrderParam,
                 takerOrderInfo,
                 makerOrderParam,
@@ -579,8 +581,8 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             );
             filledAmount = posFilledAmount;
             // update balances
-            takerOrderInfo.balances[oppsite] = takerOrderInfo.balances[oppsite].add(filledAmount);
             takerOrderInfo.balances[side] = takerOrderInfo.balances[side].add(filledAmount);
+            makerOrderInfo.balances[oppsite] = makerOrderInfo.balances[oppsite].add(filledAmount);
             result.fillAction = FillAction.MINT;
 
         } else {
@@ -590,7 +592,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         // update filledAmount
         takerOrderInfo.filledAmount = takerOrderInfo.filledAmount.add(filledAmount);
         makerOrderInfo.filledAmount = makerOrderInfo.filledAmount.add(filledAmount);
-        result.ctkFilledAmount = filledAmount;
+        result.ctkFilledAmount = filledAmount; // tc: asdf??
         return filledAmount;
     }
 
@@ -605,10 +607,12 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         internal
         pure
     {
-        uint256 left = takerOrderInfo.margins[isSell(takerOrderParam.data)];
-        uint256 right = makerOrderInfo.margins[!isSell(takerOrderParam.data)];
+        uint side = isSell(takerOrderParam.data) ? 1 : 0;
+        uint oppsite = side == 1 ? 0 : 1;
+        uint256 left = takerOrderInfo.margins[side];
+        uint256 right = makerOrderInfo.margins[oppsite];
         require(
-            left.add(right) <= orderContext.marketContractPool.COLLATERAL_PER_UNIT(),
+            left.add(right) <= orderContext.marketContract.COLLATERAL_PER_UNIT(),
             "REDEEM_PRICE_NOT_MET"
         );
     }
@@ -624,11 +628,13 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         internal
         pure
     {
-        uint256 left = takerOrderInfo.margins[isSell(takerOrderParam.data)];
-        uint256 right = makerOrderInfo.margins[!isSell(takerOrderParam.data)];
+        uint side = isSell(takerOrderParam.data) ? 1 : 0;
+        uint oppsite = side == 1 ? 0 : 1;
+        uint256 left = takerOrderInfo.margins[side];
+        uint256 right = makerOrderInfo.margins[oppsite];
         uint256 total = left.add(right).add(matchResult.makerFee).add(matchResult.takerFee);
-        uint256 required = orderContext.marketContractPool.COLLATERAL_PER_UNIT()
-            .add(orderContext.marketContractPool.COLLATERAL_TOKEN_FEE_PER_UNIT());
+        uint256 required = orderContext.marketContract.COLLATERAL_PER_UNIT()
+            .add(orderContext.marketContract.COLLATERAL_TOKEN_FEE_PER_UNIT());
         require(total >= required, "MINT_PRICE_NOT_MET");
     }
 
