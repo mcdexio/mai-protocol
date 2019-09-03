@@ -136,6 +136,9 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         orderContext.ctk = IERC20(orderContext.marketContract.COLLATERAL_TOKEN_ADDRESS());
         orderContext.longPos = IERC20(orderContext.marketContract.LONG_POSITION_TOKEN());
         orderContext.shortPos = IERC20(orderContext.marketContract.SHORT_POSITION_TOKEN());
+
+        require (block.timestamp < orderContext.marketContract.EXPIRATION(), "MarketProtocolContract expired");
+
         return orderContext;
     }
 
