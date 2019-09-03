@@ -152,10 +152,6 @@ contract LibOrder is EIP712, LibSignature, LibMath {
         return data[22] == 1;
     }
 
-    function isLong(bytes32 data) internal pure returns (bool) {
-        return data[23] == 1;
-    }
-
     function isMarketBuy(bytes32 data) internal pure returns (bool) {
         return !isSell(data) && isMarketOrder(data);
     }

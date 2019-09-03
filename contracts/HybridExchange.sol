@@ -1,4 +1,4 @@
-/*
+updateMatchResult/*
 
     Copyright 2018 The Hydro Protocol Foundation
 
@@ -84,8 +84,9 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         bytes32 orderHash;
         uint256 filledAmount;
 
-        uint256[] margins; // index means side. [0] means short, [1] means long
-        uint256[] balances; // index means side. [0] means short, [1] means long
+        // [0] = long position token, [1] = short position token
+        uint256[] margins;
+        uint256[] balances;
     }
 
     struct OrderAddressSet {
@@ -528,7 +529,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         internal
         returns (uint256 filledAmount)
     {
-        bool side = isLong(takerOrderInfo.data);
+        bool side = isBuy(takerOrderParam.data);
         bool oppsite = !side;
 
         if (takerOrderInfo.balances[oppsite] > 0 && makerOrderInfo.balances[side] > 0) {
@@ -694,10 +695,10 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             INVALID_ORDER_SIGNATURE
         );
 
-        orderInfo.longPosMargin = calcuteLongMargin(orderContext, orderParam);
-        orderInfo.shortPosMargin = calcuteShortMargin(orderContext, orderParam);
-        orderInfo.longPosBalance = orderContext.longPos.balanceOf(orderParam.trader);
-        orderInfo.shortPosBalance = orderContext.shortPos.balanceOf(orderParam.trader);
+        orderInfo.margins[0] = calcuteLongMargin(orderContext, orderParam);
+        orderInfo.margins[1] = calcuteShortMargin(orderContext, orderParam);
+        orderInfo.balances[0] = orderContext.longPos.balanceOf(orderParam.trader);
+        orderInfo.balances[1] = orderContext.shortPos.balanceOf(orderParam.trader);
 
         return orderInfo;
     }
