@@ -65,7 +65,7 @@ contract LibOrder is EIP712, LibSignature, LibMath {
     enum FillAction {
         BUY,
         SELL,
-        EXCHANGE, // deprecated
+        //EXCHANGE, // deprecated
         MINT,
         REDEEM
     }
