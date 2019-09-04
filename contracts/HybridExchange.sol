@@ -212,7 +212,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         }
         filled[takerOrderInfo.orderHash] = takerOrderInfo.filledAmount;
 
-        settleResults(results, resultIndex, takerOrderParam, orderAddressSet, orderContext);
+        settleResults(results, takerOrderParam, orderAddressSet, orderContext);
     }
 
 
@@ -803,7 +803,6 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
      */
     function settleResults(
         MatchResult[] memory results,
-        uint256 resultsLength,
         OrderParam memory takerOrderParam,
         OrderAddressSet memory orderAddressSet,
         OrderContext memory orderContext
@@ -811,10 +810,10 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         internal
     {
         // sell / redeem
-        settleTakerSell(results, resultsLength, orderAddressSet, orderContext);
+        settleTakerSell(results, orderAddressSet, orderContext);
 
         // buy / mint
-        settleTakerBuy(results, resultsLength, orderAddressSet, orderContext);
+        settleTakerBuy(results, orderAddressSet, orderContext);
     }
 
     /**
@@ -845,7 +844,6 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
      */
     function settleTakerSell(
         MatchResult[] memory results,
-        uint256 resultsLength,
         OrderAddressSet memory orderAddressSet,
         OrderContext memory orderContext
     )
@@ -858,7 +856,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         uint256 totalTakerQuoteTokenFeeAmount = 0;
         uint side = orderContext.takerSide;
         //uint oppsite = side == 1 ? 0 : 1;
-        for (uint256 i = 0; i < resultsLength; i++) {
+        for (uint256 i = 0; i < results.length; i++) {
             if (results[i].fillAction == FillAction.SELL) {
                 /**  for FillAction.EXCHANGE
                  *
@@ -1026,7 +1024,6 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
      */
     function settleTakerBuy(
         MatchResult[] memory results,
-        uint256 resultsLength,
         OrderAddressSet memory orderAddressSet,
         OrderContext memory orderContext
     )
@@ -1037,7 +1034,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         uint side = orderContext.takerSide;
         //uint oppsite = side == 1 ? 0 : 1;
 
-        for (uint256 i = 0; i < resultsLength; i++) {
+        for (uint256 i = 0; i < results.length; i++) {
             if (results[i].fillAction == FillAction.BUY) {
                 /**  for FillAction.EXCHANGE
                  *
