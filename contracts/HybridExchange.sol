@@ -100,6 +100,8 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         IERC20 ctk;                             // collateral token
         IERC20[2] pos;                          // [0] = long position token, [1] = short position token
         uint takerSide;                         // 0 = buy, 1 = short
+        IERC20 takerPos;
+        IERC20 makerPos;
     }
 
     struct MatchResult {
@@ -137,6 +139,8 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         orderContext.pos[0] = IERC20(orderContext.marketContract.LONG_POSITION_TOKEN());
         orderContext.pos[1] = IERC20(orderContext.marketContract.SHORT_POSITION_TOKEN());
         orderContext.takerSide = isSell(takerOrderParam.data) ? 1 : 0;
+        orderContext.takerPos = orderContext.pos[orderContext.takerSide];
+        orderContext.makerPos = orderContext.pos[orderContext.takerSide == 1 ? 0 : 1];
 
         require (block.timestamp < orderContext.marketContract.EXPIRATION(), "MarketProtocolContract expired");
 
@@ -531,12 +535,13 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         uint256 posFilledAmount
     )
         internal
+        view
         returns (uint256 filledAmount)
     {
         uint side = orderContext.takerSide;
-        uint oppsite = side == 1 ? 0 : 1;
+        uint opposite = side == 1 ? 0 : 1;
 
-        if (takerOrderInfo.balances[oppsite] > 0 && makerOrderInfo.balances[side] > 0) {
+        if (takerOrderInfo.balances[opposite] > 0 && makerOrderInfo.balances[side] > 0) {
             // do redeem
             validateRedeemPrice(
                 result,
@@ -547,33 +552,33 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
                 orderContext
             );
             filledAmount = min(
-                min(takerOrderInfo.balances[oppsite], posFilledAmount),
+                min(takerOrderInfo.balances[opposite], posFilledAmount),
                 makerOrderInfo.balances[side]
             );
             // update balances
-            takerOrderInfo.balances[oppsite] = takerOrderInfo.balances[oppsite].sub(filledAmount);
+            takerOrderInfo.balances[opposite] = takerOrderInfo.balances[opposite].sub(filledAmount);
             makerOrderInfo.balances[side] = makerOrderInfo.balances[side].sub(filledAmount);
             result.fillAction = FillAction.REDEEM;
 
-       } else if (takerOrderInfo.balances[oppsite] > 0 && makerOrderInfo.balances[side] == 0) {
+       } else if (takerOrderInfo.balances[opposite] > 0 && makerOrderInfo.balances[side] == 0) {
             // do exchange, taker sell to maker
-            require(takerOrderInfo.margins[side] <= makerOrderInfo.margins[oppsite], "");
+            require(takerOrderInfo.margins[side] <= makerOrderInfo.margins[opposite], "");
 
-            filledAmount = min(takerOrderInfo.balances[oppsite], posFilledAmount);
-            takerOrderInfo.balances[oppsite] = takerOrderInfo.balances[oppsite].sub(filledAmount);
-            makerOrderInfo.balances[oppsite] = makerOrderInfo.balances[oppsite].add(filledAmount);
+            filledAmount = min(takerOrderInfo.balances[opposite], posFilledAmount);
+            takerOrderInfo.balances[opposite] = takerOrderInfo.balances[opposite].sub(filledAmount);
+            makerOrderInfo.balances[opposite] = makerOrderInfo.balances[opposite].add(filledAmount);
             result.fillAction = FillAction.SELL;
 
-       } else if (takerOrderInfo.balances[oppsite] == 0 && makerOrderInfo.balances[side] > 0) {
+       } else if (takerOrderInfo.balances[opposite] == 0 && makerOrderInfo.balances[side] > 0) {
             // do exchange, taker buy from maker
-            require(takerOrderInfo.margins[side] >= makerOrderInfo.margins[oppsite], "");
+            require(takerOrderInfo.margins[side] >= makerOrderInfo.margins[opposite], "");
 
             filledAmount = min(makerOrderInfo.balances[side], posFilledAmount);
             takerOrderInfo.balances[side] = takerOrderInfo.balances[side].add(filledAmount);
             makerOrderInfo.balances[side] = makerOrderInfo.balances[side].sub(filledAmount);
             result.fillAction = FillAction.BUY;
 
-       } else if (takerOrderInfo.balances[oppsite] == 0 && makerOrderInfo.balances[side] == 0) {
+       } else if (takerOrderInfo.balances[opposite] == 0 && makerOrderInfo.balances[side] == 0) {
             // do mint
             validateMintPrice(
                 result,
@@ -586,7 +591,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             filledAmount = posFilledAmount;
             // update balances
             takerOrderInfo.balances[side] = takerOrderInfo.balances[side].add(filledAmount);
-            makerOrderInfo.balances[oppsite] = makerOrderInfo.balances[oppsite].add(filledAmount);
+            makerOrderInfo.balances[opposite] = makerOrderInfo.balances[opposite].add(filledAmount);
             result.fillAction = FillAction.MINT;
 
         } else {
@@ -612,9 +617,9 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         view
     {
         uint side = orderContext.takerSide;
-        uint oppsite = side == 1 ? 0 : 1;
+        uint opposite = side == 1 ? 0 : 1;
         uint256 left = takerOrderInfo.margins[side];
-        uint256 right = makerOrderInfo.margins[oppsite];
+        uint256 right = makerOrderInfo.margins[opposite];
         require(
             left.add(right) <= orderContext.marketContract.COLLATERAL_PER_UNIT(),
             "REDEEM_PRICE_NOT_MET"
@@ -633,9 +638,9 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         view
     {
         uint side = orderContext.takerSide;
-        uint oppsite = side == 1 ? 0 : 1;
+        uint opposite = side == 1 ? 0 : 1;
         uint256 left = takerOrderInfo.margins[side];
-        uint256 right = makerOrderInfo.margins[oppsite];
+        uint256 right = makerOrderInfo.margins[opposite];
         uint256 total = left.add(right).add(matchResult.makerFee).add(matchResult.takerFee);
         uint256 required = orderContext.marketContract.COLLATERAL_PER_UNIT()
             .add(orderContext.marketContract.COLLATERAL_TOKEN_FEE_PER_UNIT());
@@ -854,8 +859,6 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         // total amount of redeemed
         uint256 totalTakerQuoteTokenRedeemedAmount = 0;
         uint256 totalTakerQuoteTokenFeeAmount = 0;
-        uint side = orderContext.takerSide;
-        //uint oppsite = side == 1 ? 0 : 1;
         for (uint256 i = 0; i < results.length; i++) {
             if (results[i].fillAction == FillAction.SELL) {
                 /**  for FillAction.EXCHANGE
@@ -871,7 +874,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
                  **/
                 // taker -> maker
                 transferFrom(
-                    orderContext.pos[side],
+                    orderContext.takerPos,
                     results[i].taker,
                     results[i].maker,
                     results[i].posFilledAmount
@@ -960,19 +963,16 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         internal
         returns (uint256)
     {
-        uint side = orderContext.takerSide;
-        uint oppsite = side == 1 ? 0 : 1;
-
         // taker -> proxy
         transferFrom(
-            orderContext.pos[side],
+            orderContext.takerPos,
             result.taker,
             proxyAddress,
             result.posFilledAmount
         );
         // maker -> proxy
         transferFrom(
-            orderContext.pos[oppsite],
+            orderContext.makerPos,
             result.maker,
             proxyAddress,
             result.posFilledAmount
@@ -1031,9 +1031,6 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
     {
         uint256 totalFee = 0;
         uint256 remainingMintFee = 0;
-        uint side = orderContext.takerSide;
-        //uint oppsite = side == 1 ? 0 : 1;
-
         for (uint256 i = 0; i < results.length; i++) {
             if (results[i].fillAction == FillAction.BUY) {
                 /**  for FillAction.EXCHANGE
@@ -1049,7 +1046,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
                  **/
                 // maker -> taker
                 transferFrom(
-                    orderContext.pos[side],
+                    orderContext.takerPos,
                     results[i].maker,
                     results[i].taker,
                     results[i].posFilledAmount
@@ -1125,9 +1122,6 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         internal
         returns (uint256)
     {
-        uint side = orderContext.takerSide;
-        uint oppsite = side == 1 ? 0 : 1;
-
         // posFilledAmount
         uint256 neededCollateral = MathLib.multiply(
             result.posFilledAmount,
@@ -1165,12 +1159,12 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         mintPositionTokens(orderAddressSet.marketContract, result.posFilledAmount);
         // proxy -> maker
         transfer(
-            orderContext.pos[oppsite],
+            orderContext.makerPos,
             result.maker,
             result.posFilledAmount
         );
         transfer(
-            orderContext.pos[side],
+            orderContext.takerPos,
             result.taker,
             result.posFilledAmount
         );
