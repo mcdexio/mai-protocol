@@ -55,7 +55,7 @@ const getContracts = async () => {
     };
 };
 
-const getMarketContracts = async (configs) => {
+const getMarketContract = async (configs) => {
     const collateral = await newContract(TestToken, "Collateral Token", "CTK", 18);
     const long = await newContract(TestToken, "Long Position Token", "lBTC", 5);
     const short = await newContract(TestToken, "Short Position Token", "sBTC", 5);
@@ -101,5 +101,5 @@ module.exports = {
     getContracts,
     clone,
     setHotAmount,
-    getMarketContracts
+    getMarketContract
 };

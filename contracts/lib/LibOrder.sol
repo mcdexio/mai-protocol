@@ -110,19 +110,18 @@ contract LibOrder is EIP712, LibSignature, LibMath {
          *     )
          * );
          */
-
         bytes32 orderType = EIP712_ORDER_TYPE;
 
         assembly {
             let start := sub(order, 32)
             let tmp := mload(start)
 
-            // 288 = (1 + 8) * 32
+            // 256 = (1 + 7) * 32
             //
             // [0...32)   bytes: EIP712_ORDER_TYPE
-            // [32...288) bytes: order
+            // [32...256) bytes: order
             mstore(start, orderType)
-            result := keccak256(start, 288)
+            result := keccak256(start, 256)
 
             mstore(start, tmp)
         }

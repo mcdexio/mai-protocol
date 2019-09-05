@@ -45,8 +45,7 @@ const generateOrderData = (
     asTakerFeeRate,
     makerRebateRate,
     salt,
-    isMakerOnly,
-    isLong
+    isMakerOnly
 ) => {
     let res = '0x';
     res += addLeadingZero(new BigNumber(version).toString(16), 2);
@@ -58,7 +57,6 @@ const generateOrderData = (
     res += addLeadingZero(new BigNumber(makerRebateRate).toString(16), 2 * 2);
     res += addLeadingZero(new BigNumber(salt).toString(16), 8 * 2);
     res += isMakerOnly ? '01' : '00';
-    res += isLong ? '01' : '00';
 
     return addTailingZero(res, 66);
 };
@@ -84,10 +82,9 @@ const getOrderHash = order => {
             EIP712_ORDER_TYPE +
             addLeadingZero(order.trader.slice(2), 64) +
             addLeadingZero(order.relayer.slice(2), 64) +
-            addLeadingZero(order.baseToken.slice(2), 64) +
-            addLeadingZero(order.quoteToken.slice(2), 64) +
-            addLeadingZero(new BigNumber(order.baseTokenAmount).toString(16), 64) +
-            addLeadingZero(new BigNumber(order.quoteTokenAmount).toString(16), 64) +
+            addLeadingZero(order.marketContractAddress.slice(2), 64) +
+            addLeadingZero(new BigNumber(order.amount).toString(16), 64) +
+            addLeadingZero(new BigNumber(order.price).toString(16), 64) +
             addLeadingZero(new BigNumber(order.gasTokenAmount).toString(16), 64) +
             order.data.slice(2)
         )
