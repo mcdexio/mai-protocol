@@ -16,7 +16,7 @@ contract TestMarketContract {
     uint public COLLATERAL_PER_UNIT;    // required collateral amount for the full range of outcome tokens
     uint public COLLATERAL_TOKEN_FEE_PER_UNIT;
     uint public MKT_TOKEN_FEE_PER_UNIT;
-    uint public EXPIRATION = 30 days;
+    uint public EXPIRATION = block.timestamp + 30 days;
     uint public SETTLEMENT_DELAY = 1 days;
     uint public lastPrice;
     uint public settlementPrice;

@@ -61,14 +61,10 @@ contract('Match', async accounts => {
         short = mpxContract.short;
     });
 
-    const getOrderSignature = async (order, baseToken, quoteToken) => {
-        const copyedOrder = JSON.parse(JSON.stringify(order));
-        copyedOrder.baseToken = baseToken;
-        copyedOrder.quoteToken = quoteToken;
-
-        const orderHash = getOrderHash(copyedOrder);
+    const getOrderSignature = async (order) => {
+        const orderHash = getOrderHash(order);
         const newWeb3 = getWeb3();
-
+        
         // This depends on the client, ganache-cli/testrpc auto prefix the message header to message
         // So we have to set the method ID to 0 even through we use web3.eth.sign
         const signature = fromRpcSig(await newWeb3.eth.sign(orderHash, order.trader));
@@ -80,10 +76,14 @@ contract('Match', async accounts => {
         order.orderHash = orderHash;
     };
 
-    const buildOrder = async (orderParam, baseTokenAddress, quoteTokenAddress) => {
+    const buildOrder = async (orderParam) => {
         const order = {
             trader: orderParam.trader,
             relayer: orderParam.relayer,
+            marketContract: orderParam.marketContract,
+            amount: orderParam.amount,
+            price: orderParam.price,
+            gasAmount: orderParam.gasAmount,
             data: generateOrderData(
                 orderParam.version,
                 orderParam.side === 'sell',
@@ -94,14 +94,10 @@ contract('Match', async accounts => {
                 orderParam.makerRebateRate || '0',
                 Math.round(10000000),
                 false,
-                orderParam.position === 'long',
             ),
-            baseTokenAmount: orderParam.baseTokenAmount,
-            quoteTokenAmount: orderParam.quoteTokenAmount,
-            gasTokenAmount: orderParam.gasTokenAmount
         };
 
-        await getOrderSignature(order, baseTokenAddress, quoteTokenAddress);
+        await getOrderSignature(order);
 
         return order;
     };
@@ -110,22 +106,18 @@ contract('Match', async accounts => {
         const orderParam = {
             trader: config.trader,
             relayer,
+            marketContract: mpx._address,
             version: 2,
             side: config.side,
             type: 'limit',
             expiredAtSeconds: 3500000000,
             asMakerFeeRate: config.makerFeeRate || '0',
             asTakerFeeRate: config.takerFeeRate || '0',
-            baseTokenAmount: config.baseAmount,
-            quoteTokenAmount: config.quoteAmount,
-            gasTokenAmount: config.gasAmount || toWei(0.1),
-            position: config.position,
+            amount: config.amount,
+            price: config.price,
+            gasAmount: config.gasAmount || toWei(0.1),
         };
-        return await buildOrder(
-            orderParam,
-            config.position === 'long' ? long._address: short._address,
-            collateral._address
-        );
+        return await buildOrder(orderParam);
     }
 
     const getNormalizedBalance = async (contract, user) => {
@@ -193,6 +185,10 @@ contract('Match', async accounts => {
         const admin = matchConfigs.admin;
         const users = matchConfigs.users || {};
         const tokens = matchConfigs.tokens || {};
+        const orderAsset = matchConfigs.orderAsset || {
+            marketContract: mpx._address,
+            relayer: relayer,
+        };
 
         const call = async (method) => {
             return await method.call();
@@ -239,7 +235,7 @@ contract('Match', async accounts => {
             takerOrder,
             makerOrders,
             matchConfigs.filledAmounts,
-            matchConfigs.orderAsset
+            orderAsset
         ));
         if (afterMatching !== undefined) {
             afterMatching();

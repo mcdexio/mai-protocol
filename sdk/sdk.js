@@ -63,7 +63,7 @@ const generateOrderData = (
 
 const EIP712_DOMAIN_TYPEHASH = sha3ToHex('EIP712Domain(string name)');
 const EIP712_ORDER_TYPE = sha3ToHex(
-    'Order(address trader,address relayer,address baseToken,address quoteToken,uint256 baseTokenAmount,uint256 quoteTokenAmount,uint256 gasTokenAmount,bytes32 data)'
+    "Order(address trader,address relayer,address marketContract,uint256 amount,uint256 price,uint256 gasAmount,bytes32 data)"
 );
 
 const getDomainSeparator = () => {
@@ -82,10 +82,10 @@ const getOrderHash = order => {
             EIP712_ORDER_TYPE +
             addLeadingZero(order.trader.slice(2), 64) +
             addLeadingZero(order.relayer.slice(2), 64) +
-            addLeadingZero(order.marketContractAddress.slice(2), 64) +
+            addLeadingZero(order.marketContract.slice(2), 64) +
             addLeadingZero(new BigNumber(order.amount).toString(16), 64) +
             addLeadingZero(new BigNumber(order.price).toString(16), 64) +
-            addLeadingZero(new BigNumber(order.gasTokenAmount).toString(16), 64) +
+            addLeadingZero(new BigNumber(order.gasAmount).toString(16), 64) +
             order.data.slice(2)
         )
     );
