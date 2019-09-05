@@ -139,7 +139,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         require (
             // solium-disable-next-line security/no-block-members
             block.timestamp < orderContext.marketContract.EXPIRATION(),
-            "MarketProtocolContract expired"
+            MP_EXPIRED
         );
         orderContext.marketContractPool = IMarketContractPool(
             orderContext.marketContract.COLLATERAL_POOL_ADDRESS()
