@@ -168,6 +168,7 @@ contract Proxy is LibOwnable, LibWhitelist {
         internal
         onlyAddressInWhitelist
     {
+        // solium-disable-next-line security/no-inline-assembly
         assembly {
             // keccak256('transfer(address,uint256)') & 0xFFFFFFFF00000000000000000000000000000000000000000000000000000000
             mstore(0, 0xa9059cbb00000000000000000000000000000000000000000000000000000000)
@@ -202,6 +203,7 @@ contract Proxy is LibOwnable, LibWhitelist {
         internal
         onlyAddressInWhitelist
     {
+        // solium-disable-next-line security/no-inline-assembly
         assembly {
             // keccak256('transferFrom(address,address,uint256)') & 0xFFFFFFFF00000000000000000000000000000000000000000000000000000000
             mstore(0, 0x23b872dd00000000000000000000000000000000000000000000000000000000)
