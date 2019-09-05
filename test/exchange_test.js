@@ -13,10 +13,9 @@ contract('CancelOrder', accounts => {
         const order = {
             trader: accounts[0],
             relayer: '0x0000000000000000000000000000000000000000',
-            baseToken: '0x0000000000000000000000000000000000000000',
-            quoteToken: '0x0000000000000000000000000000000000000000',
-            baseTokenAmount: 1,
-            quoteTokenAmount: 1,
+            marketContractAddress: '0x0000000000000000000000000000000000000000',
+            amount: 1,
+            price: 1,
             data: generateOrderData(1, true, false, 0, 1, 1, 0, 1),
             gasTokenAmount: 0
         };
@@ -34,10 +33,9 @@ contract('CancelOrder', accounts => {
         const order = {
             trader: accounts[0],
             relayer: '0x0000000000000000000000000000000000000000',
-            baseToken: '0x0000000000000000000000000000000000000000',
-            quoteToken: '0x0000000000000000000000000000000000000000',
-            baseTokenAmount: 1,
-            quoteTokenAmount: 1,
+            marketContractAddress: '0x0000000000000000000000000000000000000000',
+            amount: 1,
+            price: 1,
             data: generateOrderData(1, true, false, 0, 1, 1, 0, 1123123),
             gasTokenAmount: 0
         };

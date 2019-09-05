@@ -499,10 +499,10 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
     {
         order.trader = orderParam.trader;
         order.relayer = orderAddressSet.relayer;
-        order.marketContractAddress = orderAddressSet.marketContract;
+        order.marketContract = orderAddressSet.marketContract;
         order.amount = orderParam.amount;
         order.price = orderParam.price;
-        order.gasTokenAmount = orderParam.gasAmount;
+        order.gasAmount = orderParam.gasAmount;
         order.data = orderParam.data;
     }
 
