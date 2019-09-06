@@ -23,6 +23,8 @@ contract LibExchangeErrors {
     string constant INVALID_SENDER = "INVALID_SENDER";
     // Taker order and maker order can't be matched
     string constant INVALID_MATCH = "INVALID_MATCH";
+    string constant REDEEM_PRICE_NOT_MET = "REDEEM_PRICE_NOT_MET";
+    string constant MINT_PRICE_NOT_MET = "MINT_PRICE_NOT_MET";
     string constant INVALID_SIDE = "INVALID_SIDE";
     // Signature validation failed
     string constant INVALID_ORDER_SIGNATURE = "INVALID_ORDER_SIGNATURE";
@@ -40,4 +42,5 @@ contract LibExchangeErrors {
     string constant MINT_POSITION_TOKENS_FAILED = "MINT_FAILED";
     string constant REDEEM_POSITION_TOKENS_FAILED = "REDEEM_FAILED";
     string constant MP_EXPIRED = "MP_EXPIRED";
+    string constant UNEXPECTED_MATCH = "UNEXPECTED_MATCH";
 }

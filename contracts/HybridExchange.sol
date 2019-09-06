@@ -183,6 +183,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
                 isSell(takerOrderParam.data) != isSell(makerOrderParams[i].data),
                 INVALID_SIDE
             );
+            validatePrice(takerOrderParam, makerOrderParams[i]);
 
             OrderInfo memory makerOrderInfo = getOrderInfo(
                 makerOrderParams[i],
@@ -242,6 +243,49 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         return orderContext.marketContract.PRICE_CAP()
             .sub(orderParam.price)
             .mul(orderContext.marketContract.QTY_MULTIPLIER());
+    }
+
+    function validatePrice(OrderParam memory takerOrderParam, OrderParam memory makerOrderParam)
+        internal
+        pure
+    {
+        if (isSell(takerOrderParam.data)) {
+            require(takerOrderParam.price <= makerOrderParam.price, INVALID_MATCH);
+        } else {
+            require(takerOrderParam.price >= makerOrderParam.price, INVALID_MATCH);
+        }
+    }
+
+    function validateMatchPrice(
+        MatchResult memory result,
+        OrderInfo memory takerOrderInfo,
+        OrderInfo memory makerOrderInfo,
+        OrderContext memory orderContext
+    )
+        internal
+        view
+    {
+        if (result.fillAction == FillAction.REDEEM || result.fillAction == FillAction.MINT) {
+            uint256 side = orderContext.takerSide;
+            uint256 opposite = oppositeSide(side);
+            uint256 left;
+            uint256 right;
+            uint256 required;
+            if (result.fillAction == FillAction.REDEEM) {
+                left = takerOrderInfo.margins[opposite];
+                right = makerOrderInfo.margins[side];
+                required = orderContext.marketContract.COLLATERAL_PER_UNIT();
+                require(left.add(right) <= required, REDEEM_PRICE_NOT_MET);
+            } else if (result.fillAction == FillAction.MINT) {
+                left = takerOrderInfo.margins[side].mul(result.posFilledAmount);
+                right = makerOrderInfo.margins[opposite].mul(result.posFilledAmount);
+                uint256 extra = result.makerFee.add(result.takerFee);
+                required = orderContext.marketContract.COLLATERAL_PER_UNIT()
+                    .add(orderContext.marketContract.COLLATERAL_TOKEN_FEE_PER_UNIT())
+                    .mul(result.posFilledAmount);
+                require(left.add(right).add(extra) >= required, MINT_PRICE_NOT_MET);
+            }
+        }
     }
 
     function getMatchResult(
@@ -319,7 +363,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         returns (uint256 filledAmount)
     {
         uint256 side = orderContext.takerSide;
-        uint256 opposite = side == LONG ? SHORT : LONG;
+        uint256 opposite = oppositeSide(side);
 
         if (takerOrderInfo.balances[opposite] > 0 && makerOrderInfo.balances[side] > 0) {
             // do redeem
@@ -366,7 +410,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             result.ctkFilledAmount = makerOrderInfo.margins[opposite].mul(filledAmount);
 
         } else {
-           revert("UNEXPECTED_MATCH");
+           revert(UNEXPECTED_MATCH);
         }
 
         // update filledAmount
@@ -379,39 +423,6 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         result.posFilledAmount = filledAmount;
 
         return filledAmount;
-    }
-
-    function validateMatchPrice(
-        MatchResult memory result,
-        OrderInfo memory takerOrderInfo,
-        OrderInfo memory makerOrderInfo,
-        OrderContext memory orderContext
-    )
-        internal
-        view
-    {
-        uint256 side = orderContext.takerSide;
-        uint256 opposite = side == LONG ? SHORT : LONG;
-        uint256 left = takerOrderInfo.margins[side];
-        uint256 right = makerOrderInfo.margins[opposite];
-        uint256 extra = result.makerFee.add(result.takerFee);
-
-        if (result.fillAction == FillAction.REDEEM) {
-            require(
-                left.add(right).add(extra) <= orderContext.marketContract.COLLATERAL_PER_UNIT(),
-                "REDEEM_PRICE_NOT_MET"
-            );
-        } else if (result.fillAction == FillAction.BUY) {
-            require(takerOrderInfo.margins[side] >= makerOrderInfo.margins[opposite], "");
-        } else if (result.fillAction == FillAction.SELL) {
-            require(takerOrderInfo.margins[side] <= makerOrderInfo.margins[opposite], "");
-        } else if (result.fillAction == FillAction.MINT) {
-            uint256 required = orderContext.marketContract.COLLATERAL_PER_UNIT()
-                .add(orderContext.marketContract.COLLATERAL_TOKEN_FEE_PER_UNIT());
-            require(left.add(right).add(extra) >= required, "MINT_PRICE_NOT_MET");
-        } else {
-            revert("INVALID_MATCH");
-        }
     }
 
     /**
@@ -651,7 +662,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
     {
         // taker -> maker
         transferFrom(
-            orderContext.pos[oppsiteSide(orderContext.takerSide)],
+            orderContext.pos[oppositeSide(orderContext.takerSide)],
             result.taker,
             result.maker,
             result.posFilledAmount
@@ -671,8 +682,8 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             .sub(result.takerGasFee);
     }
 
-    function oppsiteSide(uint256 side) internal pure returns (uint256) {
-        return side == 1 ? 0 : 1;
+    function oppositeSide(uint256 side) internal pure returns (uint256) {
+        return side == LONG ? SHORT : LONG;
     }
 
     /**
@@ -704,7 +715,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
     {
         // taker -> proxy
         transferFrom(
-            orderContext.pos[oppsiteSide(orderContext.takerSide)],
+            orderContext.pos[oppositeSide(orderContext.takerSide)],
             result.taker,
             proxyAddress,
             result.posFilledAmount
@@ -844,7 +855,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         );
         // proxy -> maker
         transfer(
-            orderContext.pos[oppsiteSide(orderContext.takerSide)],
+            orderContext.pos[oppositeSide(orderContext.takerSide)],
             result.maker,
             result.posFilledAmount
         );
