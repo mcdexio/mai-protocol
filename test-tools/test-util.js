@@ -7,12 +7,12 @@ exports.proxyContractAddress = '0xd2B45498835CaEBA87d04b49f3eb17F0BC902995';
 exports.market1 = '0x4a37c836290A985935c2e38165Afe4ADb1EC2a02';
 
 exports.approveMarketContractPoolAbi = {"constant": false,"inputs": [{"name": "contractAddress","type": "address"}],"name": "approveMarketContractPool","outputs": [],"payable": false,"stateMutability": "nonpayable","type": "function"};
-exports.approveMarketContractPool = async function(web3, marketContractAddress) {
+exports.approveMarketContractPool = async function(web3, marketContract) {
   var proxy = new web3.eth.Contract(
     [exports.approveMarketContractPoolAbi],
     exports.proxyContractAddress
   );
-  proxy.methods.approveMarketContractPool(marketContractAddress)
+  proxy.methods.approveMarketContractPool(marketContract)
     .send({ from: exports.contractOwner })
     .on('transactionHash', hash => {
       console.log('transactionHash', hash);

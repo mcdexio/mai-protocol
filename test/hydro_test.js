@@ -1,11 +1,23 @@
 const assert = require('assert');
 const BigNumber = require('bignumber.js');
-const { getWeb3, getContracts, getMarketContract } = require('./utils');
+const { getWeb3, getContracts, getMarketContract, buildOrder } = require('./utils');
 const { generateOrderData, isValidSignature, getOrderHash } = require('../sdk/sdk');
-const { fromRpcSig } = require('ethereumjs-util');
 
+const prices = new BigNumber('10000000000');
 const bases = new BigNumber('100000');
 const weis = new BigNumber('1000000000000000000');
+
+const toPrice = (...xs) => {
+    let sum = new BigNumber(0);
+    for (var x of xs) {
+        sum = sum.plus(new BigNumber(x).times(prices));
+    }
+    return sum.toFixed();
+}
+
+const fromPrice = x => {
+    return new BigNumber(x).div(prices).toString();
+}
 
 const toBase = (...xs) => {
     let sum = new BigNumber(0);
@@ -33,7 +45,7 @@ const fromWei = x => {
 
 const infinity = '999999999999999999999999999999999999999999';
 
-contract('Match', async accounts => {
+contract('Hydro', async accounts => {
     let exchange, proxy;
     let mpx, collateral, long, short;
 
@@ -50,8 +62,8 @@ contract('Match', async accounts => {
         proxy = contracts.proxy;
 
         const mpxContract = await getMarketContract({
-            cap: 8500e10,
-            floor: 7500e10,
+            cap: toPrice(8500),
+            floor: toPrice(7500),
             multiplier: 1000,
             feeRate: 300,
         });
@@ -60,47 +72,6 @@ contract('Match', async accounts => {
         long = mpxContract.long;
         short = mpxContract.short;
     });
-
-    const getOrderSignature = async (order) => {
-        const orderHash = getOrderHash(order);
-        const newWeb3 = getWeb3();
-        
-        // This depends on the client, ganache-cli/testrpc auto prefix the message header to message
-        // So we have to set the method ID to 0 even through we use web3.eth.sign
-        const signature = fromRpcSig(await newWeb3.eth.sign(orderHash, order.trader));
-        signature.config = `0x${signature.v.toString(16)}00` + '0'.repeat(60);
-        const isValid = isValidSignature(order.trader, signature, orderHash);
-
-        assert.equal(true, isValid);
-        order.signature = signature;
-        order.orderHash = orderHash;
-    };
-
-    const buildOrder = async (orderParam) => {
-        const order = {
-            trader: orderParam.trader,
-            relayer: orderParam.relayer,
-            marketContract: orderParam.marketContract,
-            amount: orderParam.amount,
-            price: orderParam.price,
-            gasAmount: orderParam.gasAmount,
-            data: generateOrderData(
-                orderParam.version,
-                orderParam.side === 'sell',
-                orderParam.type === 'market',
-                orderParam.expiredAtSeconds,
-                orderParam.asMakerFeeRate,
-                orderParam.asTakerFeeRate,
-                orderParam.makerRebateRate || '0',
-                Math.round(10000000),
-                false,
-            ),
-        };
-
-        await getOrderSignature(order);
-
-        return order;
-    };
 
     const buildMpxOrder = async (config) => {
         const orderParam = {
@@ -253,8 +224,8 @@ contract('Match', async accounts => {
                     const user = users[userName];
                     const token = tokens[tokenName];
                     const expect = expectedBalances[userName][tokenName];
-                    const actural = await call(token.methods.balanceOf(user));
-                    assert.equal(expect, actural);
+                    const actual = await call(token.methods.balanceOf(user));
+                    assert.equal(actual, expect, `user: ${userName}, token: ${tokenName}`);
                 }
             }
         }
@@ -270,18 +241,16 @@ contract('Match', async accounts => {
             takerOrder: {
                 trader: u2,
                 side: "buy",
-                position: "long",
-                baseAmount: toBase(0.1),
-                quoteAmount: toWei(40),
+                amount: toBase(0.1),
+                price: toPrice(7500 + 40),
                 takerFeeRate: 250,
             },
             makerOrders: [
                 {
                     trader: u1,
-                    side: "buy",
-                    position: "short",
-                    baseAmount: toBase(0.1),
-                    quoteAmount: toWei(70),
+                    side: "sell",
+                    amount: toBase(0.1),
+                    price: toPrice(7500 + 40),
                     makerFeeRate: 250,
                 }
             ],
@@ -290,467 +259,413 @@ contract('Match', async accounts => {
             ],
             expectedBalances: {
                 u1: {
-                    collateral: toWei(10000 - 70 - 2 - 0.1),
+                    collateral: toWei(10000 - 60 - 2 - 0.1),
                     short: toBase(0.1),
                 },
                 u2: {
-                    collateral: toWei(10000 - 30 - 2 - 0.1),
+                    collateral: toWei(10000 - 40 - 2 - 0.1),
                     long: toBase(0.1),
                 },
                 relayer: { collateral: toWei(2, 2, 0.1, 0.1, -2.4) },
             },
-            orderAsset: {
-                marketContractAddress: mpx._address,
-                relayer: relayer,
-            },
-            users: { admin: admin, u1: u1, u2: u2, u3: u3, relayer: relayer },
-            tokens: { collateral: collateral, long: long, short: short },
+            users: { admin, u1, u2, u3, relayer },
+            tokens: { collateral, long, short },
             admin: admin,
             gasLimit: 8000000,
         }
         await matchTest(testConfig);
     });
 
-    it('sell(long) + sell(short) = redeem', async () => {
-        const testConfig = {
-            initialBalances: {
-                u1: { long: toBase(0.1) },
-                u2: { short: toBase(0.1) },
-                relayer: {},
-            },
-            takerOrder: {
-                trader: u2,
-                side: "sell",
-                position: "short",
-                baseAmount: toBase(0.1),
-                quoteAmount: toWei(40),
-                takerFeeRate: 250,
-            },
-            makerOrders: [
-                {
-                    trader: u1,
-                    side: "sell",
-                    position: "long",
-                    baseAmount: toBase(0.1),
-                    quoteAmount: toWei(50),
-                    makerFeeRate: 250,
-                }
-            ],
-            filledAmounts: [
-                toBase(0.1)
-            ],
-            expectedBalances: {
-                u1: { collateral: toWei(50 - 2 - 0.1) },
-                u2: { collateral: toWei(50 - 2 - 0.1) },
-                relayer: { collateral: toWei(2, 2, 0.1, 0.1) },
-            },
-            orderAsset: {
-                marketContractAddress: mpx._address,
-                relayer: relayer,
-            },
-            users: { admin: admin, u1: u1, u2: u2, u3: u3, relayer: relayer },
-            tokens: { collateral: collateral, long: long, short: short },
-            admin: admin,
-            gasLimit: 8000000,
-        }
-        await matchTest(testConfig);
-    });
+    // it('sell(long) + sell(short) = redeem', async () => {
+    //     const testConfig = {
+    //         initialBalances: {
+    //             u1: { long: toBase(0.1) },
+    //             u2: { short: toBase(0.1) },
+    //             relayer: {},
+    //         },
+    //         takerOrder: {
+    //             trader: u2,
+    //             side: "buy",
+    //             baseAmount: toBase(0.1),
+    //             quoteAmount: toWei(40),
+    //             takerFeeRate: 250,
+    //         },
+    //         makerOrders: [
+    //             {
+    //                 trader: u1,
+    //                 side: "sell",
+    //                 baseAmount: toBase(0.1),
+    //                 quoteAmount: toWei(50),
+    //                 makerFeeRate: 250,
+    //             }
+    //         ],
+    //         filledAmounts: [
+    //             toBase(0.1)
+    //         ],
+    //         expectedBalances: {
+    //             u1: { collateral: toWei(50 - 2 - 0.1) },
+    //             u2: { collateral: toWei(50 - 2 - 0.1) },
+    //             relayer: { collateral: toWei(2, 2, 0.1, 0.1) },
+    //         },
+    //         users: { admin, u1, u2, u3, relayer },
+    //         tokens: { collateral, long, short },
+    //         admin: admin,
+    //         gasLimit: 8000000,
+    //     }
+    //     await matchTest(testConfig);
+    // });
 
-    it('sell(long) + buy(long) = exchange', async () => {
-        const testConfig = {
-            initialBalances: {
-                u1: { long: toBase(0.1) },
-                u2: { collateral: toWei(100) },
-            },
-            takerOrder: {
-                trader: u2,
-                side: "buy",
-                position: "long",
-                baseAmount: toBase(0.1),
-                quoteAmount: toWei(60),
-                takerFeeRate: 250,
-            },
-            makerOrders: [
-                {
-                    trader: u1,
-                    side: "sell",
-                    position: "long",
-                    baseAmount: toBase(0.1),
-                    quoteAmount: toWei(50),
-                    makerFeeRate: 250,
-                }
-            ],
-            filledAmounts: [
-                toBase(0.1)
-            ],
-            expectedBalances: {
-                u1: {
-                    collateral: toWei(50 - 2 - 0.1),
-                    long: 0,
-                },
-                u2: {
-                    collateral: toWei(100 - 50 - 2 - 0.1),
-                    long: toBase(0.1),
-                },
-                relayer: { collateral: toWei(2, 2, 0.1, 0.1) },
-            },
-            orderAsset: {
-                marketContractAddress: mpx._address,
-                relayer: relayer,
-            },
-            users: { admin: admin, u1: u1, u2: u2, u3: u3, relayer: relayer },
-            tokens: { collateral: collateral, long: long, short: short },
-            admin: admin,
-            gasLimit: 8000000,
-        }
-        await matchTest(testConfig);
-    });
+    // it('sell(long) + buy(long) = exchange', async () => {
+    //     const testConfig = {
+    //         initialBalances: {
+    //             u1: { long: toBase(0.1) },
+    //             u2: { collateral: toWei(100) },
+    //         },
+    //         takerOrder: {
+    //             trader: u2,
+    //             side: "buy",
+    //             baseAmount: toBase(0.1),
+    //             quoteAmount: toWei(60),
+    //             takerFeeRate: 250,
+    //         },
+    //         makerOrders: [
+    //             {
+    //                 trader: u1,
+    //                 side: "buy",
+    //                 baseAmount: toBase(0.1),
+    //                 quoteAmount: toWei(50),
+    //                 makerFeeRate: 250,
+    //             }
+    //         ],
+    //         filledAmounts: [
+    //             toBase(0.1)
+    //         ],
+    //         expectedBalances: {
+    //             u1: {
+    //                 collateral: toWei(50 - 2 - 0.1),
+    //                 long: 0,
+    //             },
+    //             u2: {
+    //                 collateral: toWei(100 - 50 - 2 - 0.1),
+    //                 long: toBase(0.1),
+    //             },
+    //             relayer: { collateral: toWei(2, 2, 0.1, 0.1) },
+    //         },
+    //         users: { admin, u1, u2, u3, relayer },
+    //         tokens: { collateral, long, short },
+    //         admin: admin,
+    //         gasLimit: 8000000,
+    //     }
+    //     await matchTest(testConfig);
+    // });
 
-    it('sell(short) + buy(short) = exchange', async () => {
-        const testConfig = {
-            initialBalances: {
-                u1: { short: toBase(0.1) },
-                u2: { collateral: toWei(100) },
-            },
-            takerOrder: {
-                trader: u2,
-                side: "buy",
-                position: "short",
-                baseAmount: toBase(0.1),
-                quoteAmount: toWei(60),
-                takerFeeRate: 250,
-            },
-            makerOrders: [
-                {
-                    trader: u1,
-                    side: "sell",
-                    position: "short",
-                    baseAmount: toBase(0.1),
-                    quoteAmount: toWei(50),
-                    makerFeeRate: 250,
-                }
-            ],
-            filledAmounts: [
-                toBase(0.1)
-            ],
-            expectedBalances: {
-                u1: {
-                    collateral: toWei(50 - 2 - 0.1),
-                    short: 0,
-                },
-                u2: {
-                    collateral: toWei(100 - 50 - 2 - 0.1),
-                    short: toBase(0.1),
-                },
-                relayer: { collateral: toWei(2, 2, 0.1, 0.1) },
-            },
-            orderAsset: {
-                marketContractAddress: mpx._address,
-                relayer: relayer,
-            },
-            users: { admin: admin, u1: u1, u2: u2, u3: u3, relayer: relayer },
-            tokens: { collateral: collateral, long: long, short: short },
-            admin: admin,
-            gasLimit: 8000000,
-        }
-        await matchTest(testConfig);
-    });
+    // it('sell(short) + buy(short) = exchange', async () => {
+    //     const testConfig = {
+    //         initialBalances: {
+    //             u1: { short: toBase(0.1) },
+    //             u2: { collateral: toWei(100) },
+    //         },
+    //         takerOrder: {
+    //             trader: u2,
+    //             side: "sell",
+    //             baseAmount: toBase(0.1),
+    //             quoteAmount: toWei(60),
+    //             takerFeeRate: 250,
+    //         },
+    //         makerOrders: [
+    //             {
+    //                 trader: u1,
+    //                 side: "buy",
+    //                 baseAmount: toBase(0.1),
+    //                 quoteAmount: toWei(50),
+    //                 makerFeeRate: 250,
+    //             }
+    //         ],
+    //         filledAmounts: [
+    //             toBase(0.1)
+    //         ],
+    //         expectedBalances: {
+    //             u1: {
+    //                 collateral: toWei(50 - 2 - 0.1),
+    //                 short: 0,
+    //             },
+    //             u2: {
+    //                 collateral: toWei(100 - 50 - 2 - 0.1),
+    //                 short: toBase(0.1),
+    //             },
+    //             relayer: { collateral: toWei(2, 2, 0.1, 0.1) },
+    //         },
+    //         users: { admin, u1, u2, u3, relayer },
+    //         tokens: { collateral, long, short },
+    //         admin: admin,
+    //         gasLimit: 8000000,
+    //     }
+    //     await matchTest(testConfig);
+    // });
 
-    it('buy(short) + sell(short) = exchange', async () => {
-        const testConfig = {
-            initialBalances: {
-                u1: { short: toBase(0.1) },
-                u2: { collateral: toWei(100) },
-                relayer: { },
-            },
-            takerOrder: {
-                trader: u1,
-                side: "sell",
-                position: "short",
-                baseAmount: toBase(0.1),
-                quoteAmount: toWei(40),
-                takerFeeRate: 250,
-            },
-            makerOrders: [
-                {
-                    trader: u2,
-                    side: "buy",
-                    position: "short",
-                    baseAmount: toBase(0.1),
-                    quoteAmount: toWei(50),
-                    makerFeeRate: 250,
-                }
-            ],
-            filledAmounts: [
-                toBase(0.1)
-            ],
-            expectedBalances: {
-                u1: {
-                    collateral: toWei(50 - 2 - 0.1),
-                    short: 0,
-                },
-                u2: {
-                    collateral: toWei(100 - 50 - 2 - 0.1),
-                    short: toBase(0.1),
-                }
-            },
-            orderAsset: {
-                marketContractAddress: mpx._address,
-                relayer: relayer,
-            },
-            users: { admin: admin, u1: u1, u2: u2, u3: u3, relayer: relayer },
-            tokens: { collateral: collateral, long: long, short: short },
-            admin: admin,
-            gasLimit: 8000000,
-        }
-        await matchTest(testConfig);
-    });
+    // it('buy(short) + sell(short) = exchange', async () => {
+    //     const testConfig = {
+    //         initialBalances: {
+    //             u1: { short: toBase(0.1) },
+    //             u2: { collateral: toWei(100) },
+    //             relayer: { },
+    //         },
+    //         takerOrder: {
+    //             trader: u1,
+    //             side: "buy",
+    //             baseAmount: toBase(0.1),
+    //             quoteAmount: toWei(40),
+    //             takerFeeRate: 250,
+    //         },
+    //         makerOrders: [
+    //             {
+    //                 trader: u2,
+    //                 side: "sell",
+    //                 baseAmount: toBase(0.1),
+    //                 quoteAmount: toWei(50),
+    //                 makerFeeRate: 250,
+    //             }
+    //         ],
+    //         filledAmounts: [
+    //             toBase(0.1)
+    //         ],
+    //         expectedBalances: {
+    //             u1: {
+    //                 collateral: toWei(50 - 2 - 0.1),
+    //                 short: 0,
+    //             },
+    //             u2: {
+    //                 collateral: toWei(100 - 50 - 2 - 0.1),
+    //                 short: toBase(0.1),
+    //             }
+    //         },
+    //         users: { admin, u1, u2, u3, relayer },
+    //         tokens: { collateral, long, short },
+    //         admin: admin,
+    //         gasLimit: 8000000,
+    //     }
+    //     await matchTest(testConfig);
+    // });
 
-    it('sell(short) + [buy(short) + sell(long)] = exchange + redeem', async () => {
-        const testConfig = {
-            initialBalances: {
-                u1: { short: toBase(1) },
-                u2: { collateral: toWei(10000) },
-                u3: { long: toBase(1) },
-                relayer: { },
-            },
-            takerOrder: {
-                trader: u1,
-                side: "sell",
-                position: "short",
-                baseAmount: toBase(1),
-                quoteAmount: toWei(500),
-                takerFeeRate: 250,
-            },
-            makerOrders: [
-                {
-                    trader: u2,
-                    side: "buy",
-                    position: "short",
-                    baseAmount: toBase(0.5),
-                    quoteAmount: toWei(300),
-                    makerFeeRate: 250,
-                },
-                {
-                    trader: u3,
-                    side: "sell",
-                    position: "long",
-                    baseAmount: toBase(0.5),
-                    quoteAmount: toWei(240),
-                    makerFeeRate: 250,
-                }
-            ],
-            filledAmounts: [
-                toBase(0.5),
-                toBase(0.5),
-            ],
-            expectedBalances: {
-                u1: {
-                    collateral: toWei(300 + 260 - 20 - 0.1),
-                    short: 0,
-                },
-                u2: {
-                    collateral: toWei(10000 - 300 - 10 - 0.1),
-                    short: toBase(0.5),
-                },
-                u3: {
-                    collateral: toWei(240 - 10 - 0.1),
-                    long: toBase(0.5),
-                },
-                relayer: {
-                    collateral: toWei(20, 0.1, 10, 0.1, 10, 0.1)
-                }
-            },
-            orderAsset: {
-                marketContractAddress: mpx._address,
-                relayer: relayer,
-            },
-            users: { admin: admin, u1: u1, u2: u2, u3: u3, relayer: relayer },
-            tokens: { collateral: collateral, long: long, short: short },
-            admin: admin,
-            gasLimit: 8000000,
-        }
-        await matchTest(testConfig);
-    });
+    // it('sell(short) + [buy(short) + sell(long)] = exchange + redeem', async () => {
+    //     const testConfig = {
+    //         initialBalances: {
+    //             u1: { short: toBase(1) },
+    //             u2: { collateral: toWei(10000) },
+    //             u3: { long: toBase(1) },
+    //             relayer: { },
+    //         },
+    //         takerOrder: {
+    //             trader: u1,
+    //             side: "buy",
+    //             baseAmount: toBase(1),
+    //             quoteAmount: toWei(500),
+    //             takerFeeRate: 250,
+    //         },
+    //         makerOrders: [
+    //             {
+    //                 trader: u2,
+    //                 side: "sell",
+    //                 baseAmount: toBase(0.5),
+    //                 quoteAmount: toWei(300),
+    //                 makerFeeRate: 250,
+    //             },
+    //             {
+    //                 trader: u3,
+    //                 side: "buy",
+    //                 baseAmount: toBase(0.5),
+    //                 quoteAmount: toWei(240),
+    //                 makerFeeRate: 250,
+    //             }
+    //         ],
+    //         filledAmounts: [
+    //             toBase(0.5),
+    //             toBase(0.5),
+    //         ],
+    //         expectedBalances: {
+    //             u1: {
+    //                 collateral: toWei(300 + 260 - 20 - 0.1),
+    //                 short: 0,
+    //             },
+    //             u2: {
+    //                 collateral: toWei(10000 - 300 - 10 - 0.1),
+    //                 short: toBase(0.5),
+    //             },
+    //             u3: {
+    //                 collateral: toWei(240 - 10 - 0.1),
+    //                 long: toBase(0.5),
+    //             },
+    //             relayer: {
+    //                 collateral: toWei(20, 0.1, 10, 0.1, 10, 0.1)
+    //             }
+    //         },
+    //         users: { admin, u1, u2, u3, relayer },
+    //         tokens: { collateral, long, short },
+    //         admin: admin,
+    //         gasLimit: 8000000,
+    //     }
+    //     await matchTest(testConfig);
+    // });
 
-    it('buy(short) + [sell(short) + buy(long)] = exchange + mint', async () => {
-        const testConfig = {
-            initialBalances: {
-                u1: { collateral: toWei(10000) },
-                u2: { short: toBase(1)  },
-                u3: { collateral: toWei(10000) },
-                relayer: { },
-            },
-            takerOrder: {
-                trader: u1,
-                side: "buy",
-                position: "short",
-                baseAmount: toBase(1),
-                quoteAmount: toWei(600),
-                takerFeeRate: 250,
-            },
-            makerOrders: [
-                {
-                    trader: u2,
-                    side: "sell",
-                    position: "short",
-                    baseAmount: toBase(0.5),
-                    quoteAmount: toWei(300),
-                    makerFeeRate: 250,
-                },
-                {
-                    trader: u3,
-                    side: "buy",
-                    position: "long",
-                    baseAmount: toBase(0.5),
-                    quoteAmount: toWei(200),
-                    makerFeeRate: 250,
-                }
-            ],
-            filledAmounts: [
-                toBase(0.5),
-                toBase(0.5),
-            ],
-            expectedBalances: {
-                u1: {
-                    collateral: toWei(10000 - 300 - 20 - 0.1 - 300),
-                    short: toBase(1),
-                },
-                u2: {
-                    collateral: toWei(300 - 10 - 0.1),
-                    short: toBase(0.5),
-                },
-                u3: {
-                    collateral: toWei(10000 - 200 - 10 - 0.1),
-                    long: toBase(0.5),
-                },
-                relayer: {
-                    collateral: toWei(20, 0.1, 10, 0.1, 10, 0.1, -12)
-                },
-            },
-            orderAsset: {
-                marketContractAddress: mpx._address,
-                relayer: relayer,
-            },
-            users: { admin: admin, u1: u1, u2: u2, u3: u3, relayer: relayer },
-            tokens: { collateral: collateral, long: long, short: short },
-            admin: admin,
-            gasLimit: 8000000,
-        }
-        await matchTest(testConfig);
-    });
+    // it('buy(short) + [sell(short) + buy(long)] = exchange + mint', async () => {
+    //     const testConfig = {
+    //         initialBalances: {
+    //             u1: { collateral: toWei(10000) },
+    //             u2: { short: toBase(1)  },
+    //             u3: { collateral: toWei(10000) },
+    //             relayer: { },
+    //         },
+    //         takerOrder: {
+    //             trader: u1,
+    //             side: "sell",
+    //             baseAmount: toBase(1),
+    //             quoteAmount: toWei(600),
+    //             takerFeeRate: 250,
+    //         },
+    //         makerOrders: [
+    //             {
+    //                 trader: u2,
+    //                 side: "buy",
+    //                 baseAmount: toBase(0.5),
+    //                 quoteAmount: toWei(300),
+    //                 makerFeeRate: 250,
+    //             },
+    //             {
+    //                 trader: u3,
+    //                 side: "buy",
+    //                 baseAmount: toBase(0.5),
+    //                 quoteAmount: toWei(200),
+    //                 makerFeeRate: 250,
+    //             }
+    //         ],
+    //         filledAmounts: [
+    //             toBase(0.5),
+    //             toBase(0.5),
+    //         ],
+    //         expectedBalances: {
+    //             u1: {
+    //                 collateral: toWei(10000 - 300 - 20 - 0.1 - 300),
+    //                 short: toBase(1),
+    //             },
+    //             u2: {
+    //                 collateral: toWei(300 - 10 - 0.1),
+    //                 short: toBase(0.5),
+    //             },
+    //             u3: {
+    //                 collateral: toWei(10000 - 200 - 10 - 0.1),
+    //                 long: toBase(0.5),
+    //             },
+    //             relayer: {
+    //                 collateral: toWei(20, 0.1, 10, 0.1, 10, 0.1, -12)
+    //             },
+    //         },
+    //         users: { admin, u1, u2, u3, relayer },
+    //         tokens: { collateral, long, short },
+    //         admin: admin,
+    //         gasLimit: 8000000,
+    //     }
+    //     await matchTest(testConfig);
+    // });
 
-    it('tc', async () => {
-        const testConfig = {
-            initialBalances: {
-                u1: {
-                    collateral: toWei(10000),
-                    long: toBase(0.8)
-                },
-                u2: {
-                    collateral: toWei(10000),
-                    long: toBase(0.6),
-                    short: toBase(1.8),
-                },
-                u3: {
+    // it('tc', async () => {
+    //     const testConfig = {
+    //         initialBalances: {
+    //             u1: {
+    //                 collateral: toWei(10000),
+    //                 long: toBase(0.8)
+    //             },
+    //             u2: {
+    //                 collateral: toWei(10000),
+    //                 long: toBase(0.6),
+    //                 short: toBase(1.8),
+    //             },
+    //             u3: {
 
-                },
-                relayer: { },
-            },
-            takerOrder: {
-                trader: u2,
-                side: "buy",
-                position: "short",
-                baseAmount: toBase(0.4),
-                quoteAmount: toWei(200),
-                takerFeeRate: 250,
-                gasAmount: toWei(0.1),
-            },
-            makerOrders: [
-                {
-                    trader: u1,
-                    side: "buy",
-                    position: "long",
-                    baseAmount: toBase(1),
-                    quoteAmount: toWei(500),
-                    makerFeeRate: 250,
-                    gasAmount: toWei(0.1),
-                },
-            ],
-            filledAmounts: [
-                toBase(0.4),
-            ],
-            expectedBalances: {
-                u1: {
-                    collateral: toWei(10000 - 200 - 8 - 0.1),
-                    long: toBase(1.2),
-                },
-                u2: {
-                    collateral: toWei(10000 - 200 - 8 - 0.1),
-                    short: toBase(2.2),
-                },
-                relayer: {
-                    collateral: toWei(8, 8, 0.1, 0.1, -9.6),
-                }
-            },
-            orderAsset: {
-                marketContractAddress: mpx._address,
-                relayer: relayer,
-            },
-            users: { admin: admin, u1: u1, u2: u2, u3: u3, relayer: relayer },
-            tokens: { collateral: collateral, long: long, short: short },
-            admin: admin,
-            gasLimit: 8000000,
-        }
-        await matchTest(testConfig);
+    //             },
+    //             relayer: { },
+    //         },
+    //         takerOrder: {
+    //             trader: u2,
+    //             side: "sell",
+    //             baseAmount: toBase(0.4),
+    //             quoteAmount: toWei(200),
+    //             takerFeeRate: 250,
+    //             gasAmount: toWei(0.1),
+    //         },
+    //         makerOrders: [
+    //             {
+    //                 trader: u1,
+    //                 side: "buy",
+    //                 baseAmount: toBase(1),
+    //                 quoteAmount: toWei(500),
+    //                 makerFeeRate: 250,
+    //                 gasAmount: toWei(0.1),
+    //             },
+    //         ],
+    //         filledAmounts: [
+    //             toBase(0.4),
+    //         ],
+    //         expectedBalances: {
+    //             u1: {
+    //                 collateral: toWei(10000 - 200 - 8 - 0.1),
+    //                 long: toBase(1.2),
+    //             },
+    //             u2: {
+    //                 collateral: toWei(10000 - 200 - 8 - 0.1),
+    //                 short: toBase(2.2),
+    //             },
+    //             relayer: {
+    //                 collateral: toWei(8, 8, 0.1, 0.1, -9.6),
+    //             }
+    //         },
+    //         users: { admin, u1, u2, u3, relayer },
+    //         tokens: { collateral, long, short },
+    //         admin: admin,
+    //         gasLimit: 8000000,
+    //     }
+    //     await matchTest(testConfig);
 
-        const testConfig2 = {
-            takerOrder: {
-                trader: u2,
-                side: "sell",
-                position: "long",
-                baseAmount: toBase(0.6),
-                quoteAmount: toWei(300),
-                takerFeeRate: 250,
-                gasAmount: toWei(0.1),
-            },
-            makerOrders: [
-                {
-                    trader: u1,
-                    side: "buy",
-                    position: "long",
-                    baseAmount: toBase(1),
-                    quoteAmount: toWei(500),
-                    makerFeeRate: 250,
-                    gasAmount: toWei(0.1),
-                },
-            ],
-            filledAmounts: [
-                toBase(0.6),
-            ],
-            expectedBalances: {
-                u1: {
-                    collateral: toWei(10000 - 200 - 8 - 0.1 - 300 - 12),
-                    long: toBase(1.8),
-                },
-                u2: {
-                    collateral: toWei(10000 - 200 - 8 - 0.1 + 300 - 12 - 0.1),
-                    short: toBase(2.2),
-                    long: 0,
-                },
-                relayer: {
-                    collateral: toWei(8, 8, 0.1, 0.1, -9.6, 12, 12, 0.1),
-                }
-            },
-            orderAsset: {
-                marketContractAddress: mpx._address,
-                relayer: relayer,
-            },
-            users: { admin: admin, u1: u1, u2: u2, u3: u3, relayer: relayer },
-            tokens: { collateral: collateral, long: long, short: short },
-            admin: admin,
-            gasLimit: 8000000,
-        }
-        await matchTest(testConfig2);
-    });
+    //     const testConfig2 = {
+    //         takerOrder: {
+    //             trader: u2,
+    //             side: "sell",
+    //             baseAmount: toBase(0.6),
+    //             quoteAmount: toWei(300),
+    //             takerFeeRate: 250,
+    //             gasAmount: toWei(0.1),
+    //         },
+    //         makerOrders: [
+    //             {
+    //                 trader: u1,
+    //                 side: "buy",
+    //                 baseAmount: toBase(1),
+    //                 quoteAmount: toWei(500),
+    //                 makerFeeRate: 250,
+    //                 gasAmount: toWei(0.1),
+    //             },
+    //         ],
+    //         filledAmounts: [
+    //             toBase(0.6),
+    //         ],
+    //         expectedBalances: {
+    //             u1: {
+    //                 collateral: toWei(10000 - 200 - 8 - 0.1 - 300 - 12),
+    //                 long: toBase(1.8),
+    //             },
+    //             u2: {
+    //                 collateral: toWei(10000 - 200 - 8 - 0.1 + 300 - 12 - 0.1),
+    //                 short: toBase(2.2),
+    //                 long: 0,
+    //             },
+    //             relayer: {
+    //                 collateral: toWei(8, 8, 0.1, 0.1, -9.6, 12, 12, 0.1),
+    //             }
+    //         },
+    //         users: { admin, u1, u2, u3, relayer },
+    //         tokens: { collateral, long, short },
+    //         admin: admin,
+    //         gasLimit: 8000000,
+    //     }
+    //     await matchTest(testConfig2);
+    // });
 });

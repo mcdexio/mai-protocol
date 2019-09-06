@@ -152,17 +152,6 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         return orderContext;
     }
 
-    function calculateMiddleCollateralPerUnit(OrderContext memory orderContext)
-        internal
-        view
-        returns (uint256)
-    {
-        return orderContext.marketContract.PRICE_CAP()
-            .add(orderContext.marketContract.PRICE_FLOOR())
-            .mul(orderContext.marketContract.QTY_MULTIPLIER())
-            .div(2);
-    }
-
     function matchOrders(
         OrderParam memory takerOrderParam,
         OrderParam[] memory makerOrderParams,
@@ -224,13 +213,25 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         settleResults(results, takerOrderParam, orderAddressSet, orderContext);
     }
 
+    function calculateMiddleCollateralPerUnit(OrderContext memory orderContext)
+        internal
+        view
+        returns (uint256)
+    {
+        return orderContext.marketContract.PRICE_CAP()
+            .add(orderContext.marketContract.PRICE_FLOOR())
+            .mul(orderContext.marketContract.QTY_MULTIPLIER())
+            .div(2);
+    }
 
     function calculateLongMargin(OrderContext memory orderContext, OrderParam memory orderParam)
         internal
         view
         returns (uint256)
     {
-        return orderParam.price.sub(orderContext.marketContract.PRICE_FLOOR());
+        return orderParam.price
+            .sub(orderContext.marketContract.PRICE_FLOOR())
+            .mul(orderContext.marketContract.QTY_MULTIPLIER());
     }
 
     function calculateShortMargin(OrderContext memory orderContext, OrderParam memory orderParam)
@@ -238,7 +239,9 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         view
         returns (uint256)
     {
-        return orderContext.marketContract.PRICE_CAP().sub(orderParam.price);
+        return orderContext.marketContract.PRICE_CAP()
+            .sub(orderParam.price)
+            .mul(orderContext.marketContract.QTY_MULTIPLIER());
     }
 
     function getMatchResult(
@@ -669,7 +672,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
     }
 
     function oppsiteSide(uint256 side) internal pure returns (uint256) {
-        return side == 1? 0 : 1;
+        return side == 1 ? 0 : 1;
     }
 
     /**

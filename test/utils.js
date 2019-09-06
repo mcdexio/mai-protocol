@@ -6,6 +6,8 @@ const BigNumber = require('bignumber.js');
 const TestToken = artifacts.require('helper/TestToken.sol');
 const TestMarketContract = artifacts.require('helper/TestMarketContract.sol');
 const ExchangePool = artifacts.require('./ExchangePool.sol');
+const { generateOrderData, isValidSignature, getOrderHash } = require('../sdk/sdk');
+const { fromRpcSig } = require('ethereumjs-util');
 
 BigNumber.config({ EXPONENTIAL_AT: 1000 });
 
@@ -112,6 +114,47 @@ const getMarketContract = async (configs) => {
 
 const clone = x => JSON.parse(JSON.stringify(x));
 
+const getOrderSignature = async (order) => {
+    const orderHash = getOrderHash(order);
+    const newWeb3 = getWeb3();
+    
+    // This depends on the client, ganache-cli/testrpc auto prefix the message header to message
+    // So we have to set the method ID to 0 even through we use web3.eth.sign
+    const signature = fromRpcSig(await newWeb3.eth.sign(orderHash, order.trader));
+    signature.config = `0x${signature.v.toString(16)}00` + '0'.repeat(60);
+    const isValid = isValidSignature(order.trader, signature, orderHash);
+
+    assert.equal(true, isValid);
+    order.signature = signature;
+    order.orderHash = orderHash;
+};
+
+const buildOrder = async (orderParam) => {
+    const order = {
+        trader: orderParam.trader,
+        relayer: orderParam.relayer,
+        marketContract: orderParam.marketContract,
+        amount: orderParam.amount,
+        price: orderParam.price,
+        gasAmount: orderParam.gasAmount,
+        data: generateOrderData(
+            orderParam.version,
+            orderParam.side === 'sell',
+            orderParam.type === 'market',
+            orderParam.expiredAtSeconds,
+            orderParam.asMakerFeeRate,
+            orderParam.asTakerFeeRate,
+            orderParam.makerRebateRate || '0',
+            Math.round(10000000),
+            false,
+        ),
+    };
+
+    await getOrderSignature(order);
+
+    return order;
+};
+
 module.exports = {
     getWeb3,
     newContract,
@@ -120,5 +163,7 @@ module.exports = {
     getTestContracts,
     clone,
     setHotAmount,
-    getMarketContract
+    getMarketContract,
+    getOrderSignature,
+    buildOrder
 };
