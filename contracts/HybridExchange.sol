@@ -145,8 +145,8 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             orderContext.marketContract.COLLATERAL_POOL_ADDRESS()
         );
         orderContext.ctk = IERC20(orderContext.marketContract.COLLATERAL_TOKEN_ADDRESS());
-        orderContext.pos[0] = IERC20(orderContext.marketContract.LONG_POSITION_TOKEN());
-        orderContext.pos[1] = IERC20(orderContext.marketContract.SHORT_POSITION_TOKEN());
+        orderContext.pos[LONG] = IERC20(orderContext.marketContract.LONG_POSITION_TOKEN());
+        orderContext.pos[SHORT] = IERC20(orderContext.marketContract.SHORT_POSITION_TOKEN());
         orderContext.takerSide = isSell(takerOrderParam.data) ? SHORT : LONG;
 
         return orderContext;
@@ -452,13 +452,14 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             ORDER_VERSION_NOT_SUPPORTED
         );
 
-        Order memory order = getOrderFromOrderParam(orderParam, orderAddressSet, orderContext);
+        Order memory order = getOrderFromOrderParam(orderParam, orderAddressSet);
         orderInfo.orderHash = getOrderHash(order);
         orderInfo.filledAmount = filled[orderInfo.orderHash];
         uint8 status = uint8(OrderStatus.FILLABLE);
 
         // TODO: review isMarketBuy(order.data)
         // see https://github.com/HydroProtocol/protocol/blob/v1.1/contracts/HybridExchange.sol#L205
+
         if (orderInfo.filledAmount >= order.amount) {
             status = uint8(OrderStatus.FULLY_FILLED);
         } else if (block.timestamp >= getExpiredAtFromOrderData(order.data)) {
@@ -490,8 +491,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
      */
     function getOrderFromOrderParam(
         OrderParam memory orderParam,
-        OrderAddressSet memory orderAddressSet,
-        OrderContext memory orderContext
+        OrderAddressSet memory orderAddressSet
     )
         internal
         pure
@@ -1105,11 +1105,5 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         if (result == 0) {
             revert(REDEEM_POSITION_TOKENS_FAILED);
         }
-    }
-
-    function emitMatchEvent(MatchResult memory result, OrderAddressSet memory orderAddressSet)
-        internal
-    {
-
     }
 }

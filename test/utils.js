@@ -1,6 +1,7 @@
 const Web3 = require('web3');
 const Proxy = artifacts.require('./Proxy.sol');
 const HybridExchange = artifacts.require('./HybridExchange.sol');
+const TestHybridExchange = artifacts.require('helper/TestHybridExchange.sol');
 const BigNumber = require('bignumber.js');
 const TestToken = artifacts.require('helper/TestToken.sol');
 const TestMarketContract = artifacts.require('helper/TestMarketContract.sol');
@@ -43,6 +44,23 @@ const getContracts = async () => {
     // console.log('Proxy address', web3.toChecksumAddress(proxy._address));
 
     const exchange = await newContract(HybridExchange, proxy._address);
+
+    // console.log('Dxchange address', web3.toChecksumAddress(exchange._address));
+    const accounts = await web3.eth.getAccounts();
+
+    await proxy.methods.addAddress(exchange._address).send({ from: accounts[0] });
+
+    return {
+        proxy,
+        exchange
+    };
+};
+
+const getTestContracts = async () => {
+    const proxy = await newContract(Proxy);
+    // console.log('Proxy address', web3.toChecksumAddress(proxy._address));
+
+    const exchange = await newContract(TestHybridExchange, proxy._address);
 
     // console.log('Dxchange address', web3.toChecksumAddress(exchange._address));
     const accounts = await web3.eth.getAccounts();
@@ -99,6 +117,7 @@ module.exports = {
     newContract,
     newContractAt,
     getContracts,
+    getTestContracts,
     clone,
     setHotAmount,
     getMarketContract

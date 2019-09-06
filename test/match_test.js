@@ -1,6 +1,6 @@
 const assert = require('assert');
 const BigNumber = require('bignumber.js');
-const { getWeb3, getContracts, getMarketContract } = require('./utils');
+const { getWeb3, getTestContracts, getMarketContract } = require('./utils');
 const { generateOrderData, isValidSignature, getOrderHash } = require('../sdk/sdk');
 const { fromRpcSig } = require('ethereumjs-util');
 

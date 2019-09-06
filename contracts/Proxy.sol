@@ -30,8 +30,8 @@ contract Proxy is LibOwnable, LibWhitelist {
 
     address public minterAddress;
 
+    // uint256 public constant INFINITY = 2**256 - 1;
     uint256 public constant INFINITY = 999999999999999999999999999999999999999999;
-
     mapping( address => uint256 ) public balances;
 
     event Deposit(address owner, uint256 amount);
