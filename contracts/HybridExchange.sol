@@ -733,9 +733,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         return collateralToReturn
             .sub(result.ctkFilledAmount)
             .sub(result.takerFee)
-            .sub(result.takerGasFee)
-            .sub(result.makerFee)
-            .sub(result.makerGasFee);
+            .sub(result.takerGasFee);
     }
 
     /**
@@ -770,9 +768,9 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         );
         // taker -> relayer
         return result.takerFee
+            .add(result.takerGasFee)
             .add(result.makerFee)
-            .add(result.makerGasFee)
-            .add(result.takerGasFee);
+            .add(result.makerGasFee);
     }
 
     /**

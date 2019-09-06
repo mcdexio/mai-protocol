@@ -197,7 +197,7 @@ contract TestHybridExchange is HybridExchange {
         public
         returns (uint256)
     {
-        doBuyPublic(result, orderAddressSet, orderContext);
+        return doBuy(result, orderAddressSet, orderContext);
     }
 
     function doMintPublic(
@@ -208,7 +208,7 @@ contract TestHybridExchange is HybridExchange {
         public
         returns (uint256)
     {
-        doMint(result, orderAddressSet, orderContext);
+        return doMint(result, orderAddressSet, orderContext);
     }
 
     function transferPublic(address token, address to, uint256 value)
