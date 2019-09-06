@@ -301,8 +301,8 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         view
         returns (MatchResult memory result, uint256 filledAmount)
     {
-        require(makerOrderParam.amount <= posFilledAmount, "OVER_MAKE");
-        require(takerOrderParam.amount <= posFilledAmount, "OVER_TAKE");
+        require(makerOrderInfo.filledAmount <= makerOrderParam.amount, "OVER_MAKE");
+        require(takerOrderInfo.filledAmount <= takerOrderParam.amount, "OVER_TAKE");
 
         // Each order only pays gas once, so only pay gas when nothing has been filled yet.
         if (takerOrderInfo.filledAmount == 0) {
