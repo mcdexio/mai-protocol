@@ -259,11 +259,11 @@ contract('Hydro', async accounts => {
             ],
             expectedBalances: {
                 u1: {
-                    collateral: toWei(10000 - 60 - 2 - 0.1),
+                    collateral: toWei(10000 - 96 - 2 - 0.1),
                     short: toBase(0.1),
                 },
                 u2: {
-                    collateral: toWei(10000 - 40 - 2 - 0.1),
+                    collateral: toWei(10000 - 4 - 2 - 0.1),
                     long: toBase(0.1),
                 },
                 relayer: { collateral: toWei(2, 2, 0.1, 0.1, -2.4) },

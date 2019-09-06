@@ -260,6 +260,14 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         require(makerOrderParam.amount <= posFilledAmount, "OVER_MAKE");
         require(takerOrderParam.amount <= posFilledAmount, "OVER_TAKE");
 
+        // Each order only pays gas once, so only pay gas when nothing has been filled yet.
+        if (takerOrderInfo.filledAmount == 0) {
+            result.takerGasFee = takerOrderParam.gasAmount;
+        }
+        if (makerOrderInfo.filledAmount == 0) {
+            result.makerGasFee = makerOrderParam.gasAmount;
+        }
+
         // calculate posFilledAmount && ctkFilledAmount, update balances
         filledAmount = fillMatchResult(
             result,
@@ -271,17 +279,6 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             posFilledAmount
         );
         result.posFilledAmount = filledAmount;
-
-        // Each order only pays gas once, so only pay gas when nothing has been filled yet.
-        if (takerOrderInfo.filledAmount == 0) {
-            result.takerGasFee = takerOrderParam.gasAmount;
-        }
-        if (makerOrderInfo.filledAmount == 0) {
-            result.makerGasFee = makerOrderParam.gasAmount;
-        }
-
-        result.taker = takerOrderParam.trader;
-        result.maker = makerOrderParam.trader;
 
         // calculate fee
         uint256 makerRawFeeRate = getAsMakerFeeRateFromOrderData(makerOrderParam.data);
@@ -301,6 +298,9 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             makerOrderInfo,
             orderContext
         );
+
+        result.taker = takerOrderParam.trader;
+        result.maker = makerOrderParam.trader;
 
         return (result, filledAmount);
     }

@@ -72,13 +72,14 @@ contract TestHybridExchange is HybridExchange {
     )
         public
         view
-        returns (MatchResult memory result, uint256 filledAmount)
+        returns (MatchResult memory result, uint256 filledAmount, OrderInfo memory retTakerOrderInfo, OrderInfo memory retMakerOrderInfo)
     {
-        return getMatchResult(
+        (result, filledAmount) = getMatchResult(
             takerOrderParam, takerOrderInfo,
             makerOrderParam, makerOrderInfo,
             orderContext, posFilledAmount, takerFeeRate
         );
+        return (result, filledAmount, takerOrderInfo, makerOrderInfo);
     }
 
     function fillMatchResultPublic(
@@ -92,13 +93,14 @@ contract TestHybridExchange is HybridExchange {
     )
         public
         pure
-        returns (uint256 filledAmount)
+        returns (uint256 filledAmount, MatchResult memory retResult, OrderInfo memory retTakerOrderInfo, OrderInfo memory retMakerOrderInfo)
     {
-        return fillMatchResult(
+        filledAmount = fillMatchResult(
             result, takerOrderParam, takerOrderInfo,
             makerOrderParam, makerOrderInfo,
             orderContext, posFilledAmount
         );
+        return (filledAmount, result, takerOrderInfo, makerOrderInfo);
     }
 
     function validateMatchPricePublic(

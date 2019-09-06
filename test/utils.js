@@ -145,7 +145,7 @@ const buildOrder = async (orderParam) => {
             orderParam.asMakerFeeRate,
             orderParam.asTakerFeeRate,
             orderParam.makerRebateRate || '0',
-            Math.round(10000000),
+            orderParam.salt || 10000000,
             false,
         ),
     };
