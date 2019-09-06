@@ -625,7 +625,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             transfer(
                 orderContext.ctk,
                 takerOrderParam.trader,
-                ctkFromProxyToRelayer
+                ctkFromProxyToTaker
             );
         }
         if (ctkFromProxyToRelayer > 0) {

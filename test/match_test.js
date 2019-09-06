@@ -196,7 +196,7 @@ contract('match', async accounts => {
             takerOrder, getAddressSet(), orderContext
         ));
         const maker1Info = await call(exchange.methods.getOrderInfoPublic(
-            takerOrder, getAddressSet(), orderContext
+            makerOrder1, getAddressSet(), orderContext
         ));
         const tmp = await exchange.methods.fillMatchResultPublic(
             newMatchResult(),
@@ -209,7 +209,6 @@ contract('match', async accounts => {
         const retResult = tmp.retResult;
         const retTakerOrderInfo = tmp.retTakerOrderInfo;
         const retMakerOrderInfo = tmp.retMakerOrderInfo;
-console.log('x!!!', tmp);
 
         assert.equal(retFilledAmount, toBase(0.1), 'retFilledAmount');
         assert.equal(retResult.fillAction, 3, 'retResult.fillAction'); // MINT
@@ -219,7 +218,7 @@ console.log('x!!!', tmp);
         assert.equal(retMakerOrderInfo.filledAmount, toBase(0.1), 'retMakerOrderInfo.filledAmount');
     });
 
-    it('fillMatchResult: buy(long) + buy(short) = mint', async () => {
+    it('getMatchResult: buy(long) + buy(short) = mint', async () => {
         const takerOrder = await buildMpxOrder({
             trader: u1, side: 'sell', type: 'limit', price: toPrice(7540), amount: toBase(0.1),
             relayer, marketContract: mpx._address, version: 2, expiredAtSeconds: 3500000000,
@@ -248,7 +247,6 @@ console.log('x!!!', tmp);
         const retResult = tmp.result;
         const retTakerOrderInfo = tmp.retTakerOrderInfo;
         const retMakerOrderInfo = tmp.retMakerOrderInfo;
-console.log('x!!', tmp);
 
         assert.equal(retFilledAmount, toBase(0.1), 'retFilledAmount');
         assert.equal(retResult.fillAction, 3, 'retResult.fillAction'); // MINT
@@ -260,7 +258,108 @@ console.log('x!!', tmp);
         assert.equal(retResult.takerFee, toWei(8000 * 0.1 * 0.00300), 'retResult.takerFee');
         assert.equal(retResult.makerGasFee, toWei(0.1), 'retResult.makerGasFee');
         assert.equal(retResult.takerGasFee, toWei(0.2), 'retResult.takerGasFee');
-        
+        assert.equal(retTakerOrderInfo.balances[1], toBase(0.1), 'retTakerOrderInfo.balances[1]');
+        assert.equal(retMakerOrderInfo.balances[0], toBase(0.1), 'retMakerOrderInfo.balances[0]');
     });
 
+    it('fillMatchResult: sell(long) + sell(short) = redeem', async () => {
+        await transferBalances({
+            u1: { long: toBase(0.1) },
+            u2: { short: toBase(0.1) },
+        });
+        const takerOrder = await buildMpxOrder({
+            trader: u2, side: 'buy', type: 'limit', price: toPrice(7540), amount: toBase(0.1),
+            relayer, marketContract: mpx._address, version: 2, expiredAtSeconds: 3500000000,
+            makerFeeRate: 100, takerFeeRate: 300, gasAmount: toWei(0.1),
+        });
+        const makerOrder1 = await buildMpxOrder({
+            trader: u1, side: 'sell', type: 'limit', price: toPrice(7540), amount: toBase(0.1),
+            relayer, marketContract: mpx._address, version: 2, expiredAtSeconds: 3500000000,
+            makerFeeRate: 100, takerFeeRate: 300, gasAmount: toWei(0.2),
+        });
+        const orderContext = await call(exchange.methods.getOrderContextPublic(getAddressSet(), takerOrder));
+        const takerInfo = await call(exchange.methods.getOrderInfoPublic(
+            takerOrder, getAddressSet(), orderContext
+        ));
+        const maker1Info = await call(exchange.methods.getOrderInfoPublic(
+            makerOrder1, getAddressSet(), orderContext
+        ));
+        const tmp = await exchange.methods.fillMatchResultPublic(
+            newMatchResult(),
+            takerOrder, takerInfo,
+            makerOrder1, maker1Info,
+            orderContext,
+            toBase(0.1), // posFilledAmount
+        ).call();
+        const retFilledAmount = tmp.filledAmount;
+        const retResult = tmp.retResult;
+        const retTakerOrderInfo = tmp.retTakerOrderInfo;
+        const retMakerOrderInfo = tmp.retMakerOrderInfo;
+
+        assert.equal(retFilledAmount, toBase(0.1), 'retFilledAmount');
+        assert.equal(retResult.fillAction, 4, 'retResult.fillAction'); // REDEEM
+        assert.equal(retResult.posFilledAmount, toBase(0.1), 'retResult.posFilledAmount');
+        assert.equal(retResult.ctkFilledAmount, toWei((8500 - 7540) * 0.1), 'retResult.ctkFilledAmount'); // maker margin
+        assert.equal(retTakerOrderInfo.filledAmount, toBase(0.1), 'retTakerOrderInfo.filledAmount');
+        assert.equal(retMakerOrderInfo.filledAmount, toBase(0.1), 'retMakerOrderInfo.filledAmount');
+    });
+
+    it('getMatchResult: sell(long) + sell(short) = redeem', async () => {
+        await transferBalances({
+            u1: { long: toBase(0.1) },
+            u2: { short: toBase(0.1) },
+        });
+        const takerOrder = await buildMpxOrder({
+            trader: u2, side: 'buy', type: 'limit', price: toPrice(7540), amount: toBase(0.1),
+            relayer, marketContract: mpx._address, version: 2, expiredAtSeconds: 3500000000,
+            makerFeeRate: 100, takerFeeRate: 300, gasAmount: toWei(0.2),
+        });
+        const makerOrder1 = await buildMpxOrder({
+            trader: u1, side: 'sell', type: 'limit', price: toPrice(7540), amount: toBase(0.1),
+            relayer, marketContract: mpx._address, version: 2, expiredAtSeconds: 3500000000,
+            makerFeeRate: 100, takerFeeRate: 300, gasAmount: toWei(0.1),
+        });
+        const orderContext = await call(exchange.methods.getOrderContextPublic(getAddressSet(), takerOrder));
+        const takerInfo = await call(exchange.methods.getOrderInfoPublic(
+            takerOrder, getAddressSet(), orderContext
+        ));
+        const maker1Info = await call(exchange.methods.getOrderInfoPublic(
+            makerOrder1, getAddressSet(), orderContext
+        ));
+        const tmp = await exchange.methods.getMatchResultPublic(
+            takerOrder, takerInfo,
+            makerOrder1, maker1Info,
+            orderContext,
+            toBase(0.1), // posFilledAmount
+            300, // takerFeeRate
+        ).call();
+        const retFilledAmount = tmp.filledAmount;
+        const retResult = tmp.result;
+        const retTakerOrderInfo = tmp.retTakerOrderInfo;
+        const retMakerOrderInfo = tmp.retMakerOrderInfo;
+
+        assert.equal(retFilledAmount, toBase(0.1), 'retFilledAmount');
+        assert.equal(retResult.fillAction, 4, 'retResult.fillAction'); // REDEEM
+        assert.equal(retResult.taker, u2, 'retResult.taker');
+        assert.equal(retResult.maker, u1, 'retResult.maker');
+        assert.equal(retResult.posFilledAmount, toBase(0.1), 'retResult.posFilledAmount');
+        assert.equal(retResult.ctkFilledAmount, toWei((8500 - 7540) * 0.1), 'retResult.ctkFilledAmount'); // maker margin
+        assert.equal(retResult.makerFee, toWei(8000 * 0.1 * 0.00100), 'retResult.makerFee');
+        assert.equal(retResult.takerFee, toWei(8000 * 0.1 * 0.00300), 'retResult.takerFee');
+        assert.equal(retResult.makerGasFee, toWei(0.1), 'retResult.makerGasFee');
+        assert.equal(retResult.takerGasFee, toWei(0.2), 'retResult.takerGasFee');
+        assert.equal(retTakerOrderInfo.balances[1], toBase(0), 'retTakerOrderInfo.balances[1]');
+        assert.equal(retMakerOrderInfo.balances[0], toBase(0), 'retMakerOrderInfo.balances[0]');
+
+        assert.equal(toBase(0), await call(ctk.methods.balanceOf(u1)), 'u1.ctk');
+        assert.equal(toBase(0), await call(ctk.methods.balanceOf(u2)), 'u2.ctk');
+        const ctkFromProxyToTaker = await call(exchange.methods.doRedeemPublic(
+            retResult, getAddressSet(), orderContext
+        ));
+        assert.equal(toWei((7540 - 7500) * 0.1, -8000 * 0.1 * 0.00300, -0.2, ), ctkFromProxyToTaker, 'u2.ctk'); // taker ctk
+        await send(relayer, exchange.methods.doRedeemPublic(
+            retResult, getAddressSet(), orderContext
+        ));
+        assert.equal(toWei((8500 - 7540) * 0.1, -8000 * 0.1 * 0.00100, -0.1), await call(ctk.methods.balanceOf(u1)), 'u1.ctk'); // maker ctk
+    });
 });
