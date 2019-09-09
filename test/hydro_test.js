@@ -265,7 +265,7 @@ contract('Hydro', async accounts => {
             tokens: { collateral, long, short },
             admin: admin,
             gasLimit: 8000000,
-        }
+        };
         await matchTest(testConfig);
     });
 
@@ -304,7 +304,7 @@ contract('Hydro', async accounts => {
             tokens: { collateral, long, short },
             admin: admin,
             gasLimit: 8000000,
-        }
+        };
         await matchTest(testConfig);
     });
 
@@ -348,7 +348,7 @@ contract('Hydro', async accounts => {
             tokens: { collateral, long, short },
             admin: admin,
             gasLimit: 8000000,
-        }
+        };
         await matchTest(testConfig);
     });
 
@@ -392,7 +392,7 @@ contract('Hydro', async accounts => {
             tokens: { collateral, long, short },
             admin: admin,
             gasLimit: 8000000,
-        }
+        };
         await matchTest(testConfig);
     });
 
@@ -436,7 +436,7 @@ contract('Hydro', async accounts => {
             tokens: { collateral, long, short },
             admin: admin,
             gasLimit: 8000000,
-        }
+        };
         await matchTest(testConfig);
     });
 
@@ -496,7 +496,7 @@ contract('Hydro', async accounts => {
             tokens: { collateral, long, short },
             admin: admin,
             gasLimit: 8000000,
-        }
+        };
         await matchTest(testConfig);
     });
 
@@ -556,11 +556,12 @@ contract('Hydro', async accounts => {
             tokens: { collateral, long, short },
             admin: admin,
             gasLimit: 8000000,
-        }
+        };
         await matchTest(testConfig);
     });
 
     it('partial fill 1', async () => {
+        // step 1: sell 0.4
         const testConfig = {
             initialBalances: {
                 u1: {
@@ -579,7 +580,8 @@ contract('Hydro', async accounts => {
                 side: "sell",
                 amount: toBase(0.4),
                 price: toPrice(7900),
-                takerFeeRate: 250,
+                takerFeeRate: 350,
+                makerFeeRate: 150,
                 gasAmount: toWei(0.1),
             },
             makerOrders: [
@@ -588,7 +590,8 @@ contract('Hydro', async accounts => {
                     side: "buy",
                     amount: toBase(1),
                     price: toPrice(7900),
-                    makerFeeRate: 250,
+                    takerFeeRate: 350,
+                    makerFeeRate: 150,
                     gasAmount: toWei(0.1),
                 },
             ],
@@ -597,32 +600,74 @@ contract('Hydro', async accounts => {
             ],
             expectedBalances: {
                 u1: {
-                    collateral: toWei(10000, -160, -8, -0.1),
+                    collateral: toWei(10000, -160, -4.8, -0.1),
                     long: toBase(1.2),
                 },
                 u2: {
-                    collateral: toWei(10000, 160, -8, -0.1),
+                    collateral: toWei(10000, 160, -11.2, -0.1),
                     long: toBase(0.2),
                     short: toBase(1.8),
                 },
                 relayer: {
-                    collateral: toWei(8, 8, 0.1, 0.1),
+                    collateral: toWei(4.8, 11.2, 0.1, 0.1),
                 },
             },
             users: { admin, u1, u2, u3, relayer },
             tokens: { collateral, long, short },
             admin: admin,
             gasLimit: 8000000,
-        }
+        };
         await matchTest(testConfig);
+        
+        // over fill
+        let bad1 = null;
+        try {
+            const badConfig1 = {
+                takerOrder: {
+                    trader: u2,
+                    side: "sell",
+                    amount: toBase(1),
+                    price: toPrice(7900),
+                    takerFeeRate: 350,
+                    makerFeeRate: 150,
+                    gasAmount: toWei(0.1),
+                },
+                makerOrders: [
+                    // NOTE: makers will have the same orderID as the previous one because we set fixed salt
+                    {
+                        trader: u1,
+                        side: "buy",
+                        amount: toBase(1),
+                        price: toPrice(7900),
+                        takerFeeRate: 350,
+                        makerFeeRate: 150,
+                        gasAmount: toWei(0.1),
+                    },
+                ],
+                filledAmounts: [
+                    toBase(0.60001),
+                ],
+                users: { admin, u1, u2, u3, relayer },
+                tokens: { collateral, long, short },
+                admin: admin,
+                gasLimit: 8000000,
+            };
+            await matchTest(badConfig1);
+        } catch (e) {
+            bad1 = e;
+        }
+        assert.notEqual(bad1, null, "should revert 1")
+        assert.ok(bad1.message.includes('MAKER_ORDER_OVER_MATCH'), "should throw MAKER_ORDER_OVER_MATCH")
 
+        // step 2: sell 0.2 + mint 0.4
         const testConfig2 = {
             takerOrder: {
                 trader: u2,
                 side: "sell",
-                amount: toBase(0.6),
+                amount: toBase(1),
                 price: toPrice(7900),
-                takerFeeRate: 250,
+                takerFeeRate: 350,
+                makerFeeRate: 150,
                 gasAmount: toWei(0.1),
             },
             makerOrders: [
@@ -632,7 +677,8 @@ contract('Hydro', async accounts => {
                     side: "buy",
                     amount: toBase(1),
                     price: toPrice(7900),
-                    makerFeeRate: 250,
+                    takerFeeRate: 350,
+                    makerFeeRate: 150,
                     gasAmount: toWei(0.1),
                 },
             ],
@@ -641,25 +687,167 @@ contract('Hydro', async accounts => {
             ],
             expectedBalances: {
                 u1: {
-                    collateral: toWei(10000, -160, -8, -0.1, -240, -12),
+                    collateral: toWei(
+                        10000, -160, -4.8, -0.1,
+                        -240, -7.2),
                     long: toBase(1.8),
                 },
                 u2: {
-                    collateral: toWei(10000, 160, -8, -0.1, +80, -240, -12, -0.1),
+                    collateral: toWei(
+                        10000, 160, -11.2, -0.1,
+                        +80, -240, -16.8, -0.1),
                     long: toBase(0),
                     short: toBase(2.2),
                 },
                 relayer: {
                     collateral: toWei(
-                        8, 8, 0.1, 0.1,
-                        12, 12, 0.1, -9.6 /* MP mint fee */),
+                        4.8, 11.2, 0.1, 0.1,
+                        7.2, 16.8, 0.1, -9.6 /* MP mint fee */),
                 }
             },
             users: { admin, u1, u2, u3, relayer },
             tokens: { collateral, long, short },
             admin: admin,
             gasLimit: 8000000,
-        }
+        };
         await matchTest(testConfig2);
+
+        // over fill
+        let bad2 = null;
+        try {
+            const badConfig2 = {
+                takerOrder: {
+                    trader: u3,
+                    side: "buy",
+                    amount: toBase(0.40001),
+                    price: toPrice(8000),
+                    takerFeeRate: 350,
+                    makerFeeRate: 150,
+                    gasAmount: toWei(0.1),
+                },
+                makerOrders: [
+                    // NOTE: makers will have the same orderID as the previous one because we set fixed salt
+                    {
+                        trader: u2,
+                        side: "sell",
+                        amount: toBase(1),
+                        price: toPrice(7900),
+                        takerFeeRate: 350,
+                        makerFeeRate: 150,
+                        gasAmount: toWei(0.1),
+                    },
+                ],
+                filledAmounts: [
+                    toBase(0.40001),
+                ],
+                users: { admin, u1, u2, u3, relayer },
+                tokens: { collateral, long, short },
+                admin: admin,
+                gasLimit: 8000000,
+            }
+            await matchTest(badConfig2);
+        } catch (e) {
+            bad2 = e;
+        }
+        assert.notEqual(bad2, null, "should revert 2")
+        assert.ok(bad2.message.includes('MAKER_ORDER_OVER_MATCH'), "should throw MAKER_ORDER_OVER_MATCH")
+        
+        // over fill
+        let bad3 = null;
+        try {
+            const badConfig3 = {
+                takerOrder: {
+                    trader: u3,
+                    side: "buy",
+                    amount: toBase(0.4),
+                    price: toPrice(8000),
+                    takerFeeRate: 350,
+                    makerFeeRate: 150,
+                    gasAmount: toWei(0.1),
+                },
+                makerOrders: [
+                    // NOTE: makers will have the same orderID as the previous one because we set fixed salt
+                    {
+                        trader: u2,
+                        side: "sell",
+                        amount: toBase(1),
+                        price: toPrice(7900),
+                        takerFeeRate: 350,
+                        makerFeeRate: 150,
+                        gasAmount: toWei(0.1),
+                    },
+                ],
+                filledAmounts: [
+                    toBase(0.40001),
+                ],
+                users: { admin, u1, u2, u3, relayer },
+                tokens: { collateral, long, short },
+                admin: admin,
+                gasLimit: 8000000,
+            }
+            await matchTest(badConfig3);
+        } catch (e) {
+            bad3 = e;
+        }
+        assert.notEqual(bad3, null, "should revert 3")
+        assert.ok(bad3.message.includes('TAKER_ORDER_OVER_MATCH'), "should throw TAKER_ORDER_OVER_MATCH")
+
+        // step 3: taker becomes maker. buy 0.4
+        const testConfig3 = {
+            initialBalances: {
+                u3: {
+                    short: toBase(0.4)
+                },
+            },
+            takerOrder: {
+                trader: u3,
+                side: "buy",
+                amount: toBase(0.4),
+                price: toPrice(8000),
+                takerFeeRate: 350,
+                makerFeeRate: 150,
+                gasAmount: toWei(0.1),
+            },
+            makerOrders: [
+                // NOTE: makers will have the same orderID as the previous one because we set fixed salt
+                {
+                    trader: u2,
+                    side: "sell",
+                    amount: toBase(1),
+                    price: toPrice(7900),
+                    takerFeeRate: 350,
+                    makerFeeRate: 150,
+                    gasAmount: toWei(0.1),
+                },
+            ],
+            filledAmounts: [
+                toBase(0.4),
+            ],
+            expectedBalances: {
+                u2: {
+                    collateral: toWei(
+                        10000, 160, -11.2, -0.1,
+                        +80, -240, -16.8, -0.1,
+                        -240, -4.8),
+                    long: toBase(0),
+                    short: toBase(2.6),
+                },
+                u3: {
+                    collateral: toWei(240, -11.2, -0.1),
+                    short: toBase(0),
+                },
+                relayer: {
+                    collateral: toWei(
+                        4.8, 11.2, 0.1, 0.1,
+                        7.2, 16.8, 0.1, -9.6 /* MP mint fee */,
+                        4.8, 11.2, 0.1),
+                }
+            },
+            users: { admin, u1, u2, u3, relayer },
+            tokens: { collateral, long, short },
+            admin: admin,
+            gasLimit: 8000000,
+        };
+        await matchTest(testConfig3);
     });
 });

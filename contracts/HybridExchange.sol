@@ -433,7 +433,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         makerOrderInfo.filledAmount = makerOrderInfo.filledAmount.add(filledAmount);
 
         require(takerOrderInfo.filledAmount <= takerOrderParam.amount, TAKER_ORDER_OVER_MATCH);
-        require(makerOrderInfo.filledAmount <= makerOrderParam.amount, TAKER_ORDER_OVER_MATCH);
+        require(makerOrderInfo.filledAmount <= makerOrderParam.amount, MAKER_ORDER_OVER_MATCH);
 
         result.posFilledAmount = filledAmount;
 
