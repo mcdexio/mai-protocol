@@ -43,4 +43,5 @@ contract LibExchangeErrors {
     string constant REDEEM_POSITION_TOKENS_FAILED = "REDEEM_FAILED";
     string constant MP_EXPIRED = "MP_EXPIRED";
     string constant UNEXPECTED_MATCH = "UNEXPECTED_MATCH";
+    string constant INSUFFICIENT_FEE = "INSUFFICIENT_FEE";
 }

@@ -839,7 +839,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         uint256 totalFee = result.makerFee.add(result.takerFee);
 
         // fail on a very low fee, if any
-        require(totalFee >= neededCollateralTokenFee, "INSUFFICIENT_MINT_FEE");
+        require(totalFee >= neededCollateralTokenFee, INSUFFICIENT_FEE);
 
         // maker -> proxy
         transferFrom(

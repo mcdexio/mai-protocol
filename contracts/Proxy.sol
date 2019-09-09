@@ -28,10 +28,10 @@ import "./interfaces/IERC20.sol";
 contract Proxy is LibOwnable, LibWhitelist {
     using SafeMath for uint256;
 
+    uint256 public constant INFINITY = 999999999999999999999999999999999999999999;
+
     address public minterAddress;
 
-    // uint256 public constant INFINITY = 2**256 - 1;
-    uint256 public constant INFINITY = 999999999999999999999999999999999999999999;
     mapping( address => uint256 ) public balances;
 
     event Deposit(address owner, uint256 amount);
@@ -62,7 +62,10 @@ contract Proxy is LibOwnable, LibWhitelist {
     /// Approve transfer from proxy for mint or redeem. This method must be called immediately
     /// after every trading pair added to dex system.
     /// @param contractAddress Address of market contract.
-    function approveMarketContractPool(address contractAddress) public onlyOwner {
+    function approveMarketContractPool(address contractAddress)
+        public
+        onlyOwner
+    {
         IMarketContract marketContract = IMarketContract(contractAddress);
 
         IERC20 collateralToken = IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS());
@@ -85,7 +88,7 @@ contract Proxy is LibOwnable, LibWhitelist {
         emit WithdrawFee(msg.sender, amount);
     }
 
-    /// @dev Invoking transferFrom.
+    /// @dev Invoking transfer, to avoid self approve.
     /// @param token Address of token to transfer.
     /// @param to Address to transfer token to.
     /// @param value Amount of token to transfer.
@@ -160,7 +163,7 @@ contract Proxy is LibOwnable, LibWhitelist {
         marketContractPool.redeemPositionTokens(contractAddress, qtyToMint);
     }
 
-/// @dev Calls into ERC20 Token contract, invoking transferFrom.
+    /// @dev Calls into ERC20 Token contract, invoking transferFrom.
     /// @param token Address of token to transfer.
     /// @param to Address to transfer token to.
     /// @param value Amount of token to transfer.
