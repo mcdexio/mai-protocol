@@ -259,7 +259,7 @@ contract('Hydro', async accounts => {
             expectedBalances: {
                 u1: { collateral: toWei(10000, -70, -2, -0.1), short: toBase(0.1), },
                 u2: { collateral: toWei(10000, -30, -2, -0.1), long: toBase(0.1), },
-                relayer: { collateral: toWei(2, 2, 0.1, 0.1, -2.4) },
+                relayer: { collateral: toWei(2, 2, 0.1, 0.1, -2.4 /* MP mint fee */) },
             },
             users: { admin, u1, u2, u3, relayer },
             tokens: { collateral, long, short },
@@ -549,7 +549,7 @@ contract('Hydro', async accounts => {
                     long: toBase(0.5),
                 },
                 relayer: {
-                    collateral: toWei(20, 0.1, 10, 0.1, 10, 0.1, -12)
+                    collateral: toWei(20, 0.1, 10, 0.1, 10, 0.1, -12 /* MP mint fee */)
                 },
             },
             users: { admin, u1, u2, u3, relayer },
@@ -572,16 +572,13 @@ contract('Hydro', async accounts => {
                     long: toBase(0.6),
                     short: toBase(1.8),
                 },
-                u3: {
-
-                },
                 relayer: { },
             },
             takerOrder: {
                 trader: u2,
                 side: "sell",
                 amount: toBase(0.4),
-                price: toPrice(8000),
+                price: toPrice(7900),
                 takerFeeRate: 250,
                 gasAmount: toWei(0.1),
             },
@@ -590,7 +587,7 @@ contract('Hydro', async accounts => {
                     trader: u1,
                     side: "buy",
                     amount: toBase(1),
-                    price: toPrice(8000),
+                    price: toPrice(7900),
                     makerFeeRate: 250,
                     gasAmount: toWei(0.1),
                 },
@@ -600,16 +597,17 @@ contract('Hydro', async accounts => {
             ],
             expectedBalances: {
                 u1: {
-                    collateral: toWei(10000, -200, -8, -0.1),
+                    collateral: toWei(10000, -160, -8, -0.1),
                     long: toBase(1.2),
                 },
                 u2: {
-                    collateral: toWei(10000, -200, -8, -0.1),
-                    short: toBase(2.2),
+                    collateral: toWei(10000, 160, -8, -0.1),
+                    long: toBase(0.2),
+                    short: toBase(1.8),
                 },
                 relayer: {
-                    collateral: toWei(8, 8, 0.1, 0.1, -9.6),
-                }
+                    collateral: toWei(8, 8, 0.1, 0.1),
+                },
             },
             users: { admin, u1, u2, u3, relayer },
             tokens: { collateral, long, short },
@@ -623,7 +621,7 @@ contract('Hydro', async accounts => {
                 trader: u2,
                 side: "sell",
                 amount: toBase(0.6),
-                price: toPrice(8000),
+                price: toPrice(7900),
                 takerFeeRate: 250,
                 gasAmount: toWei(0.1),
             },
@@ -633,7 +631,7 @@ contract('Hydro', async accounts => {
                     trader: u1,
                     side: "buy",
                     amount: toBase(1),
-                    price: toPrice(8000),
+                    price: toPrice(7900),
                     makerFeeRate: 250,
                     gasAmount: toWei(0.1),
                 },
@@ -643,16 +641,18 @@ contract('Hydro', async accounts => {
             ],
             expectedBalances: {
                 u1: {
-                    collateral: toWei(10000, -200, -8, -0.1, -300, -12),
+                    collateral: toWei(10000, -160, -8, -0.1, -240, -12),
                     long: toBase(1.8),
                 },
                 u2: {
-                    collateral: toWei(10000, -200, -8, -0.1, +300, -12, -0.1),
+                    collateral: toWei(10000, 160, -8, -0.1, +80, -240, -12, -0.1),
+                    long: toBase(0),
                     short: toBase(2.2),
-                    long: 0,
                 },
                 relayer: {
-                    collateral: toWei(8, 8, 0.1, 0.1, -9.6, 12, 12, 0.1),
+                    collateral: toWei(
+                        8, 8, 0.1, 0.1,
+                        12, 12, 0.1, -9.6 /* MP mint fee */),
                 }
             },
             users: { admin, u1, u2, u3, relayer },
