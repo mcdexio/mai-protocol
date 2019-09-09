@@ -141,7 +141,6 @@ contract('Match', async accounts => {
         REDEEM: 4,
     });
 
-    /*
     contract('transferPublic', async accounts => {
 
         it('should transfer erc20 tokens without approve', async () => {
@@ -690,7 +689,6 @@ contract('Match', async accounts => {
             assert.equal(await call(long.methods.balanceOf(proxy._address)), 0);
         });
     });
-    */
 
     contract('doRedeemPublic', async accounts => {
         it('should redeem collateral from mpx', async () => {
@@ -752,6 +750,184 @@ contract('Match', async accounts => {
             assert.equal(await call(short.methods.balanceOf(proxy._address)), 0);
             assert.equal(await call(long.methods.balanceOf(proxy._address)), 0);
         });
+
+        it('should fail to redeem collateral from mpx', async () => {
+            const initalPos = new BigNumber(toBase(1));
+            const initalPos2 = new BigNumber(toBase(0.5));
+            await send(admin, long.methods.mint(u1, initalPos.toFixed()));
+            await send(u1, long.methods.approve(proxy._address, infinity));
+            await send(admin, short.methods.mint(u2, initalPos2.toFixed()));
+            await send(u2, short.methods.approve(proxy._address, infinity));
+
+            const makerMargin = new BigNumber(toWei(500));
+            const takerMargin = new BigNumber(toWei(400));
+            const toRedeemAmount = new BigNumber(toBase(1));
+            const fee = new BigNumber(toWei(15));
+            const gasFee = new BigNumber(toWei(0.1));
+            const redeemGain = new BigNumber(await call(mpx.methods.COLLATERAL_PER_UNIT()))
+                .times(toRedeemAmount);
+
+            const result = {
+                maker: u1,
+                taker: u2,
+                makerFee: fee.toFixed(),
+                takerFee: fee.toFixed(),
+                makerGasFee: gasFee.toFixed(),
+                takerGasFee: gasFee.toFixed(),
+                posFilledAmount: toRedeemAmount.toFixed(),
+                ctkFilledAmount: makerMargin.toFixed(),
+                fillAction: FillActions.REDEEM,
+            };
+            const orderAddressSet = {
+                marketContract: mpx._address,
+                relayer: relayer,
+            };
+            const orderContext = {
+                marketContract: mpx._address,
+                marketContractPool: mpx._address,
+                ctk: collateral._address,
+                pos: [
+                    long._address,
+                    short._address
+                ],
+                takerSide: 0,
+            };
+
+            await send(admin, proxy.methods.approveMarketContractPool(mpx._address));
+            const message = await except(relayer, exchange.methods.doRedeemPublic(result, orderAddressSet, orderContext));
+
+            assert.equal(message.includes("TRANSFER_FROM_FAILED"), true);
+        });
     });
 
+    contract('doSellPublic', async accounts => {
+        it('should sell long positon token to maker', async () => {
+
+            const initalBalance = new BigNumber(toWei(1200));
+            await send(admin, collateral.methods.mint(u1, initalBalance.toFixed()));
+            await send(u1, collateral.methods.approve(proxy._address, infinity));
+
+            const toSell = new BigNumber(toBase(0.9));
+            await send(admin, long.methods.mint(u2, toSell.toFixed()));
+            await send(u2, long.methods.approve(proxy._address, infinity));
+
+            const makerMargin = new BigNumber(toWei(500));
+            const makerFee = new BigNumber(toWei(10));
+            const takerFee = new BigNumber(toWei(13));
+            const gasFee = new BigNumber(toWei(0.1));
+
+            const result = {
+                maker: u1,
+                taker: u2,
+                makerFee: makerFee.toFixed(),
+                takerFee: takerFee.toFixed(),
+                makerGasFee: gasFee.toFixed(),
+                takerGasFee: gasFee.toFixed(),
+                posFilledAmount: toSell.toFixed(),
+                ctkFilledAmount: makerMargin.toFixed(),
+                fillAction: FillActions.SELL,
+            };
+            const orderAddressSet = {
+                marketContract: mpx._address,
+                relayer: relayer,
+            };
+            const orderContext = {
+                marketContract: mpx._address,
+                marketContractPool: mpx._address,
+                ctk: collateral._address,
+                pos: [
+                    long._address,
+                    short._address
+                ],
+                takerSide: 1,
+            };
+
+            await send(relayer, exchange.methods.doSellPublic(result, orderAddressSet, orderContext));
+
+            // maker
+            assert.equal(await call(collateral.methods.balanceOf(u1)), initalBalance.minus(makerMargin).minus(makerFee).minus(gasFee).toFixed());
+            assert.equal(await call(short.methods.balanceOf(u1)), 0);
+            assert.equal(await call(long.methods.balanceOf(u1)), toSell.toFixed());
+
+            // taker
+            assert.equal(await call(collateral.methods.balanceOf(u2)), 0);
+            assert.equal(await call(short.methods.balanceOf(u2)), 0);
+            assert.equal(await call(long.methods.balanceOf(u2)), 0);
+
+            // relayer
+            assert.equal(await call(collateral.methods.balanceOf(relayer)), makerMargin.plus(makerFee).plus(gasFee).toFixed());
+            assert.equal(await call(short.methods.balanceOf(relayer)), 0);
+            assert.equal(await call(long.methods.balanceOf(relayer)), 0);
+
+            // proxy
+            assert.equal(await call(collateral.methods.balanceOf(proxy._address)), 0);
+            assert.equal(await call(short.methods.balanceOf(proxy._address)), 0);
+            assert.equal(await call(long.methods.balanceOf(proxy._address)), 0);
+
+        });
+
+        it('should sell short positon token to maker', async () => {
+
+            const initalBalance = new BigNumber(toWei(1200));
+            await send(admin, collateral.methods.mint(u1, initalBalance.toFixed()));
+            await send(u1, collateral.methods.approve(proxy._address, infinity));
+
+            const toSell = new BigNumber(toBase(0.9));
+            await send(admin, short.methods.mint(u2, toSell.toFixed()));
+            await send(u2, short.methods.approve(proxy._address, infinity));
+
+            const makerMargin = new BigNumber(toWei(500));
+            const makerFee = new BigNumber(toWei(10));
+            const takerFee = new BigNumber(toWei(13));
+            const gasFee = new BigNumber(toWei(0.1));
+
+            const result = {
+                maker: u1,
+                taker: u2,
+                makerFee: makerFee.toFixed(),
+                takerFee: takerFee.toFixed(),
+                makerGasFee: gasFee.toFixed(),
+                takerGasFee: gasFee.toFixed(),
+                posFilledAmount: toSell.toFixed(),
+                ctkFilledAmount: makerMargin.toFixed(),
+                fillAction: FillActions.SELL,
+            };
+            const orderAddressSet = {
+                marketContract: mpx._address,
+                relayer: relayer,
+            };
+            const orderContext = {
+                marketContract: mpx._address,
+                marketContractPool: mpx._address,
+                ctk: collateral._address,
+                pos: [
+                    long._address,
+                    short._address
+                ],
+                takerSide: 0,
+            };
+
+            await send(relayer, exchange.methods.doSellPublic(result, orderAddressSet, orderContext));
+
+            // maker
+            assert.equal(await call(collateral.methods.balanceOf(u1)), initalBalance.minus(makerMargin).minus(makerFee).minus(gasFee).toFixed());
+            assert.equal(await call(short.methods.balanceOf(u1)), toSell.toFixed());
+            assert.equal(await call(long.methods.balanceOf(u1)), 0);
+
+            // taker
+            assert.equal(await call(collateral.methods.balanceOf(u2)), 0);
+            assert.equal(await call(short.methods.balanceOf(u2)), 0);
+            assert.equal(await call(long.methods.balanceOf(u2)), 0);
+
+            // relayer
+            assert.equal(await call(collateral.methods.balanceOf(relayer)), makerMargin.plus(makerFee).plus(gasFee).toFixed());
+            assert.equal(await call(short.methods.balanceOf(relayer)), 0);
+            assert.equal(await call(long.methods.balanceOf(relayer)), 0);
+
+            // proxy
+            assert.equal(await call(collateral.methods.balanceOf(proxy._address)), 0);
+            assert.equal(await call(short.methods.balanceOf(proxy._address)), 0);
+            assert.equal(await call(long.methods.balanceOf(proxy._address)), 0);
+        });
+    });
 });
