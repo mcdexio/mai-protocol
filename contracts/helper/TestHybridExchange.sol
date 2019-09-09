@@ -37,6 +37,21 @@ contract TestHybridExchange is HybridExchange {
         return getOrderContext(orderAddressSet, takerOrderParam);
     }
 
+
+    function getMatchPlanPublic(
+        OrderParam memory takerOrderParam,
+        OrderParam[] memory makerOrderParams,
+        uint256[] memory posFilledAmounts,
+        OrderAddressSet memory orderAddressSet,
+        OrderContext memory orderContext
+    )
+        public
+        returns (MatchResult[] memory results)
+    {
+        return getMatchPlan(takerOrderParam, makerOrderParams,
+            posFilledAmounts, orderAddressSet, orderContext);
+    }
+
     function calculateMiddleCollateralPerUnitPublic(OrderContext memory orderContext)
         public
         view

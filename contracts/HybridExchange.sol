@@ -112,8 +112,8 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         uint256 takerFee;                   // takerFee in order data
         uint256 makerGasFee;
         uint256 takerGasFee;
-        uint256 posFilledAmount;
-        uint256 ctkFilledAmount;
+        uint256 posFilledAmount;            // position token is always the same between maker and taker
+        uint256 ctkFilledAmount;            // how much ctk that maker should pay/get
         FillAction fillAction;
     }
 
@@ -152,18 +152,16 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         return orderContext;
     }
 
-    function matchOrders(
+    function getMatchPlan(
         OrderParam memory takerOrderParam,
         OrderParam[] memory makerOrderParams,
         uint256[] memory posFilledAmounts,
-        OrderAddressSet memory orderAddressSet
+        OrderAddressSet memory orderAddressSet,
+        OrderContext memory orderContext
     )
-        public
+        internal
+        returns (MatchResult[] memory results)
     {
-        require(canMatchOrdersFrom(orderAddressSet.relayer), INVALID_SENDER);
-        require(!isMakerOnly(takerOrderParam.data), MAKER_ONLY_ORDER_CANNOT_BE_TAKER);
-
-        OrderContext memory orderContext = getOrderContext(orderAddressSet, takerOrderParam);
         uint256 takerFeeRate = getTakerFeeRate(takerOrderParam);
         OrderInfo memory takerOrderInfo = getOrderInfo(
             takerOrderParam,
@@ -173,7 +171,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
 
         uint256 resultIndex;
         // Each matched pair will produce two results at most (exchange + mint, exchange + redeem).
-        MatchResult[] memory results = new MatchResult[](makerOrderParams.length * 2);
+        results = new MatchResult[](makerOrderParams.length * 2);
         for (uint256 i = 0; i < makerOrderParams.length; i++) {
             require(
                 !isMarketOrder(makerOrderParams[i].data),
@@ -211,6 +209,23 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         }
         filled[takerOrderInfo.orderHash] = takerOrderInfo.filledAmount;
 
+        return results;
+    }
+
+    function matchOrders(
+        OrderParam memory takerOrderParam,
+        OrderParam[] memory makerOrderParams,
+        uint256[] memory posFilledAmounts,
+        OrderAddressSet memory orderAddressSet
+    )
+        public
+    {
+        require(canMatchOrdersFrom(orderAddressSet.relayer), INVALID_SENDER);
+        require(!isMakerOnly(takerOrderParam.data), MAKER_ONLY_ORDER_CANNOT_BE_TAKER);
+
+        OrderContext memory orderContext = getOrderContext(orderAddressSet, takerOrderParam);
+        MatchResult[] memory results = getMatchPlan(
+            takerOrderParam, makerOrderParams, posFilledAmounts, orderAddressSet, orderContext);
         settleResults(results, takerOrderParam, orderAddressSet, orderContext);
     }
 
@@ -377,7 +392,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
             makerOrderInfo.balances[side] = makerOrderInfo.balances[side].sub(filledAmount);
 
             result.fillAction = FillAction.REDEEM;
-            result.ctkFilledAmount = makerOrderInfo.margins[opposite].mul(filledAmount);
+            result.ctkFilledAmount = makerOrderInfo.margins[side].mul(filledAmount);
 
        } else if (takerOrderInfo.balances[opposite] > 0 && makerOrderInfo.balances[side] == 0) {
             // do exchange, taker sell to maker
@@ -388,7 +403,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
                 .add(filledAmount);
 
             result.fillAction = FillAction.SELL;
-            result.ctkFilledAmount = makerOrderInfo.margins[side].mul(filledAmount);
+            result.ctkFilledAmount = makerOrderInfo.margins[opposite].mul(filledAmount);
 
        } else if (takerOrderInfo.balances[opposite] == 0 && makerOrderInfo.balances[side] > 0) {
             // do exchange, taker buy from maker
