@@ -1,6 +1,6 @@
 const assert = require('assert');
 const BigNumber = require('bignumber.js');
-const { getWeb3, getContracts, getMarketContracts } = require('./utils');
+const { getWeb3, getContracts, getMarketContract } = require('./utils');
 const { generateOrderData, isValidSignature, getOrderHash } = require('../sdk/sdk');
 const { fromRpcSig } = require('ethereumjs-util');
 
@@ -48,7 +48,7 @@ contract('Pool', async accounts => {
         exchange = contracts.exchange;
         proxy = contracts.proxy;
 
-        const mpxContracs = await getMarketContracts({
+        const mpxContracs = await getMarketContract({
             cap: 8500e10,
             floor: 7500e10,
             multiplier: 1000,

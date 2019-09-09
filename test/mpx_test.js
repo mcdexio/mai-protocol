@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { newContract, getMarketContracts } = require('./utils');
+const { getWeb3, getContracts, getMarketContract, buildOrder } = require('./utils');
 const TestMarketContract = artifacts.require('helper/TestMarketContract.sol');
 const CollateralToken = artifacts.require('helper/TestToken.sol');
 const LongPositionToken = artifacts.require('helper/TestToken.sol');
@@ -49,7 +49,7 @@ contract('MPX', accounts => {
     } 
 
     beforeEach(async () => {
-        const contracts = await getMarketContracts({
+        const contracts = await getMarketContract({
             cap: 8500e10,
             floor: 7500e10,
             multiplier: 1000,
