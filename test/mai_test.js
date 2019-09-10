@@ -45,7 +45,7 @@ const fromWei = x => {
 
 const infinity = '999999999999999999999999999999999999999999';
 
-contract('Hydro', async accounts => {
+contract('Mai', async accounts => {
     let exchange, proxy;
     let mpx, collateral, long, short;
 

@@ -1,6 +1,6 @@
 const Web3 = require('web3');
 const Proxy = artifacts.require('./Proxy.sol');
-const HybridExchange = artifacts.require('./HybridExchange.sol');
+const MaiProtocol = artifacts.require('./MaiProtocol.sol');
 const TestToken = artifacts.require('./helper/TestToken.sol');
 const BigNumber = require('bignumber.js');
 
@@ -48,12 +48,12 @@ module.exports = async () => {
         console.log('Proxy address', web3.toChecksumAddress(proxyAddress));
 
         if (!exchangeAddress) {
-            exchange = await newContract(HybridExchange, proxyAddress, hotTokenAddress);
+            exchange = await newContract(MaiProtocol, proxyAddress, hotTokenAddress);
             exchangeAddress = exchange._address;
         } else {
-            exchange = await newContractAt(HybridExchange, exchangeAddress);
+            exchange = await newContractAt(MaiProtocol, exchangeAddress);
         }
-        console.log('HybridExchange address', web3.toChecksumAddress(exchangeAddress));
+        console.log('MaiProtocol address', web3.toChecksumAddress(exchangeAddress));
 
         await Proxy.at(proxyAddress).addAddress(exchangeAddress);
         console.log('Proxy add exchange into whitelist');

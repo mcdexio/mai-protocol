@@ -17,12 +17,12 @@
 pragma solidity ^0.4.24;
 pragma experimental ABIEncoderV2;
 
-import "../HybridExchange.sol";
+import "../MaiProtocol.sol";
 
-contract TestHybridExchange is HybridExchange {
+contract TestMaiProtocol is MaiProtocol {
     constructor(address _proxyAddress)
         public
-        HybridExchange(_proxyAddress)
+        MaiProtocol(_proxyAddress)
     {
     }
 

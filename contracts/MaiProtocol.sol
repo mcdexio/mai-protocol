@@ -31,7 +31,7 @@ import "./interfaces/IMarketContract.sol";
 import "./interfaces/IERC20.sol";
 import "./lib/MathLib.sol";
 
-contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
+contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
     using SafeMath for uint256;
 
     uint256 public constant LONG = 0;
@@ -486,8 +486,7 @@ contract HybridExchange is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         orderInfo.filledAmount = filled[orderInfo.orderHash];
         uint8 status = uint8(OrderStatus.FILLABLE);
 
-        // TODO: review isMarketBuy(order.data)
-        // see https://github.com/HydroProtocol/protocol/blob/v1.1/contracts/HybridExchange.sol#L205
+        // TODO: isMarketBuy(order.data) is not implemented
 
         if (orderInfo.filledAmount >= order.amount) {
             status = uint8(OrderStatus.FULLY_FILLED);

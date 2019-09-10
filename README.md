@@ -12,7 +12,7 @@ Hydro is designed for developers looking to build decentralized exchanges withou
 
 ## Features
 
-Hydro 1.0 contains a single exchange contract called `HybridExchange.sol` with the following attributes:
+Hydro 1.0 contains a single exchange contract called `MaiProtocol.sol` with the following attributes:
 
 * No order collision
 * No possibility of front-running

@@ -1,7 +1,7 @@
 const Web3 = require('web3');
 const Proxy = artifacts.require('./Proxy.sol');
-const HybridExchange = artifacts.require('./HybridExchange.sol');
-const TestHybridExchange = artifacts.require('helper/TestHybridExchange.sol');
+const MaiProtocol = artifacts.require('./MaiProtocol.sol');
+const TestMaiProtocol = artifacts.require('helper/TestMaiProtocol.sol');
 const BigNumber = require('bignumber.js');
 const TestToken = artifacts.require('helper/TestToken.sol');
 const TestMarketContract = artifacts.require('helper/TestMarketContract.sol');
@@ -45,7 +45,7 @@ const getContracts = async () => {
     const proxy = await newContract(Proxy);
     // console.log('Proxy address', web3.toChecksumAddress(proxy._address));
 
-    const exchange = await newContract(HybridExchange, proxy._address);
+    const exchange = await newContract(MaiProtocol, proxy._address);
 
     // console.log('Dxchange address', web3.toChecksumAddress(exchange._address));
     const accounts = await web3.eth.getAccounts();
@@ -62,7 +62,7 @@ const getTestContracts = async () => {
     const proxy = await newContract(Proxy);
     // console.log('Proxy address', web3.toChecksumAddress(proxy._address));
 
-    const exchange = await newContract(TestHybridExchange, proxy._address);
+    const exchange = await newContract(TestMaiProtocol, proxy._address);
 
     // console.log('Dxchange address', web3.toChecksumAddress(exchange._address));
     const accounts = await web3.eth.getAccounts();

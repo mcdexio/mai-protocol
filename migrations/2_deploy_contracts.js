@@ -3,14 +3,14 @@ const SafeMath = artifacts.require("lib/SafeMath.sol");
 const TestToken = artifacts.require("helper/TestToken.sol");
 
 const Proxy = artifacts.require("Proxy.sol");
-const HybridExchange = artifacts.require("HybridExchange.sol");
+const MaiProtocol = artifacts.require("MaiProtocol.sol");
 
 module.exports = function(deployer, network, accounts) {
     // lib 
     return deployer.deploy(MathLib).then(function() {
         return deployer.deploy(SafeMath).then(function() {
             return deployer
-                .link(SafeMath, [Proxy, HybridExchange])
+                .link(SafeMath, [Proxy, MaiProtocol])
                 .then(function() {
                     return deployer
                         .deploy(Proxy)
@@ -20,14 +20,14 @@ module.exports = function(deployer, network, accounts) {
                                 Proxy.address
                             );
                             return deployer
-                                .deploy(HybridExchange, Proxy.address)
+                                .deploy(MaiProtocol, Proxy.address)
                                 .then(function() {
                                     return proxyInstance
-                                        .addAddress(HybridExchange.address)
+                                        .addAddress(MaiProtocol.address)
                                         .then(function() {
                                             console.log(
                                                 "Proxy whitelist initialized with", 
-                                                HybridExchange.address
+                                                MaiProtocol.address
                                             );
                                         })
                                 });
