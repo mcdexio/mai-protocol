@@ -37,7 +37,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
     uint256 public constant SHORT = 1;
     uint256 public constant FEE_RATE_BASE = 100000;
 
-    /* Order v2 data is uncompatible with v1. This contract can only handle v2 order. */
+    /* Supported version */
     uint256 public constant SUPPORTED_ORDER_VERSION = 2;
 
     /**

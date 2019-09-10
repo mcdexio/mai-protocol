@@ -3,7 +3,7 @@
 console.log('test1: approve market contract');
 
 const Web3 = require('web3');
-const testUtil = require('./test-util');
+const testUtil = require('./util');
 
 var provider = new Web3.providers.HttpProvider(testUtil.ethServer);
 var web3 = new Web3(provider);
