@@ -564,7 +564,7 @@ contract('Match', async accounts => {
 
             await send(admin, proxy.methods.approveMarketContractPool(mpx._address));
             const message = await except(relayer, exchange.methods.doMintPublic(result, orderAddressSet, orderContext));
-            assert.equal(message.includes("INSUFFICIENT_MINT_FEE"), true);
+            assert.equal(message.includes("INSUFFICIENT_FEE"), true);
 
         });
     });
