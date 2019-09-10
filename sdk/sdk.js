@@ -67,7 +67,7 @@ const EIP712_ORDER_TYPE = sha3ToHex(
 );
 
 const getDomainSeparator = () => {
-    return sha3ToHex(EIP712_DOMAIN_TYPEHASH + sha3ToHex('Hydro Protocol').slice(2));
+    return sha3ToHex(EIP712_DOMAIN_TYPEHASH + sha3ToHex('Mai Protocol').slice(2));
 };
 
 const getEIP712MessageHash = message => {

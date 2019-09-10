@@ -2,9 +2,9 @@ exports.ethServer = 'http://127.0.0.1:8545';
 exports.contractOwner = '0x6766f3cfd606e1e428747d3364bae65b6f914d56'; // do not modify when using gananche-cli
 exports.relayAddress = '0x93388b4efe13b9b18ed480783c05462409851547'; // do not modify when using gananche-cli
 
-exports.daiAddress = '0x31e67D461D79835C271fd11aEC73336a3a6DD6d7';
-exports.proxyContractAddress = '0xd2B45498835CaEBA87d04b49f3eb17F0BC902995';
-exports.market1 = '0x4a37c836290A985935c2e38165Afe4ADb1EC2a02';
+exports.daiAddress = '0x7514FeE073700396EaC37C2cfB6481b59D21B806';
+exports.proxyContractAddress = '0x1cb1eC2164f2A6a87261e5b2bD411c2E45762330';
+exports.market1 = '0xe641521E90509D03f0d284Cabe34fBdFe6DF1e3c';
 
 exports.approveMarketContractPoolAbi = {"constant": false,"inputs": [{"name": "contractAddress","type": "address"}],"name": "approveMarketContractPool","outputs": [],"payable": false,"stateMutability": "nonpayable","type": "function"};
 exports.approveMarketContractPool = async function(web3, marketContract) {

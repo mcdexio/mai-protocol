@@ -1,4 +1,5 @@
 /*
+    Copyright 2019 mcdexio
 
     Copyright 2018 The Hydro Protocol Foundation
 
@@ -22,7 +23,7 @@ pragma solidity ^0.4.24;
  * EIP712 Ethereum typed structured data hashing and signing
  */
 contract EIP712 {
-    string internal constant DOMAIN_NAME = "Hydro Protocol";
+    string internal constant DOMAIN_NAME = "Mai Protocol";
 
     /**
      * Hash of the EIP712 Domain Separator Schema

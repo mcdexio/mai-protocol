@@ -1,4 +1,6 @@
 /*
+    Copyright 2019 mcdexio
+
     Copyright 2018 The Hydro Protocol Foundation
 
     Licensed under the Apache License, Version 2.0 (the "License");

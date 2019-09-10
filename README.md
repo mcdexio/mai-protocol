@@ -1,18 +1,18 @@
-## Hydro Protocol
+## Mai Protocol
 
 [![CircleCI](https://circleci.com/gh/HydroProtocol/protocol/tree/master.svg?style=svg)](https://circleci.com/gh/HydroProtocol/protocol/tree/master)
 [![codecov](https://codecov.io/gh/HydroProtocol/protocol/branch/master/graph/badge.svg)](https://codecov.io/gh/HydroProtocol/protocol)
 
 
-> Hydro Protocol is an open-source framework for building decentralized exchanges on Ethereum.
+> Mai Protocol is an open-source framework for building decentralized exchanges on Ethereum.
 
 ![](./images/hydro_small.jpg)
 
-Hydro is designed for developers looking to build decentralized exchanges without having to deal with the complexity and expense of designing, deploying, and securing their own smart contracts.
+Mai is designed for developers looking to build decentralized exchanges without having to deal with the complexity and expense of designing, deploying, and securing their own smart contracts.
 
 ## Features
 
-Hydro 1.0 contains a single exchange contract called `MaiProtocol.sol` with the following attributes:
+Mai 1.0 contains a single exchange contract called `MaiProtocol.sol` with the following attributes:
 
 * No order collision
 * No possibility of front-running
@@ -43,14 +43,14 @@ npm run coverage
 
 ## Acknowledgments
 
-Hydro is inspired by the [0x project](https://github.com/0xProject).
+Mai is inspired by the [0x project](https://github.com/0xProject).
 
 In addition, projects such as [IDEX](https://github.com/AuroraDAO/idex) and [Paradex](https://github.com/ParadexRelayer) motivated the decision to focus on first order support for **off-chain matching**.
 
 
 ## Contributing
 
-1. Fork it (<https://github.com/hydroprotocol/protocol/fork>)
+1. Fork it (<https://github.com/mcdexio/mai-protocol/fork>)
 2. Create your feature branch (`git checkout -b feature/fooBar`)
 3. Commit your changes (`git commit -am 'Add some fooBar'`)
 4. Push to the branch (`git push origin feature/fooBar`)

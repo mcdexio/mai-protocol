@@ -1,4 +1,5 @@
 /*
+    Copyright 2019 mcdexio
 
     Copyright 2018 The Hydro Protocol Foundation
 
@@ -77,10 +78,10 @@ contract LibOrder is EIP712, LibSignature, LibMath {
     );
 
     /**
-     * Calculates the Keccak-256 EIP712 hash of the order using the Hydro Protocol domain.
+     * Calculates the Keccak-256 EIP712 hash of the order using the Mai Protocol domain.
      *
      * @param order The order data struct.
-     * @return Fully qualified EIP712 hash of the order in the Hydro Protocol domain.
+     * @return Fully qualified EIP712 hash of the order in the Mai Protocol domain.
      */
     function getOrderHash(Order memory order) internal view returns (bytes32 orderHash) {
         orderHash = hashEIP712Message(hashOrder(order));
