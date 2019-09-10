@@ -20,12 +20,9 @@ contract ExchangePool is LibOwnable, LibWhitelist {
     mapping(address => uint256) public sent;
     mapping(address => uint256) public received;
 
-    event InternalMint(address indexed contractAddress, uint256 amount);
-    event InternalRedeem(address indexed contractAddress, uint256 amount);
     event Mint(address indexed contractAddress, address indexed to, uint256 value);
     event Redeem(address indexed contractAddress, address indexed to, uint256 value);
-    event WithdrawCollateral(address indexed contractAddress, address indexed to, uint256 amount);
-    event WithdrawMarketToken(address indexed to, uint256 amount);
+    event Withdraw(address indexed tokenAddress, address indexed to, uint256 amount);
 
     constructor(address mktAddress) public {
         marketTokenAddress = mktAddress;
@@ -42,7 +39,7 @@ contract ExchangePool is LibOwnable, LibWhitelist {
         IERC20 marketToken = IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS());
         marketToken.transfer(msg.sender, amount);
 
-        emit WithdrawCollateral(marketContractAddress, msg.sender, amount);
+        emit Withdraw(marketContract.COLLATERAL_TOKEN_ADDRESS(), msg.sender, amount);
     }
 
     function withdrawMKT(uint256 amount)
@@ -52,7 +49,7 @@ contract ExchangePool is LibOwnable, LibWhitelist {
         IERC20 marketToken = IERC20(marketTokenAddress);
         marketToken.transfer(msg.sender, amount);
 
-        emit WithdrawMarketToken(msg.sender, amount);
+        emit Withdraw(marketTokenAddress, msg.sender, amount);
     }
 
     function approveMarketContractPool(address contractAddress)
@@ -95,7 +92,7 @@ contract ExchangePool is LibOwnable, LibWhitelist {
             payInMKT
         );
 
-        emit InternalMint(marketContractAddress, qtyToMint);
+        emit Mint(marketContractAddress, address(this), qtyToMint);
     }
 
     function internalRedeemPositionTokens(
@@ -111,7 +108,7 @@ contract ExchangePool is LibOwnable, LibWhitelist {
         );
         marketContractPool.redeemPositionTokens(marketContractAddress, qtyToRedeem);
 
-        emit InternalRedeem(marketContractAddress, qtyToRedeem);
+        emit Redeem(marketContractAddress, address(this), qtyToRedeem);
     }
 
     /**
