@@ -60,6 +60,22 @@ contract Proxy is LibOwnable, LibWhitelist {
         minterAddress = _minterAddress;
     }
 
+    function approveERC20(address tokenAddress, address to, uint256 amount)
+        internal
+    {
+        IERC20 token = IERC20(tokenAddress);
+        token.approve(to, amount);
+    }
+
+    function approveUnlimitedMarketTokens(address contractAddress, address to)
+        internal
+    {
+        IMarketContract marketContract = IMarketContract(contractAddress);
+        approveERC20(marketContract.COLLATERAL_TOKEN_ADDRESS(), to, INFINITY);
+        approveERC20(marketContract.LONG_POSITION_TOKEN(), to, INFINITY);
+        approveERC20(marketContract.SHORT_POSITION_TOKEN(), to, INFINITY);
+    }
+
     /// Approve transfer from proxy for mint or redeem. This method must be called immediately
     /// after every trading pair added to dex system.
     /// @param contractAddress Address of market contract.
@@ -68,13 +84,13 @@ contract Proxy is LibOwnable, LibWhitelist {
         onlyOwner
     {
         IMarketContract marketContract = IMarketContract(contractAddress);
-
-        IERC20 collateralToken = IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS());
+        address approveTo;
         if (minterAddress != 0) {
-            collateralToken.approve(minterAddress, INFINITY);
+            approveTo = minterAddress;
         } else {
-            collateralToken.approve(marketContract.COLLATERAL_POOL_ADDRESS(), INFINITY);
+            approveTo = marketContract.COLLATERAL_POOL_ADDRESS();
         }
+        approveUnlimitedMarketTokens(contractAddress, approveTo);
     }
 
     function withdrawMarketCollateralFee(address contractAddress, uint256 amount)

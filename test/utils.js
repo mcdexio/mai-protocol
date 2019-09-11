@@ -91,9 +91,9 @@ const getMarketContract = async (configs) => {
         configs.multiplier,
         configs.feeRate
     );
-    
+
     const pool = await newContract(ExchangePool, mkt._address);
-    
+
     const accounts = await web3.eth.getAccounts();
 
     await Promise.all([
@@ -112,12 +112,13 @@ const getMarketContract = async (configs) => {
     }
 }
 
+
 const clone = x => JSON.parse(JSON.stringify(x));
 
 const getOrderSignature = async (order) => {
     const orderHash = getOrderHash(order);
     const newWeb3 = getWeb3();
-    
+
     // This depends on the client, ganache-cli/testrpc auto prefix the message header to message
     // So we have to set the method ID to 0 even through we use web3.eth.sign
     const signature = fromRpcSig(await newWeb3.eth.sign(orderHash, order.trader));

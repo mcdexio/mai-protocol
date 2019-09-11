@@ -67,6 +67,14 @@ contract TestMarketContract {
             div(2);
     }
 
+    function mktToken()
+        public
+        view
+        returns (address)
+    {
+        return MARKET_TOKEN_ADDRESS;
+    }
+
     function isPostSettlementDelay()
         public
         view

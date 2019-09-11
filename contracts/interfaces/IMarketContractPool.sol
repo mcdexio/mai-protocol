@@ -15,4 +15,5 @@ contract IMarketContractPool {
         uint longQtyToRedeem,
         uint shortQtyToRedeem
     ) external;
+    function mktToken() external view returns (address);
 }

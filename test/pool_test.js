@@ -9,7 +9,7 @@ const weis = new BigNumber('1000000000000000000');
 
 const toBase = (...xs) => {
     let sum = new BigNumber(0);
-    for (var x of xs) {    
+    for (var x of xs) {
         sum = sum.plus(new BigNumber(x).times(bases));
     }
     return sum.toFixed();
@@ -21,7 +21,7 @@ const fromBase = x => {
 
 const toWei = (...xs) => {
     let sum = new BigNumber(0);
-    for (var x of xs) {    
+    for (var x of xs) {
         sum = sum.plus(new BigNumber(x).times(weis));
     }
     return sum.toFixed();
@@ -75,7 +75,7 @@ contract('Pool', async accounts => {
 
     it('mint using collateral', async () => {
         await pool.methods.addAddress(u1).send({ from: admin });
-        await pool.methods.approveMarketContractPool(mpx._address).send({ from: admin });
+        await pool.methods.approve(mpx._address, infinity).send({ from: admin });
 
         {
             assert.equal(await long.methods.balanceOf(pool._address).call(), 0);
@@ -86,7 +86,7 @@ contract('Pool', async accounts => {
         await collateral.methods.approve(pool._address, infinity).send({ from: u1 });
 
         await pool.methods.mintPositionTokens(mpx._address, toBase(1), false)
-            .send({ 
+            .send({
                 from: u1,
                 gasLimit: 8000000,
             });
@@ -100,7 +100,7 @@ contract('Pool', async accounts => {
 
     it('mint using mtk', async () => {
         await pool.methods.addAddress(u1).send({ from: admin });
-        await pool.methods.approveMarketContractPool(mpx._address).send({ from: admin });
+        await pool.methods.approve(mpx._address, infinity).send({ from: admin });
 
         {
             assert.equal(await long.methods.balanceOf(pool._address).call(), 0);
@@ -114,7 +114,7 @@ contract('Pool', async accounts => {
         await mkt.methods.transfer(pool._address, toWei(10000)).send({ from: admin });
 
         await pool.methods.mintPositionTokens(mpx._address, toBase(1), true)
-            .send({ 
+            .send({
                 from: u1,
                 gasLimit: 8000000,
             });
@@ -129,7 +129,7 @@ contract('Pool', async accounts => {
 
     it('mint using mtk but no enough mkt', async () => {
         await pool.methods.addAddress(u1).send({ from: admin });
-        await pool.methods.approveMarketContractPool(mpx._address).send({ from: admin });
+        await pool.methods.approve(mpx._address, infinity).send({ from: admin });
 
         {
             assert.equal(await long.methods.balanceOf(pool._address).call(), 0);
@@ -142,7 +142,7 @@ contract('Pool', async accounts => {
         await mkt.methods.approve(pool._address, infinity).send({ from: u1 });
 
         await pool.methods.mintPositionTokens(mpx._address, toBase(1), true)
-            .send({ 
+            .send({
                 from: u1,
                 gasLimit: 8000000,
             });
@@ -156,7 +156,7 @@ contract('Pool', async accounts => {
 
     it('mint with enough poisition token in pool', async () => {
         await pool.methods.addAddress(u1).send({ from: admin });
-        await pool.methods.approveMarketContractPool(mpx._address).send({ from: admin });
+        await pool.methods.approve(mpx._address, infinity).send({ from: admin });
 
         {
             assert.equal(await long.methods.balanceOf(pool._address).call(), 0);
@@ -173,7 +173,7 @@ contract('Pool', async accounts => {
         await short.methods.transfer(pool._address, toBase(10000)).send({ from: admin });
 
         await pool.methods.mintPositionTokens(mpx._address, toBase(1), true)
-            .send({ 
+            .send({
                 from: u1,
                 gasLimit: 8000000,
             });
@@ -190,7 +190,7 @@ contract('Pool', async accounts => {
 
     it('redeem', async () => {
         await pool.methods.addAddress(u1).send({ from: admin });
-        await pool.methods.approveMarketContractPool(mpx._address).send({ from: admin });
+        await pool.methods.approve(mpx._address, infinity).send({ from: admin });
         {
             assert.equal(await long.methods.balanceOf(pool._address).call(), 0);
             assert.equal(await short.methods.balanceOf(pool._address).call(), 0);
@@ -201,7 +201,7 @@ contract('Pool', async accounts => {
         await short.methods.approve(pool._address, infinity).send({ from: u1 });
 
         await pool.methods.redeemPositionTokens(mpx._address, toBase(1))
-            .send({ 
+            .send({
                 from: u1,
                 gasLimit: 8000000,
             });
@@ -215,14 +215,14 @@ contract('Pool', async accounts => {
 
     it('redeem with enough collateral token in pool', async () => {
         await pool.methods.addAddress(u1).send({ from: admin });
-        await pool.methods.approveMarketContractPool(mpx._address).send({ from: admin });
-        
+        await pool.methods.approve(mpx._address, infinity).send({ from: admin });
+
         await long.methods.transfer(u1, toBase(1)).send({ from: admin });
         await long.methods.approve(pool._address, infinity).send({ from: u1 });
         await short.methods.transfer(u1, toBase(1)).send({ from: admin });
         await short.methods.approve(pool._address, infinity).send({ from: u1 });
         await collateral.methods.transfer(pool._address, toWei(10000)).send({ from: admin });
-  
+
         {
             assert.equal(await collateral.methods.balanceOf(u1).call(), 0);
             assert.equal(await long.methods.balanceOf(u1).call(), toBase(1));
@@ -232,7 +232,7 @@ contract('Pool', async accounts => {
             assert.equal(await short.methods.balanceOf(pool._address).call(), 0);
         }
         await pool.methods.redeemPositionTokens(mpx._address, toBase(1))
-            .send({ 
+            .send({
                 from: u1,
                 gasLimit: 8000000,
             });
@@ -246,4 +246,5 @@ contract('Pool', async accounts => {
             assert.equal(await short.methods.balanceOf(pool._address).call(), toBase(1));
         }
     });
+
 });
