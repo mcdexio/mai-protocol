@@ -196,7 +196,7 @@ contract('Mai', async accounts => {
         }
 
         // prepare
-        await send(admin, proxy.methods.approveMarketContractPool(mpx._address));
+        await send(admin, proxy.methods.approveCollateralPool(mpx._address, mpx._address, infinity));
         if (beforeMatching !== undefined) {
             beforeMatching();
         }
@@ -618,7 +618,7 @@ contract('Mai', async accounts => {
             gasLimit: 8000000,
         };
         await matchTest(testConfig);
-        
+
         // over fill
         let bad1 = null;
         try {
@@ -751,7 +751,7 @@ contract('Mai', async accounts => {
         }
         assert.notEqual(bad2, null, "should revert 2")
         assert.ok(bad2.message.includes('MAKER_ORDER_OVER_MATCH'), "should throw MAKER_ORDER_OVER_MATCH")
-        
+
         // over fill
         let bad3 = null;
         try {

@@ -268,7 +268,7 @@ contract('Match', async accounts => {
             assert.equal(await call(long.methods.balanceOf(proxy._address)), 0);
             assert.equal(await call(short.methods.balanceOf(proxy._address)), 0);
 
-            await send(admin, proxy.methods.approveMarketContractPool(mpx._address));
+            await send(admin, proxy.methods.approveCollateralPool(mpx._address, mpx._address, infinity));
             await shouldFailOnError(
                 relayer,
                 exchange.methods.mintPositionTokensPublic(mpx._address, toBase(10)),
@@ -285,7 +285,7 @@ contract('Match', async accounts => {
             assert.equal(await call(long.methods.balanceOf(proxy._address)), 0);
             assert.equal(await call(short.methods.balanceOf(proxy._address)), 0);
 
-            await send(admin, proxy.methods.approveMarketContractPool(mpx._address));
+            await send(admin, proxy.methods.approveCollateralPool(mpx._address, mpx._address, infinity));
 
             const posAmount = new BigNumber(toBase(1));
             await send(relayer, exchange.methods.mintPositionTokensPublic(mpx._address, posAmount.toFixed()));
@@ -370,7 +370,7 @@ contract('Match', async accounts => {
             const ctkFeeRequired = new BigNumber(await call(mpx.methods.COLLATERAL_TOKEN_FEE_PER_UNIT())).times(toMintAmount);
             assert.equal(ctkRequired.plus(ctkFeeRequired).toFixed(), toWei(1024));
 
-            await send(admin, proxy.methods.approveMarketContractPool(mpx._address));
+            await send(admin, proxy.methods.approveCollateralPool(mpx._address, mpx._address, infinity));
             await send(relayer, exchange.methods.doMintPublic(result, orderAddressSet, orderContext));
 
             // maker
@@ -438,7 +438,7 @@ contract('Match', async accounts => {
             const ctkFeeRequired = new BigNumber(await call(mpx.methods.COLLATERAL_TOKEN_FEE_PER_UNIT())).times(toMintAmount);
             assert.equal(ctkRequired.plus(ctkFeeRequired).toFixed(), toWei(1024));
 
-            await send(admin, proxy.methods.approveMarketContractPool(mpx._address));
+            await send(admin, proxy.methods.approveCollateralPool(mpx._address, mpx._address, infinity));
             await send(relayer, exchange.methods.doMintPublic(result, orderAddressSet, orderContext));
 
             // maker
@@ -506,7 +506,7 @@ contract('Match', async accounts => {
             const ctkFeeRequired = new BigNumber(await call(mpx.methods.COLLATERAL_TOKEN_FEE_PER_UNIT())).times(toMintAmount);
             assert.equal(ctkRequired.plus(ctkFeeRequired).toFixed(), toWei(1024));
 
-            await send(admin, proxy.methods.approveMarketContractPool(mpx._address));
+            await send(admin, proxy.methods.approveCollateralPool(mpx._address, mpx._address, infinity));
             await send(relayer, exchange.methods.doMintPublic(result, orderAddressSet, orderContext));
 
             // maker
@@ -574,7 +574,7 @@ contract('Match', async accounts => {
             const ctkFeeRequired = new BigNumber(await call(mpx.methods.COLLATERAL_TOKEN_FEE_PER_UNIT())).times(toMintAmount);
             assert.equal(ctkRequired.plus(ctkFeeRequired).toFixed(), toWei(1024));
 
-            await send(admin, proxy.methods.approveMarketContractPool(mpx._address));
+            await send(admin, proxy.methods.approveCollateralPool(mpx._address, mpx._address, infinity));
             await shouldFailOnError(
                 relayer,
                 exchange.methods.doMintPublic(result, orderAddressSet, orderContext),
@@ -747,7 +747,7 @@ contract('Match', async accounts => {
                 takerSide: 0,
             };
 
-            await send(admin, proxy.methods.approveMarketContractPool(mpx._address));
+            await send(admin, proxy.methods.approveCollateralPool(mpx._address, mpx._address, infinity));
             await send(relayer, exchange.methods.doRedeemPublic(result, orderAddressSet, orderContext));
 
             // maker
@@ -808,7 +808,7 @@ contract('Match', async accounts => {
                 takerSide: 0,
             };
 
-            await send(admin, proxy.methods.approveMarketContractPool(mpx._address));
+            await send(admin, proxy.methods.approveCollateralPool(mpx._address, mpx._address, infinity));
             await shouldFailOnError(
                 relayer,
                 exchange.methods.doRedeemPublic(result, orderAddressSet, orderContext),

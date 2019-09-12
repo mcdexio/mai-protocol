@@ -3,7 +3,7 @@ const TestToken = artifacts.require('./helper/TestToken.sol');
 const ExchangePool = artifacts.require('./ExchangePool.sol');
 const Proxy = artifacts.require('Proxy.sol');
 const BigNumber = require('bignumber.js');
-
+const IMarketContract = artifacts.require('interfaces/IMarketContract.sol');
 
 // settings
 const infinity = '999999999999999999999999999999999999999999';
@@ -23,12 +23,6 @@ const newContract = async (contract, ...args) => {
     const c = await contract.new(...args);
     const w = getWeb3();
     const instance = new w.eth.Contract(contract.abi, c.address);
-    return instance;
-};
-
-const newContractAt = (contract, address) => {
-    const w = getWeb3();
-    const instance = new w.eth.Contract(contract.abi, address);
     return instance;
 };
 
@@ -63,7 +57,7 @@ module.exports = async () => {
 
         const proxy = await Proxy.at(proxyAddress);
 
-        await proxy.setMinterAddress(exchangePoolAddress);
+        await proxy.setCollateralPoolAddress(exchangePoolAddress);
         console.log('ExchangePool has been applied for Proxy');
 
         if (maketContracts.length > 0) {
@@ -72,8 +66,12 @@ module.exports = async () => {
             for (let i = 0; i < maketContracts.length; i++) {
                 await pool.approve(maketContracts[i], infinity);
                 console.log('ExchangePool approved market contract(', maketContracts[i], ')');
-                await proxy.approveMarketContractPool(maketContracts[i]);
-                console.log('Proxy approved market contract(', maketContracts[i], ')');
+
+                const mpContract = await IMarketContract.at(maketContracts[i]);
+                const mpPoolAddress = await mpContract.COLLATERAL_POOL_ADDRESS();
+
+                await proxy.approveCollateralPool(maketContracts[i], mpPoolAddress, infinity);
+                console.log('Proxy approved market contract pool (', mpPoolAddress, ')');
             }
         }
 

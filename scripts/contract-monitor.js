@@ -28,7 +28,7 @@ module.exports = async () => {
     try {
         const mpContract = await IMarketContract.at(marketTokenAddress);
         const mpPoolAddress = await mpContract.COLLATERAL_POOL_ADDRESS();
-        console.log("Market Contract Pool deployed at", mpPoolAddress);
+        console.log("Market Collateral Pool deployed at", mpPoolAddress);
 
         const mpPool = await IMarketContractPool.at(mpPoolAddress);
         const mktAddress = await mpPool.mktToken();

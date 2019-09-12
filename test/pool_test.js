@@ -75,7 +75,7 @@ contract('Pool', async accounts => {
 
     it('mint using collateral', async () => {
         await pool.methods.addAddress(u1).send({ from: admin });
-        await pool.methods.approve(mpx._address, infinity).send({ from: admin });
+        await pool.methods.approveCollateralPool(mpx._address, infinity).send({ from: admin });
 
         {
             assert.equal(await long.methods.balanceOf(pool._address).call(), 0);
@@ -100,7 +100,7 @@ contract('Pool', async accounts => {
 
     it('mint using mtk', async () => {
         await pool.methods.addAddress(u1).send({ from: admin });
-        await pool.methods.approve(mpx._address, infinity).send({ from: admin });
+        await pool.methods.approveCollateralPool(mpx._address, infinity).send({ from: admin });
 
         {
             assert.equal(await long.methods.balanceOf(pool._address).call(), 0);
@@ -129,7 +129,7 @@ contract('Pool', async accounts => {
 
     it('mint using mtk but no enough mkt', async () => {
         await pool.methods.addAddress(u1).send({ from: admin });
-        await pool.methods.approve(mpx._address, infinity).send({ from: admin });
+        await pool.methods.approveCollateralPool(mpx._address, infinity).send({ from: admin });
 
         {
             assert.equal(await long.methods.balanceOf(pool._address).call(), 0);
@@ -156,7 +156,7 @@ contract('Pool', async accounts => {
 
     it('mint with enough poisition token in pool', async () => {
         await pool.methods.addAddress(u1).send({ from: admin });
-        await pool.methods.approve(mpx._address, infinity).send({ from: admin });
+        await pool.methods.approveCollateralPool(mpx._address, infinity).send({ from: admin });
 
         {
             assert.equal(await long.methods.balanceOf(pool._address).call(), 0);
@@ -190,7 +190,7 @@ contract('Pool', async accounts => {
 
     it('redeem', async () => {
         await pool.methods.addAddress(u1).send({ from: admin });
-        await pool.methods.approve(mpx._address, infinity).send({ from: admin });
+        await pool.methods.approveCollateralPool(mpx._address, infinity).send({ from: admin });
         {
             assert.equal(await long.methods.balanceOf(pool._address).call(), 0);
             assert.equal(await short.methods.balanceOf(pool._address).call(), 0);
@@ -215,7 +215,7 @@ contract('Pool', async accounts => {
 
     it('redeem with enough collateral token in pool', async () => {
         await pool.methods.addAddress(u1).send({ from: admin });
-        await pool.methods.approve(mpx._address, infinity).send({ from: admin });
+        await pool.methods.approveCollateralPool(mpx._address, infinity).send({ from: admin });
 
         await long.methods.transfer(u1, toBase(1)).send({ from: admin });
         await long.methods.approve(pool._address, infinity).send({ from: u1 });
@@ -248,7 +248,7 @@ contract('Pool', async accounts => {
     });
 
     it('convert pos -> ctk', async () => {
-        await pool.methods.approve(mpx._address, infinity).send({ from: admin });
+        await pool.methods.approveCollateralPool(mpx._address, infinity).send({ from: admin });
         {
             assert.equal(await long.methods.balanceOf(pool._address).call(), 0);
             assert.equal(await short.methods.balanceOf(pool._address).call(), 0);
@@ -273,7 +273,7 @@ contract('Pool', async accounts => {
     });
 
     it('convert ctk -> pos', async () => {
-        await pool.methods.approve(mpx._address, infinity).send({ from: admin });
+        await pool.methods.approveCollateralPool(mpx._address, infinity).send({ from: admin });
         await collateral.methods.transfer(pool._address, toWei(1024)).send({ from: admin });
         await collateral.methods.approve(pool._address, infinity).send({ from: admin });
         {
@@ -294,7 +294,7 @@ contract('Pool', async accounts => {
     });
 
     it('convert ctk -> pos with mkt', async () => {
-        await pool.methods.approve(mpx._address, infinity).send({ from: admin });
+        await pool.methods.approveCollateralPool(mpx._address, infinity).send({ from: admin });
         await collateral.methods.transfer(pool._address, toWei(1000)).send({ from: admin });
         await collateral.methods.approve(pool._address, infinity).send({ from: admin });
         await mkt.methods.transfer(pool._address, toWei(12)).send({ from: admin });
@@ -384,7 +384,7 @@ contract('Pool', async accounts => {
         await mkt.methods.transfer(pool._address, balanceToWithdraw.toFixed())
             .send({ from: u1});
 
-        await pool.methods.withdrawMKT(mpx._address, balanceToWithdraw.toFixed())
+        await pool.methods.withdrawMarketToken(mpx._address, balanceToWithdraw.toFixed())
             .send({ from: admin, gasLimit: 8000000 });
 
         {

@@ -79,11 +79,11 @@ contract('Mai', async accounts => {
 
         await pool.methods.addAddress(proxy._address)
             .send({ from: admin, gasLimit: maxGasLimit });
-        await pool.methods.approve(mpx._address, infinity)
+        await pool.methods.approveCollateralPool(mpx._address, infinity)
             .send({ from: admin, gasLimit: maxGasLimit });
-        await proxy.methods.approveMarketContractPool(mpx._address)
+        await proxy.methods.setCollateralPoolAddress(pool._address)
             .send({ from: admin, gasLimit: maxGasLimit });
-        await proxy.methods.setMinterAddress(pool._address)
+        await proxy.methods.approveCollateralPool(mpx._address, pool._address, infinity)
             .send({ from: admin, gasLimit: maxGasLimit });
 
         console.log("ExchangePool initialized");
@@ -212,7 +212,7 @@ contract('Mai', async accounts => {
         }
 
         // prepare
-        await send(admin, proxy.methods.approveMarketContractPool(mpx._address));
+        await send(admin, proxy.methods.approveCollateralPool(mpx._address, mpx._address, infinity));
         if (beforeMatching !== undefined) {
             beforeMatching();
         }

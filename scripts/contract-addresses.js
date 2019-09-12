@@ -1,0 +1,4 @@
+
+exports.marketContract = '0x4a37c836290A985935c2e38165Afe4ADb1EC2a02';
+exports.collateral = '0x31e67D461D79835C271fd11aEC73336a3a6DD6d7';
+exports.proxy = '0x7c27F30a7f51932cdCf7Ac8593EEb7571141F220';
