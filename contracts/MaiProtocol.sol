@@ -57,7 +57,6 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
     mapping (bytes32 => bool) public cancelled;
 
     event Cancel(bytes32 indexed orderHash);
-    event Print(string message, uint256 value);
 
     /**
      * When orders are being matched, they will always contain the exact same base token,
