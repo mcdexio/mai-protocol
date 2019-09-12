@@ -129,8 +129,14 @@ contract('Match', async accounts => {
     const send = async (user, method) => {
         return await method.send({ from: user, gasLimit: gasLimit });
     }
-    const except = async (user, method) => {
-        return await method.send({ from: user, gasLimit: gasLimit }).catch(res => { return res.message});
+
+    const shouldFailOnError = async (user, method, message) => {
+        try {
+            await method.send({ from: user, gasLimit: gasLimit });
+            throw null;
+        } catch (error) {
+            assert.equal(error.message.includes(message), true);
+        }
     }
 
     const FillActions = Object.freeze({
@@ -246,8 +252,11 @@ contract('Match', async accounts => {
             assert.equal(await call(long.methods.balanceOf(proxy._address)), 0);
             assert.equal(await call(short.methods.balanceOf(proxy._address)), 0);
 
-            const message = await except(relayer, exchange.methods.mintPositionTokensPublic(mpx._address, toBase(1)));
-            assert.equal(message.includes("MINT_FAILED"), true);
+            await shouldFailOnError(
+                relayer,
+                exchange.methods.mintPositionTokensPublic(mpx._address, toBase(1)),
+                "MINT_FAILED"
+            );
 
         });
 
@@ -260,8 +269,11 @@ contract('Match', async accounts => {
             assert.equal(await call(short.methods.balanceOf(proxy._address)), 0);
 
             await send(admin, proxy.methods.approveMarketContractPool(mpx._address));
-            const message = await except(relayer, exchange.methods.mintPositionTokensPublic(mpx._address, toBase(10)));
-            assert.equal(message.includes("MINT_FAILED"), true);
+            await shouldFailOnError(
+                relayer,
+                exchange.methods.mintPositionTokensPublic(mpx._address, toBase(10)),
+                "MINT_FAILED"
+            );
 
         });
 
@@ -563,8 +575,11 @@ contract('Match', async accounts => {
             assert.equal(ctkRequired.plus(ctkFeeRequired).toFixed(), toWei(1024));
 
             await send(admin, proxy.methods.approveMarketContractPool(mpx._address));
-            const message = await except(relayer, exchange.methods.doMintPublic(result, orderAddressSet, orderContext));
-            assert.equal(message.includes("INSUFFICIENT_FEE"), true);
+            await shouldFailOnError(
+                relayer,
+                exchange.methods.doMintPublic(result, orderAddressSet, orderContext),
+                "INSUFFICIENT_FEE"
+            );
 
         });
     });
@@ -794,9 +809,12 @@ contract('Match', async accounts => {
             };
 
             await send(admin, proxy.methods.approveMarketContractPool(mpx._address));
-            const message = await except(relayer, exchange.methods.doRedeemPublic(result, orderAddressSet, orderContext));
+            await shouldFailOnError(
+                relayer,
+                exchange.methods.doRedeemPublic(result, orderAddressSet, orderContext),
+                "TRANSFER_FROM_FAILED"
+            );
 
-            assert.equal(message.includes("TRANSFER_FROM_FAILED"), true);
         });
     });
 

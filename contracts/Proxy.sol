@@ -154,13 +154,16 @@ contract Proxy is LibOwnable, LibWhitelist {
         onlyAddressInWhitelist
     {
         IMarketContractPool marketContractPool;
+        bool isAttemptToPayInMKT;
         if (minterAddress != 0) {
             marketContractPool = IMarketContractPool(minterAddress);
+            isAttemptToPayInMKT = true;
         } else {
             IMarketContract marketContract = IMarketContract(contractAddress);
             marketContractPool = IMarketContractPool(marketContract.COLLATERAL_POOL_ADDRESS());
+            isAttemptToPayInMKT = false;
         }
-        marketContractPool.mintPositionTokens(contractAddress, qtyToMint, false);
+        marketContractPool.mintPositionTokens(contractAddress, qtyToMint, isAttemptToPayInMKT);
     }
 
     function redeemPositionTokens(

@@ -29,6 +29,8 @@ contract ExchangePool is LibOwnable, LibWhitelist {
         public
         onlyOwner
     {
+        require(amount > 0, "INVALID_AMOUNT");
+
         IMarketContract marketContract = IMarketContract(marketContractAddress);
         IERC20 marketToken = IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS());
         marketToken.transfer(msg.sender, amount);
@@ -36,11 +38,16 @@ contract ExchangePool is LibOwnable, LibWhitelist {
         emit Withdraw(marketContract.COLLATERAL_TOKEN_ADDRESS(), msg.sender, amount);
     }
 
-    function withdrawMKT(address marketContractPoolAddress, uint256 amount)
+    function withdrawMKT(address marketContractAddress, uint256 amount)
         public
         onlyOwner
     {
-        IMarketContractPool marketContractPool = IMarketContractPool(marketContractPoolAddress);
+        require(amount > 0, "INVALID_AMOUNT");
+
+        IMarketContract marketContract = IMarketContract(marketContractAddress);
+        IMarketContractPool marketContractPool = IMarketContractPool(
+            marketContract.COLLATERAL_POOL_ADDRESS()
+        );
 
         IERC20 marketToken = IERC20(marketContractPool.mktToken());
         marketToken.transfer(msg.sender, amount);

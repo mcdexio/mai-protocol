@@ -246,7 +246,6 @@ contract('Mai', async accounts => {
         }
     }
 
-    /*
     it('buy(long) + buy(short) = mint', async () => {
         const testConfig = {
             initialBalances: {
@@ -979,18 +978,15 @@ contract('Mai', async accounts => {
 
         await matchTest(testConfig);
     });
-    */
 
     it('sell(long) + sell(short) = redeem with prepared col', async () => {
         const amount = new BigNumber(toBase(1));
 
-        /*
         const ctkUnitFee = new BigNumber(await mpx.methods.COLLATERAL_PER_UNIT().call());
         const ctkRequired = ctkUnitFee.times(amount);
 
         await collateral.methods.transfer(pool._address, ctkRequired.toFixed())
             .send({ from: admin, gasLimit: maxGasLimit });
-        */
 
         const testConfig = {
             initialBalances: {

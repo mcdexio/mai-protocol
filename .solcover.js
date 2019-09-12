@@ -6,6 +6,8 @@ module.exports = {
         'helper/TestOrder.sol',
         'helper/TestSignature.sol',
         'helper/TestToken.sol',
-        'helper/WethToken.sol'
+        'helper/WethToken.sol',
+        'helper/TestMaiProtocol.sol',
+        'helper/TestMarketContract.sol'
     ]
 };
