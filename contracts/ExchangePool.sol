@@ -11,8 +11,6 @@ import "./interfaces/IERC20.sol";
 contract ExchangePool is LibOwnable, LibWhitelist {
     using SafeMath for uint256;
 
-    address public marketTokenAddress;
-
     mapping(address => uint256) public minted;
     mapping(address => uint256) public redeemed;
     mapping(address => uint256) public sent;
@@ -38,7 +36,7 @@ contract ExchangePool is LibOwnable, LibWhitelist {
         emit Withdraw(marketContract.COLLATERAL_TOKEN_ADDRESS(), msg.sender, amount);
     }
 
-    function withdrawMKT(address marketContractAddress, uint256 amount)
+    function withdrawMarketToken(address marketContractAddress, uint256 amount)
         public
         onlyOwner
     {
@@ -55,7 +53,7 @@ contract ExchangePool is LibOwnable, LibWhitelist {
         emit Withdraw(marketContractPool.mktToken(), msg.sender, amount);
     }
 
-    function approve(address marketContractAddress, uint256 amount)
+    function approveCollateralPool(address marketContractAddress, uint256 amount)
         public
         onlyOwner
     {

@@ -21,16 +21,18 @@ pragma experimental ABIEncoderV2;
 
 import "./lib/SafeMath.sol";
 import "./lib/LibOrder.sol";
+import "./lib/LibOwnable.sol";
 import "./lib/LibMath.sol";
 import "./lib/LibSignature.sol";
 import "./lib/LibRelayer.sol";
 import "./lib/LibExchangeErrors.sol";
 import "./interfaces/IMarketContractPool.sol";
 import "./interfaces/IMarketContract.sol";
+import "./interfaces/IMarketContractRegistry.sol";
 import "./interfaces/IERC20.sol";
 import "./lib/MathLib.sol";
 
-contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
+contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwnable {
     using SafeMath for uint256;
 
     uint256 public constant LONG = 0;
@@ -44,6 +46,11 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
      * Address of the proxy responsible for asset transfer.
      */
     address public proxyAddress;
+
+    /**
+     * Address of the market contract registry for whitelist check;
+     */
+    address public marketRegistryAddress;
 
     /**
      * Mapping of orderHash => amount
@@ -122,6 +129,13 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
 
     constructor(address _proxyAddress) public {
         proxyAddress = _proxyAddress;
+    }
+
+    function setMarketRegistryAddress(address _marketRegistryAddress)
+        external
+        onlyOwner
+    {
+        marketRegistryAddress = _marketRegistryAddress;
     }
 
     function getOrderContext(
@@ -221,10 +235,28 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         require(canMatchOrdersFrom(orderAddressSet.relayer), INVALID_SENDER);
         require(!isMakerOnly(takerOrderParam.data), MAKER_ONLY_ORDER_CANNOT_BE_TAKER);
 
+        validateMarketContract(orderAddressSet.marketContract);
+
         OrderContext memory orderContext = getOrderContext(orderAddressSet, takerOrderParam);
         MatchResult[] memory results = getMatchPlan(
-            takerOrderParam, makerOrderParams, posFilledAmounts, orderAddressSet, orderContext);
+            takerOrderParam,
+            makerOrderParams,
+            posFilledAmounts,
+            orderAddressSet,
+            orderContext
+        );
         settleResults(results, takerOrderParam, orderAddressSet, orderContext);
+    }
+
+    function validateMarketContract(address marketContractAddress) internal view {
+        if (registry == address(0x0)) {
+            return;
+        }
+        IMarketContractRegistry registry = IMarketContractRegistry(marketRegistryAddress);
+        require(
+            registry.isAddressWhiteListed(registry),
+            INVALID_MARKET_CONTRACT
+        );
     }
 
     function calculateMiddleCollateralPerUnit(OrderContext memory orderContext)
@@ -288,14 +320,18 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
                 left = takerOrderInfo.margins[opposite];
                 right = makerOrderInfo.margins[side];
                 required = orderContext.marketContract.COLLATERAL_PER_UNIT();
+
                 require(left.add(right) <= required, REDEEM_PRICE_NOT_MET);
+
             } else if (result.fillAction == FillAction.MINT) {
+
                 left = takerOrderInfo.margins[side].mul(result.posFilledAmount);
                 right = makerOrderInfo.margins[opposite].mul(result.posFilledAmount);
                 uint256 extra = result.makerFee.add(result.takerFee);
                 required = orderContext.marketContract.COLLATERAL_PER_UNIT()
                     .add(orderContext.marketContract.COLLATERAL_TOKEN_FEE_PER_UNIT())
                     .mul(result.posFilledAmount);
+
                 require(left.add(right).add(extra) >= required, MINT_PRICE_NOT_MET);
             }
         }
@@ -314,8 +350,8 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors {
         view
         returns (MatchResult memory result, uint256 filledAmount)
     {
-        require(makerOrderInfo.filledAmount <= makerOrderParam.amount, "OVER_MAKE");
-        require(takerOrderInfo.filledAmount <= takerOrderParam.amount, "OVER_TAKE");
+        require(makerOrderInfo.filledAmount <= makerOrderParam.amount, MAKER_ORDER_OVER_MATCH);
+        require(takerOrderInfo.filledAmount <= takerOrderParam.amount, TAKER_ORDER_OVER_MATCH);
 
         // Each order only pays gas once, so only pay gas when nothing has been filled yet.
         if (takerOrderInfo.filledAmount == 0) {

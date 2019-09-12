@@ -31,13 +31,17 @@ contract Proxy is LibOwnable, LibWhitelist {
 
     uint256 public constant INFINITY = 999999999999999999999999999999999999999999;
 
-    address public minterAddress;
+    /**
+     *  Address of token pool, 0x0 indicates using contract collateral pool
+     */
+    address public collateralPoolAddress;
 
     mapping( address => uint256 ) public balances;
 
     event Deposit(address owner, uint256 amount);
     event Withdraw(address owner, uint256 amount);
-    event WithdrawFee(address owner, uint256 amount);
+
+    event WithdrawCollateral(address indexed contractAddress, address indexed to, uint256 amount);
     event Transfer(address indexed from, address indexed to, uint256 value);
 
     function depositEther() public payable {
@@ -48,6 +52,7 @@ contract Proxy is LibOwnable, LibWhitelist {
     function withdrawEther(uint256 amount) public {
         balances[msg.sender] = balances[msg.sender].sub(amount);
         msg.sender.transfer(amount);
+
         emit Withdraw(msg.sender, amount);
     }
 
@@ -55,9 +60,9 @@ contract Proxy is LibOwnable, LibWhitelist {
         depositEther();
     }
 
-    /// @param _minterAddress Address of minter.
-    function setMinterAddress(address _minterAddress) public onlyOwner {
-        minterAddress = _minterAddress;
+    /// @param _collateralPoolAddress Address of token pool.
+    function setCollateralPoolAddress(address _collateralPoolAddress) public onlyOwner {
+        collateralPoolAddress = _collateralPoolAddress;
     }
 
     function approveERC20(address tokenAddress, address to, uint256 amount)
@@ -67,33 +72,20 @@ contract Proxy is LibOwnable, LibWhitelist {
         token.approve(to, amount);
     }
 
-    function approveUnlimitedMarketTokens(address contractAddress, address to)
-        internal
-    {
-        IMarketContract marketContract = IMarketContract(contractAddress);
-        approveERC20(marketContract.COLLATERAL_TOKEN_ADDRESS(), to, INFINITY);
-        approveERC20(marketContract.LONG_POSITION_TOKEN(), to, INFINITY);
-        approveERC20(marketContract.SHORT_POSITION_TOKEN(), to, INFINITY);
-    }
-
     /// Approve transfer from proxy for mint or redeem. This method must be called immediately
     /// after every trading pair added to dex system.
     /// @param contractAddress Address of market contract.
-    function approveMarketContractPool(address contractAddress)
+    function approveCollateralPool(address contractAddress, address to, uint256 amount)
         public
         onlyOwner
     {
         IMarketContract marketContract = IMarketContract(contractAddress);
-        address approveTo;
-        if (minterAddress != 0) {
-            approveTo = minterAddress;
-        } else {
-            approveTo = marketContract.COLLATERAL_POOL_ADDRESS();
-        }
-        approveUnlimitedMarketTokens(contractAddress, approveTo);
+        approveERC20(marketContract.COLLATERAL_TOKEN_ADDRESS(), to, amount);
+        approveERC20(marketContract.LONG_POSITION_TOKEN(), to, amount);
+        approveERC20(marketContract.SHORT_POSITION_TOKEN(), to, amount);
     }
 
-    function withdrawMarketCollateralFee(address contractAddress, uint256 amount)
+    function withdrawCollateral(address contractAddress, uint256 amount)
         public
         onlyOwner
     {
@@ -102,7 +94,7 @@ contract Proxy is LibOwnable, LibWhitelist {
         IERC20 collateralToken = IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS());
         collateralToken.transfer(msg.sender, amount);
 
-        emit WithdrawFee(msg.sender, amount);
+        emit WithdrawCollateral(contractAddress, msg.sender, amount);
     }
 
     /// @dev Invoking transfer, to avoid self approve.
@@ -155,8 +147,8 @@ contract Proxy is LibOwnable, LibWhitelist {
     {
         IMarketContractPool marketContractPool;
         bool isAttemptToPayInMKT;
-        if (minterAddress != 0) {
-            marketContractPool = IMarketContractPool(minterAddress);
+        if (collateralPoolAddress != 0) {
+            marketContractPool = IMarketContractPool(collateralPoolAddress);
             isAttemptToPayInMKT = true;
         } else {
             IMarketContract marketContract = IMarketContract(contractAddress);
@@ -174,8 +166,8 @@ contract Proxy is LibOwnable, LibWhitelist {
         onlyAddressInWhitelist
     {
         IMarketContractPool marketContractPool;
-        if (minterAddress != 0) {
-            marketContractPool = IMarketContractPool(minterAddress);
+        if (collateralPoolAddress != 0) {
+            marketContractPool = IMarketContractPool(collateralPoolAddress);
         } else {
             IMarketContract marketContract = IMarketContract(contractAddress);
             marketContractPool = IMarketContractPool(marketContract.COLLATERAL_POOL_ADDRESS());

@@ -29,6 +29,8 @@ contract TestMarketContract {
     address public SHORT_POSITION_TOKEN;
     address public MARKET_TOKEN_ADDRESS;
 
+    mapping (address => bool) public contractWhitelist;
+
     event Mint(address indexed to, uint value);
     event Redeem(address indexed to, uint value);
 
@@ -144,5 +146,17 @@ contract TestMarketContract {
         uint
     ) external {
         revert("NOT_IMPLEMENTED");
+    }
+
+    function addAddressToWhiteList(address contractAddress) external {
+        contractWhitelist[contractAddress] = true;
+    }
+
+    function isAddressWhiteListed(address contractAddress)
+        external
+        view
+        returns (bool)
+    {
+        return contractWhitelist[contractAddress];
     }
 }

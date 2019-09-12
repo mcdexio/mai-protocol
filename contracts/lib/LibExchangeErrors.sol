@@ -1,6 +1,6 @@
 /*
     Copyright 2019 mcdexio
-    
+
     Copyright 2018 The Hydro Protocol Foundation
 
     Licensed under the Apache License, Version 2.0 (the "License");
@@ -45,4 +45,5 @@ contract LibExchangeErrors {
     string constant MP_EXPIRED = "MP_EXPIRED";
     string constant UNEXPECTED_MATCH = "UNEXPECTED_MATCH";
     string constant INSUFFICIENT_FEE = "INSUFFICIENT_FEE";
+    string constant INVALID_MARKET_CONTRACT = "INVALID_MARKET_CONTRACT";
 }
