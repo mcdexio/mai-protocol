@@ -1,27 +1,25 @@
-## Mai Protocol
+# Mai Protocol
 
-[![CircleCI](https://circleci.com/gh/HydroProtocol/protocol/tree/master.svg?style=svg)](https://circleci.com/gh/HydroProtocol/protocol/tree/master)
-[![codecov](https://codecov.io/gh/HydroProtocol/protocol/branch/master/graph/badge.svg)](https://codecov.io/gh/HydroProtocol/protocol)
+[![CircleCI](https://circleci.com/gh/mcdexio/mai-protocol/tree/master.svg?style=svg)](https://circleci.com/gh/mcdexio/mai-protocol/tree/master)
+[![codecov](https://codecov.io/gh/mcdexio/mai-protocol/branch/master/graph/badge.svg)](https://codecov.io/gh/mcdexio/mai-protocol)
 
 
-> Mai Protocol is an open-source framework for building decentralized exchanges on Ethereum.
+> Mai Protocol is an open-source framework for building decentralized derivatives exchanges on Ethereum.
 
-![](./images/hydro_small.jpg)
-
-Mai is designed for developers looking to build decentralized exchanges without having to deal with the complexity and expense of designing, deploying, and securing their own smart contracts.
+Mai Protocol's goal is to make trading decentralized derivatives easy and efficient.
 
 ## Features
 
 Mai 1.0 contains a single exchange contract called `MaiProtocol.sol` with the following attributes:
 
+* Trading Market Protocol contracts
+  * Encapsulates the minting, exchange and redeeming operations
+  * A minting pool to reduce redundant minting and redeeming
 * No order collision
 * No possibility of front-running
 * Accurate market orders
 * Ability to collect fees as a percentage of the traded assets
 * Allows asymmetrical maker/taker fee structure, rebates, discounts
-* Multiple settlement models:
-  * Wallet to wallet mode
-  * Contract-deposit mode (supports ETH)
 * Highly optimized gas usage
 
 ## Installation
@@ -43,10 +41,7 @@ npm run coverage
 
 ## Acknowledgments
 
-Mai is inspired by the [0x project](https://github.com/0xProject).
-
-In addition, projects such as [IDEX](https://github.com/AuroraDAO/idex) and [Paradex](https://github.com/ParadexRelayer) motivated the decision to focus on first order support for **off-chain matching**.
-
+Mai is inspired by the [0x project](https://github.com/0xProject) and [Hydro](https://github.com/HydroProtocol)
 
 ## Contributing
 
