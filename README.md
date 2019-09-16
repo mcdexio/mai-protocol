@@ -8,11 +8,11 @@ Mai Protocol is an open-source framework for building decentralized derivatives 
 
 Mai Protocol's goal is to make trading decentralized derivatives easy and efficient.
 
-See the [document](https://github.com/mcdexio/documents/en/mai.md) for more details about Mai Protocol.
+See the [document](https://github.com/mcdexio/documents/blob/master/en/mai.md) for more details about Mai Protocol.
 
 ## Features
 
-Mai 1.0 contains a single exchange contract called `MaiProtocol.sol` with the following attributes:
+Mai 1.0 contains a contract called `MaiProtocol.sol` with the following attributes:
 
 * Trading Market Protocol contracts
   * Encapsulates the minting, exchange and redeeming operations
