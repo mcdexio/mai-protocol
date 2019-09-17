@@ -86,7 +86,7 @@ contract('Mai', async accounts => {
         await proxy.methods.approveCollateralPool(mpx._address, pool._address, infinity)
             .send({ from: admin, gasLimit: maxGasLimit });
 
-        console.log("ExchangePool initialized");
+        console.log("MintingPool initialized");
     });
 
     const buildMpxOrder = async (config) => {
@@ -217,7 +217,7 @@ contract('Mai', async accounts => {
             beforeMatching();
         }
         // matching
-        await send(relayer, exchange.methods.matchOrders(
+        await send(relayer, exchange.methods.matchMarketContractOrders(
             takerOrder,
             makerOrders,
             matchConfigs.filledAmounts,

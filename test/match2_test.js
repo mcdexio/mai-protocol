@@ -358,8 +358,8 @@ contract('Match', async accounts => {
             const orderContext = {
                 marketContract: mpx._address,
                 marketContractPool: mpx._address,
-                ctk: collateral._address,
-                pos: [
+                ctkAddress: collateral._address,
+                posAddresses: [
                     long._address,
                     short._address
                 ],
@@ -426,8 +426,8 @@ contract('Match', async accounts => {
             const orderContext = {
                 marketContract: mpx._address,
                 marketContractPool: mpx._address,
-                ctk: collateral._address,
-                pos: [
+                ctkAddress: collateral._address,
+                posAddresses: [
                     long._address,
                     short._address
                 ],
@@ -494,8 +494,8 @@ contract('Match', async accounts => {
             const orderContext = {
                 marketContract: mpx._address,
                 marketContractPool: mpx._address,
-                ctk: collateral._address,
-                pos: [
+                ctkAddress: collateral._address,
+                posAddresses: [
                     long._address,
                     short._address
                 ],
@@ -562,8 +562,8 @@ contract('Match', async accounts => {
             const orderContext = {
                 marketContract: mpx._address,
                 marketContractPool: mpx._address,
-                ctk: collateral._address,
-                pos: [
+                ctkAddress: collateral._address,
+                posAddresses: [
                     long._address,
                     short._address
                 ],
@@ -618,8 +618,8 @@ contract('Match', async accounts => {
             const orderContext = {
                 marketContract: mpx._address,
                 marketContractPool: mpx._address,
-                ctk: collateral._address,
-                pos: [
+                ctkAddress: collateral._address,
+                posAddresses: [
                     long._address,
                     short._address
                 ],
@@ -678,8 +678,8 @@ contract('Match', async accounts => {
             const orderContext = {
                 marketContract: mpx._address,
                 marketContractPool: mpx._address,
-                ctk: collateral._address,
-                pos: [
+                ctkAddress: collateral._address,
+                posAddresses: [
                     long._address,
                     short._address
                 ],
@@ -739,8 +739,8 @@ contract('Match', async accounts => {
             const orderContext = {
                 marketContract: mpx._address,
                 marketContractPool: mpx._address,
-                ctk: collateral._address,
-                pos: [
+                ctkAddress: collateral._address,
+                posAddresses: [
                     long._address,
                     short._address
                 ],
@@ -800,8 +800,8 @@ contract('Match', async accounts => {
             const orderContext = {
                 marketContract: mpx._address,
                 marketContractPool: mpx._address,
-                ctk: collateral._address,
-                pos: [
+                ctkAddress: collateral._address,
+                posAddresses: [
                     long._address,
                     short._address
                 ],
@@ -852,8 +852,8 @@ contract('Match', async accounts => {
             const orderContext = {
                 marketContract: mpx._address,
                 marketContractPool: mpx._address,
-                ctk: collateral._address,
-                pos: [
+                ctkAddress: collateral._address,
+                posAddresses: [
                     long._address,
                     short._address
                 ],
@@ -917,8 +917,8 @@ contract('Match', async accounts => {
             const orderContext = {
                 marketContract: mpx._address,
                 marketContractPool: mpx._address,
-                ctk: collateral._address,
-                pos: [
+                ctkAddress: collateral._address,
+                posAddresses: [
                     long._address,
                     short._address
                 ],

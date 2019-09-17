@@ -5,7 +5,7 @@ const TestMaiProtocol = artifacts.require('helper/TestMaiProtocol.sol');
 const BigNumber = require('bignumber.js');
 const TestToken = artifacts.require('helper/TestToken.sol');
 const TestMarketContract = artifacts.require('helper/TestMarketContract.sol');
-const ExchangePool = artifacts.require('./ExchangePool.sol');
+const MintingPool = artifacts.require('./MintingPool.sol');
 const { generateOrderData, isValidSignature, getOrderHash } = require('../sdk/sdk');
 const { fromRpcSig } = require('ethereumjs-util');
 
@@ -92,7 +92,7 @@ const getMarketContract = async (configs) => {
         configs.feeRate
     );
 
-    const pool = await newContract(ExchangePool, mkt._address);
+    const pool = await newContract(MintingPool, mkt._address);
 
     const accounts = await web3.eth.getAccounts();
 

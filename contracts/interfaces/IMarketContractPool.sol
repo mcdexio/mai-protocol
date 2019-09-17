@@ -1,4 +1,4 @@
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.2;
 
 contract IMarketContractPool {
     function mintPositionTokens(
@@ -9,11 +9,6 @@ contract IMarketContractPool {
     function redeemPositionTokens(
         address marketContractAddress,
         uint qtyToRedeem
-    ) external;
-    function settleAndClose(
-        address marketContractAddress,
-        uint longQtyToRedeem,
-        uint shortQtyToRedeem
     ) external;
     function mktToken() external view returns (address);
 }

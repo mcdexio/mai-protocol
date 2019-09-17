@@ -1,6 +1,6 @@
 const Web3 = require('web3');
 const TestToken = artifacts.require('./helper/TestToken.sol');
-const ExchangePool = artifacts.require('./ExchangePool.sol');
+const MintingPool = artifacts.require('./MintingPool.sol');
 const Proxy = artifacts.require('Proxy.sol');
 const BigNumber = require('bignumber.js');
 const IMarketContract = artifacts.require('interfaces/IMarketContract.sol');
@@ -31,7 +31,7 @@ let maketContracts = [
 ];
 let proxyAddress = '0xAA38b84E78Cbb0C644998F0d452fb80E15b861fF';
 let marketTokenAddress = '0x1AA25040Dbf401B3FDF67DceC5Bb2Fe2E531A55b';
-let exchangePoolAddress = null;
+let MintingPoolAddress = null;
 
 module.exports = async () => {
     const web3 = new Web3(provider);
@@ -42,30 +42,30 @@ module.exports = async () => {
         }
         console.log('Market Token deployed at', web3.utils.toChecksumAddress(marketTokenAddress));
 
-        if (!exchangePoolAddress) {
-            const pool = await newContract(ExchangePool);
-            exchangePoolAddress = pool._address;
+        if (!MintingPoolAddress) {
+            const pool = await newContract(MintingPool);
+            MintingPoolAddress = pool._address;
         }
-        console.log('ExchangePool deployed at', web3.utils.toChecksumAddress(exchangePoolAddress));
+        console.log('MintingPool deployed at', web3.utils.toChecksumAddress(MintingPoolAddress));
 
         if (proxyAddress) {
-            const pool = await ExchangePool.at(exchangePoolAddress);
+            const pool = await MintingPool.at(MintingPoolAddress);
             await pool.addAddress(proxyAddress);
-            console.log('ExchangePool add Proxy(', proxyAddress, ') into whitelist');
+            console.log('MintingPool add Proxy(', proxyAddress, ') into whitelist');
         }
 
 
         const proxy = await Proxy.at(proxyAddress);
 
-        await proxy.setCollateralPoolAddress(exchangePoolAddress);
-        console.log('ExchangePool has been applied for Proxy');
+        await proxy.setCollateralPoolAddress(MintingPoolAddress);
+        console.log('MintingPool has been applied for Proxy');
 
         if (maketContracts.length > 0) {
-            const pool = await ExchangePool.at(exchangePoolAddress);
+            const pool = await MintingPool.at(MintingPoolAddress);
             await pool.addAddress(proxyAddress);
             for (let i = 0; i < maketContracts.length; i++) {
                 await pool.approve(maketContracts[i], infinity);
-                console.log('ExchangePool approved market contract(', maketContracts[i], ')');
+                console.log('MintingPool approved market contract(', maketContracts[i], ')');
 
                 const mpContract = await IMarketContract.at(maketContracts[i]);
                 const mpPoolAddress = await mpContract.COLLATERAL_POOL_ADDRESS();

@@ -370,7 +370,7 @@ contract('Pool', async accounts => {
                 .send({ from: admin, gasLimit: 8000000 });
             throw null;
         } catch (error) {
-            assert.equal(error.message.includes("INSUFFICIENT_FUNDS"), true);
+            assert.equal(error.message.includes("low-level call failed"), true);
         }
     });
 
@@ -426,7 +426,7 @@ contract('Pool', async accounts => {
                 .send({ from: admin, gasLimit: 8000000 });
             throw null;
         } catch (error) {
-            assert.equal(error.message.includes("INSUFFICIENT_FUNDS"), true);
+            assert.equal(error.message.includes("low-level call failed"), true);
         }
     });
 });

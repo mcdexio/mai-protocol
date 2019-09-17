@@ -16,9 +16,9 @@
 
 */
 
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.2;
 
-import "./SafeMath.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
 
 contract LibMath {
     using SafeMath for uint256;
