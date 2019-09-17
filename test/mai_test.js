@@ -1,7 +1,6 @@
 const assert = require('assert');
 const BigNumber = require('bignumber.js');
-const { getWeb3, getContracts, getMarketContract, buildOrder } = require('./utils');
-const { generateOrderData, isValidSignature, getOrderHash } = require('../sdk/sdk');
+const { getContracts, getMarketContract, buildOrder, increaseEvmTime } = require('./utils');
 
 const prices = new BigNumber('10000000000');
 const bases = new BigNumber('100000');
@@ -137,7 +136,6 @@ contract('Mai', async accounts => {
         }
     }
 
-
     /*
     matchConfigs    - initialBalances   { token: user: amount }
                     - taker             object
@@ -150,7 +148,6 @@ contract('Mai', async accounts => {
                     - admin
                     - gasLimit
     */
-
     const matchTest = async (matchConfigs, beforeMatching = undefined, afterMatching = undefined) => {
         const gasLimit = matchConfigs.gasLimit || 8000000;
         const admin = matchConfigs.admin;
@@ -275,7 +272,7 @@ contract('Mai', async accounts => {
         }
     });
 
-    it('should fail if maker is market order', async () => {
+    it('should fail if maker is market order 2', async () => {
         const testConfig = {
             initialBalances: {
                 u1: { collateral: toWei(10000) },
@@ -318,7 +315,48 @@ contract('Mai', async accounts => {
         } catch (error) {
             assert.ok(error.message.includes("TAKER_ORDER_OVER_MATCH"));
         }
+    });
 
+    describe('expiredMP', async () => {
+        it('error after expire + delay', async () => {
+            await increaseEvmTime(31 * 86400);
+            let bad1 = null;
+            try {
+                const testConfig = {
+                    initialBalances: {
+                        u1: { long: toBase(1) },
+                        u2: { short: toBase(1) },
+                        relayer: {},
+                    },
+                    takerOrder: {
+                        trader: u2,
+                        side: "buy",
+                        amount: toBase(1),
+                        price: toPrice(7900),
+                    },
+                    makerOrders: [
+                        {
+                            trader: u1,
+                            side: "sell",
+                            amount: toBase(1),
+                            price: toPrice(7900),
+                        }
+                    ],
+                    filledAmounts: [
+                        toBase(1)
+                    ],
+                    users: { admin, u1, u2, u3, relayer },
+                    tokens: { collateral, long, short },
+                    admin: admin,
+                    gasLimit: 8000000,
+                };
+                await matchTest(testConfig);
+            } catch (e) {
+                bad1 = e;
+            }
+            assert.notEqual(bad1, null, "should revert")
+            assert.ok(bad1.message.includes('MP_EXPIRED'), "should throw MP_EXPIRED")
+        });
     });
 
     it('buy(long) + buy(short) = mint', async () => {

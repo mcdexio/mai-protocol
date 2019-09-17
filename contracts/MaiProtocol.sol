@@ -204,11 +204,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     {
         orderContext.marketContract = IMarketContract(orderAddressSet.marketContract);
 
-        require (
-            // solium-disable-next-line security/no-block-members
-            block.timestamp < orderContext.marketContract.EXPIRATION(),
-            MP_EXPIRED
-        );
+        require (!orderContext.marketContract.isPostSettlementDelay(), MP_EXPIRED);
         orderContext.marketContractPool = IMarketContractPool(
             orderContext.marketContract.COLLATERAL_POOL_ADDRESS()
         );
