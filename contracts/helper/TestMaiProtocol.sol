@@ -88,6 +88,17 @@ contract TestMaiProtocol is MaiProtocol {
         return calculateShortMargin(orderContext, orderParam);
     }
 
+    function validatePricePublic(
+        OrderParam memory takerOrderParam,
+        OrderParam memory makerOrderParam,
+        OrderContext memory orderContext
+    )
+        public
+        view
+    {
+        validatePrice(takerOrderParam, makerOrderParam, orderContext);
+    }
+
     function getMatchResultPublic(
         OrderParam memory takerOrderParam,
         OrderInfo memory takerOrderInfo,

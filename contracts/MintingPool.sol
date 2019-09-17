@@ -1,3 +1,20 @@
+/*
+    Copyright 2019 mcdexio
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+*/
+
 pragma solidity ^0.5.2;
 
 import "./lib/LibOwnable.sol";
@@ -54,7 +71,7 @@ contract MintingPool is LibOwnable, LibWhitelist {
     }
 
     /**
-     * Mint position tokens with collateral within contract for further usage.
+     * Mint position tokens with collateral within contract for further exchange.
      * Called by administrator periodly to adjust the ratio of collateral to position tokens.
      * Not like in mintPositionTokens, payInMKT will force using mkt to pay fee.
      *
@@ -83,6 +100,14 @@ contract MintingPool is LibOwnable, LibWhitelist {
         emit Mint(marketContractAddress, address(this), qtyToMint);
     }
 
+    /**
+     * Redeem collateral with position tokens within contract for further exchange.
+     * Called by administrator periodly to adjust the ratio of collateral to position tokens.
+     * The return amount of the collateral is decided by specified market protocol.
+     *
+     * @param marketContractAddress Address of market contract.
+     * @param qtyToRedeem Quantity of position tokens to redeem.
+     */
     function internalRedeemPositionTokens(
         address marketContractAddress,
         uint qtyToRedeem
