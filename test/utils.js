@@ -8,6 +8,7 @@ const TestMarketContract = artifacts.require('helper/TestMarketContract.sol');
 const ExchangePool = artifacts.require('./ExchangePool.sol');
 const { generateOrderData, isValidSignature, getOrderHash } = require('../sdk/sdk');
 const { fromRpcSig } = require('ethereumjs-util');
+const { AbstractMethod } = require('web3-core-method');
 
 BigNumber.config({ EXPONENTIAL_AT: 1000 });
 
@@ -156,6 +157,18 @@ const buildOrder = async (orderParam) => {
     return order;
 };
 
+function increaseEvmTime(duration) {
+    const increaseTimeMethod = new AbstractMethod('evm_increaseTime', 1, Utils, formatters, this);
+    increaseTimeMethod.setArguments([duration]);
+
+    return increaseTimeMethod.execute().then(() => {
+        const mineMethod = new AbstractMethod('evm_mine', 0, Utils, formatters, this);
+        mineMethod.setArguments([]);
+
+        return mineMethod.execute();
+    });
+}
+
 module.exports = {
     getWeb3,
     newContract,
@@ -166,5 +179,6 @@ module.exports = {
     setHotAmount,
     getMarketContract,
     getOrderSignature,
-    buildOrder
+    buildOrder,
+    increaseEvmTime
 };
