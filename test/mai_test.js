@@ -201,7 +201,7 @@ contract('Mai', async accounts => {
             beforeMatching();
         }
         // matching
-        await send(relayer, exchange.methods.matchOrders(
+        await send(relayer, exchange.methods.matchMarketContractOrders(
             takerOrder,
             makerOrders,
             matchConfigs.filledAmounts,
@@ -657,6 +657,7 @@ contract('Mai', async accounts => {
             bad1 = e;
         }
         assert.notEqual(bad1, null, "should revert 1")
+        console.log(bad1.message);
         assert.ok(bad1.message.includes('MAKER_ORDER_OVER_MATCH'), "should throw MAKER_ORDER_OVER_MATCH")
 
         // step 2: sell 0.2 + mint 0.4

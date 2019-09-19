@@ -1,8 +1,12 @@
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.2;
 
-import "../lib/SafeMath.sol";
-import "../interfaces/IERC20.sol";
-import "../interfaces/IMintable.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+contract IMintable {
+    function mint(address _to, uint _value) external;
+    function burn(address _from, uint _value) external;
+}
 
 contract TestMarketContract {
     using SafeMath for uint256;
@@ -140,11 +144,7 @@ contract TestMarketContract {
         collateral.mint(msg.sender, collateralToReturn);
     }
 
-    function settleAndClose(
-        address,
-        uint,
-        uint
-    ) external {
+    function settleAndClose(address, uint, uint) external pure {
         revert("NOT_IMPLEMENTED");
     }
 

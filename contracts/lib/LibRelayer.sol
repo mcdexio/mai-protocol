@@ -16,7 +16,7 @@
 
 */
 
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.2;
 
 /**
  * @title LibRelayer provides two distinct features for relayers. 
@@ -65,7 +65,7 @@ contract LibRelayer {
     /**
      * @return true if msg.sender is allowed to match orders which belong to relayer
      */
-    function canMatchOrdersFrom(address relayer) public view returns(bool) {
+    function canmatchMarketContractOrdersFrom(address relayer) public view returns(bool) {
         return msg.sender == relayer || relayerDelegates[relayer][msg.sender] == true;
     }
 

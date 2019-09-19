@@ -17,26 +17,27 @@
 
 */
 
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.2;
 pragma experimental ABIEncoderV2;
 
-
-import "./lib/SafeMath.sol";
 import "./lib/LibOrder.sol";
 import "./lib/LibOwnable.sol";
 import "./lib/LibMath.sol";
 import "./lib/LibSignature.sol";
 import "./lib/LibRelayer.sol";
 import "./lib/LibExchangeErrors.sol";
+import "./lib/MathLib.sol";
 import "./interfaces/IMarketContractPool.sol";
 import "./interfaces/IMarketContract.sol";
 import "./interfaces/IMarketContractRegistry.sol";
-import "./interfaces/IERC20.sol";
-import "./lib/MathLib.sol";
+
+import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwnable {
     using SafeMath for uint256;
 
+    uint256 public constant MAX_MATCHES = 3;
     uint256 public constant LONG = 0;
     uint256 public constant SHORT = 1;
     uint256 public constant FEE_RATE_BASE = 100000;
@@ -106,8 +107,8 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     struct OrderContext {
         IMarketContract marketContract;         // market contract
         IMarketContractPool marketContractPool; // market contract pool
-        IERC20 ctk;                             // collateral token
-        IERC20[2] pos;                          // [0] = long position token
+        address ctkAddress;                             // collateral token
+        address[2] posAddresses;                          // [0] = long position token
                                                 // [1] = short position token
         uint256 takerSide;                      // 0 = buy, 1 = short
     }
@@ -140,6 +141,30 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         marketRegistryAddress = _marketRegistryAddress;
     }
 
+    function matchMarketContractOrders(
+        OrderParam memory takerOrderParam,
+        OrderParam[] memory makerOrderParams,
+        uint256[] memory posFilledAmounts,
+        OrderAddressSet memory orderAddressSet
+    )
+        public
+    {
+        require(canmatchMarketContractOrdersFrom(orderAddressSet.relayer), INVALID_SENDER);
+        require(!isMakerOnly(takerOrderParam.data), MAKER_ONLY_ORDER_CANNOT_BE_TAKER);
+
+        validateMarketContract(orderAddressSet.marketContract);
+
+        OrderContext memory orderContext = getOrderContext(orderAddressSet, takerOrderParam);
+        MatchResult[] memory results = getMatchPlan(
+            takerOrderParam,
+            makerOrderParams,
+            posFilledAmounts,
+            orderAddressSet,
+            orderContext
+        );
+        settleResults(results, takerOrderParam, orderAddressSet, orderContext);
+    }
+
     function getOrderContext(
         OrderAddressSet memory orderAddressSet,
         OrderParam memory takerOrderParam
@@ -158,9 +183,9 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         orderContext.marketContractPool = IMarketContractPool(
             orderContext.marketContract.COLLATERAL_POOL_ADDRESS()
         );
-        orderContext.ctk = IERC20(orderContext.marketContract.COLLATERAL_TOKEN_ADDRESS());
-        orderContext.pos[LONG] = IERC20(orderContext.marketContract.LONG_POSITION_TOKEN());
-        orderContext.pos[SHORT] = IERC20(orderContext.marketContract.SHORT_POSITION_TOKEN());
+        orderContext.ctkAddress = orderContext.marketContract.COLLATERAL_TOKEN_ADDRESS();
+        orderContext.posAddresses[LONG] = orderContext.marketContract.LONG_POSITION_TOKEN();
+        orderContext.posAddresses[SHORT] = orderContext.marketContract.SHORT_POSITION_TOKEN();
         orderContext.takerSide = isSell(takerOrderParam.data) ? SHORT : LONG;
 
         return orderContext;
@@ -176,7 +201,6 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         internal
         returns (MatchResult[] memory results)
     {
-        uint256 takerFeeRate = getTakerFeeRate(takerOrderParam);
         OrderInfo memory takerOrderInfo = getOrderInfo(
             takerOrderParam,
             orderAddressSet,
@@ -185,25 +209,24 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
 
         uint256 resultIndex;
         // Each matched pair will produce two results at most (exchange + mint, exchange + redeem).
-        results = new MatchResult[](makerOrderParams.length * 2);
+        results = new MatchResult[](makerOrderParams.length * MAX_MATCHES);
         for (uint256 i = 0; i < makerOrderParams.length; i++) {
-            require(
-                !isMarketOrder(makerOrderParams[i].data),
-                MAKER_ORDER_CAN_NOT_BE_MARKET_ORDER
-            );
-            require(
-                isSell(takerOrderParam.data) != isSell(makerOrderParams[i].data),
-                INVALID_SIDE
-            );
-            validatePrice(takerOrderParam, makerOrderParams[i]);
+            require(!isMarketOrder(makerOrderParams[i].data), MAKER_ORDER_CAN_NOT_BE_MARKET_ORDER);
+            require(isSell(takerOrderParam.data) != isSell(makerOrderParams[i].data), INVALID_SIDE);
 
             OrderInfo memory makerOrderInfo = getOrderInfo(
                 makerOrderParams[i],
                 orderAddressSet,
                 orderContext
             );
+            validatePrice(
+                takerOrderParam,
+                makerOrderParams[i],
+                orderContext
+            );
+
             uint256 toFillAmount = posFilledAmounts[i];
-            while (toFillAmount > 0) {
+            for (uint256 j = 0; j < MAX_MATCHES && toFillAmount > 0; j++) {
                 MatchResult memory result;
                 uint256 filledAmount;
                 (result, filledAmount) = getMatchResult(
@@ -212,8 +235,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
                     makerOrderParams[i],
                     makerOrderInfo,
                     orderContext,
-                    toFillAmount,
-                    takerFeeRate
+                    toFillAmount
                 );
                 toFillAmount = toFillAmount.sub(filledAmount);
                 results[resultIndex] = result;
@@ -226,37 +248,13 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         return results;
     }
 
-    function matchOrders(
-        OrderParam memory takerOrderParam,
-        OrderParam[] memory makerOrderParams,
-        uint256[] memory posFilledAmounts,
-        OrderAddressSet memory orderAddressSet
-    )
-        public
-    {
-        require(canMatchOrdersFrom(orderAddressSet.relayer), INVALID_SENDER);
-        require(!isMakerOnly(takerOrderParam.data), MAKER_ONLY_ORDER_CANNOT_BE_TAKER);
-
-        validateMarketContract(orderAddressSet.marketContract);
-
-        OrderContext memory orderContext = getOrderContext(orderAddressSet, takerOrderParam);
-        MatchResult[] memory results = getMatchPlan(
-            takerOrderParam,
-            makerOrderParams,
-            posFilledAmounts,
-            orderAddressSet,
-            orderContext
-        );
-        settleResults(results, takerOrderParam, orderAddressSet, orderContext);
-    }
-
     function validateMarketContract(address marketContractAddress) internal view {
-        if (registry == address(0x0)) {
+        if (marketRegistryAddress == address(0x0)) {
             return;
         }
         IMarketContractRegistry registry = IMarketContractRegistry(marketRegistryAddress);
         require(
-            registry.isAddressWhiteListed(registry),
+            registry.isAddressWhiteListed(marketContractAddress),
             INVALID_MARKET_CONTRACT
         );
     }
@@ -292,50 +290,24 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             .mul(orderContext.marketContract.QTY_MULTIPLIER());
     }
 
-    function validatePrice(OrderParam memory takerOrderParam, OrderParam memory makerOrderParam)
-        internal
-        pure
-    {
-        if (isSell(takerOrderParam.data)) {
-            require(takerOrderParam.price <= makerOrderParam.price, INVALID_MATCH);
-        } else {
-            require(takerOrderParam.price >= makerOrderParam.price, INVALID_MATCH);
-        }
-    }
-
-    function validateMatchPrice(
-        MatchResult memory result,
-        OrderInfo memory takerOrderInfo,
-        OrderInfo memory makerOrderInfo,
+    function validatePrice(
+        OrderParam memory takerOrderParam,
+        OrderParam memory makerOrderParam,
         OrderContext memory orderContext
     )
         internal
         view
     {
-        if (result.fillAction == FillAction.REDEEM || result.fillAction == FillAction.MINT) {
-            uint256 side = orderContext.takerSide;
-            uint256 opposite = oppositeSide(side);
-            uint256 left;
-            uint256 right;
-            uint256 required;
-            if (result.fillAction == FillAction.REDEEM) {
-                left = takerOrderInfo.margins[opposite];
-                right = makerOrderInfo.margins[side];
-                required = orderContext.marketContract.COLLATERAL_PER_UNIT();
-
-                require(left.add(right) <= required, REDEEM_PRICE_NOT_MET);
-
-            } else if (result.fillAction == FillAction.MINT) {
-
-                left = takerOrderInfo.margins[side].mul(result.posFilledAmount);
-                right = makerOrderInfo.margins[opposite].mul(result.posFilledAmount);
-                uint256 extra = result.makerFee.add(result.takerFee);
-                required = orderContext.marketContract.COLLATERAL_PER_UNIT()
-                    .add(orderContext.marketContract.COLLATERAL_TOKEN_FEE_PER_UNIT())
-                    .mul(result.posFilledAmount);
-
-                require(left.add(right).add(extra) >= required, MINT_PRICE_NOT_MET);
-            }
+        uint256 totalFee = getMakerFeeBase(orderContext, makerOrderParam)
+            .add(getTakerFeeBase(orderContext, takerOrderParam));
+        require(
+            totalFee >= orderContext.marketContract.COLLATERAL_TOKEN_FEE_PER_UNIT(),
+            MINT_PRICE_NOT_MET
+        );
+        if (isSell(takerOrderParam.data)) {
+            require(takerOrderParam.price <= makerOrderParam.price, INVALID_MATCH);
+        } else {
+            require(takerOrderParam.price >= makerOrderParam.price, INVALID_MATCH);
         }
     }
 
@@ -345,8 +317,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         OrderParam memory makerOrderParam,
         OrderInfo memory makerOrderInfo,
         OrderContext memory orderContext,
-        uint256 posFilledAmount,
-        uint256 takerFeeRate
+        uint256 posFilledAmount
     )
         internal
         view
@@ -376,28 +347,40 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         result.posFilledAmount = filledAmount;
 
         // calculate fee
-        uint256 makerRawFeeRate = getAsMakerFeeRateFromOrderData(makerOrderParam.data);
-        uint256 middleCollateralPerUnit = calculateMiddleCollateralPerUnit(orderContext);
-        result.makerFee = result.posFilledAmount.
-            mul(middleCollateralPerUnit).
-            mul(makerRawFeeRate).
-            div(FEE_RATE_BASE);
-        result.takerFee = result.posFilledAmount.
-            mul(middleCollateralPerUnit).
-            mul(takerFeeRate).
-            div(FEE_RATE_BASE);
-
-        validateMatchPrice(
-            result,
-            takerOrderInfo,
-            makerOrderInfo,
-            orderContext
-        );
-
+        result.makerFee = filledAmount.mul(getMakerFeeBase(orderContext, makerOrderParam));
+        result.takerFee = filledAmount.mul(getTakerFeeBase(orderContext, takerOrderParam));
         result.taker = takerOrderParam.trader;
         result.maker = makerOrderParam.trader;
 
         return (result, filledAmount);
+    }
+
+    function getMakerFeeBase(
+        OrderContext memory orderContext,
+        OrderParam memory orderParam
+    )
+        internal
+        view
+        returns (uint256)
+    {
+        uint256 middleCollateralPerUnit = calculateMiddleCollateralPerUnit(orderContext);
+        return middleCollateralPerUnit
+            .mul(getAsMakerFeeRateFromOrderData(orderParam.data))
+            .div(FEE_RATE_BASE);
+    }
+
+    function getTakerFeeBase(
+        OrderContext memory orderContext,
+        OrderParam memory orderParam
+    )
+        internal
+        view
+        returns (uint256)
+    {
+        uint256 middleCollateralPerUnit = calculateMiddleCollateralPerUnit(orderContext);
+        return middleCollateralPerUnit
+            .mul(getAsTakerFeeRateFromOrderData(orderParam.data))
+            .div(FEE_RATE_BASE);
     }
 
     function fillMatchResult(
@@ -540,10 +523,24 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
 
         orderInfo.margins[0] = calculateLongMargin(orderContext, orderParam);
         orderInfo.margins[1] = calculateShortMargin(orderContext, orderParam);
-        orderInfo.balances[0] = orderContext.pos[0].balanceOf(orderParam.trader);
-        orderInfo.balances[1] = orderContext.pos[1].balanceOf(orderParam.trader);
+        orderInfo.balances[0] = getERC20Balance(orderContext.posAddresses[0], orderParam.trader);
+        orderInfo.balances[1] = getERC20Balance(orderContext.posAddresses[1], orderParam.trader);
 
         return orderInfo;
+    }
+
+    /**
+     * Helper function to get balance of erc20 token on given account.
+     * @param tokenAddress An erc20 token address.
+     * @param account The token owner to query.
+     # @return The balance of the specified token owner.
+     */
+    function getERC20Balance(address tokenAddress, address account)
+        internal
+        view
+        returns (uint256)
+    {
+        return IERC20(tokenAddress).balanceOf(account);
     }
 
     /**
@@ -569,21 +566,6 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         order.gasAmount = orderParam.gasAmount;
         order.data = orderParam.data;
     }
-
-    /**
-     * Get the rate used to calculate the taker fee.
-     *
-     * @param orderParam The OrderParam object representing the taker order data.
-     * @return The final potentially discounted rate to use for the taker fee.
-     */
-    function getTakerFeeRate(OrderParam memory orderParam)
-        internal
-        pure
-        returns(uint256)
-    {
-        return getAsTakerFeeRateFromOrderData(orderParam.data);
-    }
-
 
     function calculateTotalFee(MatchResult memory result)
         internal
@@ -673,28 +655,28 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
 
         if (ctkFromProxyToTaker > 0) {
             transfer(
-                orderContext.ctk,
+                orderContext.ctkAddress,
                 takerOrderParam.trader,
                 ctkFromProxyToTaker
             );
         }
         if (ctkFromProxyToRelayer > 0) {
             transfer(
-                orderContext.ctk,
+                orderContext.ctkAddress,
                 orderAddressSet.relayer,
                 ctkFromProxyToRelayer
             );
         }
         if (ctkFromRelayerToTaker > ctkFromTakerToRelayer) {
             transferFrom(
-                orderContext.ctk,
+                orderContext.ctkAddress,
                 orderAddressSet.relayer,
                 takerOrderParam.trader,
                 ctkFromRelayerToTaker.sub(ctkFromTakerToRelayer)
             );
         } else if (ctkFromRelayerToTaker < ctkFromTakerToRelayer) {
             transferFrom(
-                orderContext.ctk,
+                orderContext.ctkAddress,
                 takerOrderParam.trader,
                 orderAddressSet.relayer,
                 ctkFromTakerToRelayer.sub(ctkFromRelayerToTaker)
@@ -712,19 +694,19 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     {
         // taker -> maker
         transferFrom(
-            orderContext.pos[oppositeSide(orderContext.takerSide)],
+            orderContext.posAddresses[oppositeSide(orderContext.takerSide)],
             result.taker,
             result.maker,
             result.posFilledAmount
         );
         // maker -> relayer
         transferFrom(
-            orderContext.ctk,
+            orderContext.ctkAddress,
             result.maker,
             orderAddressSet.relayer,
-            result.ctkFilledAmount.
-                add(result.makerFee).
-                add(result.makerGasFee)
+            result.ctkFilledAmount
+                .add(result.makerFee)
+                .add(result.makerGasFee)
         );
         // relayer to taker
         return result.ctkFilledAmount
@@ -765,14 +747,14 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     {
         // taker -> proxy
         transferFrom(
-            orderContext.pos[oppositeSide(orderContext.takerSide)],
+            orderContext.posAddresses[oppositeSide(orderContext.takerSide)],
             result.taker,
             proxyAddress,
             result.posFilledAmount
         );
         // maker -> proxy
         transferFrom(
-            orderContext.pos[orderContext.takerSide],
+            orderContext.posAddresses[orderContext.takerSide],
             result.maker,
             proxyAddress,
             result.posFilledAmount
@@ -781,15 +763,14 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         redeemPositionTokens(orderAddressSet.marketContract, result.posFilledAmount);
         // proxy -> maker
         transfer(
-            orderContext.ctk,
+            orderContext.ctkAddress,
             result.maker,
-            result.ctkFilledAmount.
-                sub(result.makerFee).
-                sub(result.makerGasFee)
+            result.ctkFilledAmount
+                .sub(result.makerFee)
+                .sub(result.makerGasFee)
         );
-        uint256 collateralToReturn = MathLib.multiply(
-            result.posFilledAmount,
-            orderContext.marketContract.COLLATERAL_PER_UNIT());
+        uint256 collateralToReturn = result.posFilledAmount
+            .mul(orderContext.marketContract.COLLATERAL_PER_UNIT());
         // proxy -> taker
         return collateralToReturn
             .sub(result.ctkFilledAmount)
@@ -813,14 +794,14 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     {
         // maker -> taker
         transferFrom(
-            orderContext.pos[orderContext.takerSide],
+            orderContext.posAddresses[orderContext.takerSide],
             result.maker,
             result.taker,
             result.posFilledAmount
         );
         // taker -> maker
         transferFrom(
-            orderContext.ctk,
+            orderContext.ctkAddress,
             result.taker,
             result.maker,
             result.ctkFilledAmount
@@ -863,58 +844,51 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         returns (uint256)
     {
         // posFilledAmount
-        uint256 neededCollateral = MathLib.multiply(
-            result.posFilledAmount,
-            orderContext.marketContract.COLLATERAL_PER_UNIT()
-        );
-        uint256 neededCollateralTokenFee = MathLib.multiply(
-            result.posFilledAmount,
-            orderContext.marketContract.COLLATERAL_TOKEN_FEE_PER_UNIT()
-        );
-        uint256 totalFee = result.makerFee.add(result.takerFee);
-
-        // fail on a very low fee, if any
-        require(totalFee >= neededCollateralTokenFee, INSUFFICIENT_FEE);
+        uint256 neededCollateral = result.posFilledAmount
+            .mul(orderContext.marketContract.COLLATERAL_PER_UNIT());
+        uint256 neededCollateralTokenFee = result.posFilledAmount
+            .mul(orderContext.marketContract.COLLATERAL_TOKEN_FEE_PER_UNIT());
 
         // maker -> proxy
         transferFrom(
-            orderContext.ctk,
+            orderContext.ctkAddress,
             result.maker,
             proxyAddress,
-            result.ctkFilledAmount.
-                add(result.makerFee).
-                add(result.makerGasFee)
+            result.ctkFilledAmount
+                .add(result.makerFee)
+                .add(result.makerGasFee)
         );
         // taker -> proxy
         transferFrom(
-            orderContext.ctk,
+            orderContext.ctkAddress,
             result.taker,
             proxyAddress,
-            neededCollateral.
-                sub(result.ctkFilledAmount).
-                add(result.takerFee).
-                add(result.takerGasFee)
+            neededCollateral
+                .sub(result.ctkFilledAmount)
+                .add(result.takerFee)
+                .add(result.takerGasFee)
         );
         // proxy <- long/short position tokens
         mintPositionTokens(orderAddressSet.marketContract, result.posFilledAmount);
         // proxy -> taker
         transfer(
-            orderContext.pos[orderContext.takerSide],
+            orderContext.posAddresses[orderContext.takerSide],
             result.taker,
             result.posFilledAmount
         );
         // proxy -> maker
         transfer(
-            orderContext.pos[oppositeSide(orderContext.takerSide)],
+            orderContext.posAddresses[oppositeSide(orderContext.takerSide)],
             result.maker,
             result.posFilledAmount
         );
 
         // proxy -> taker
-        return totalFee.
-            add(result.takerGasFee).
-            add(result.makerGasFee).
-            sub(neededCollateralTokenFee);
+        return result.makerFee
+            .add(result.takerFee)
+            .add(result.takerGasFee)
+            .add(result.makerGasFee)
+            .sub(neededCollateralTokenFee);
     }
 
     /**

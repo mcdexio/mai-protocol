@@ -201,7 +201,7 @@ contract('Mai', async accounts => {
             beforeMatching();
         }
         // matching
-        await send(relayer, exchange.methods.matchOrders(
+        await send(relayer, exchange.methods.matchMarketContractOrders(
             takerOrder,
             makerOrders,
             matchConfigs.filledAmounts,

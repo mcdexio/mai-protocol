@@ -135,6 +135,7 @@ contract('Match', async accounts => {
             await method.send({ from: user, gasLimit: gasLimit });
             throw null;
         } catch (error) {
+            console.log("error.message =", error.message);
             assert.equal(error.message.includes(message), true);
         }
     }
@@ -358,8 +359,8 @@ contract('Match', async accounts => {
             const orderContext = {
                 marketContract: mpx._address,
                 marketContractPool: mpx._address,
-                ctk: collateral._address,
-                pos: [
+                ctkAddress: collateral._address,
+                posAddresses: [
                     long._address,
                     short._address
                 ],
@@ -426,8 +427,8 @@ contract('Match', async accounts => {
             const orderContext = {
                 marketContract: mpx._address,
                 marketContractPool: mpx._address,
-                ctk: collateral._address,
-                pos: [
+                ctkAddress: collateral._address,
+                posAddresses: [
                     long._address,
                     short._address
                 ],
@@ -494,8 +495,8 @@ contract('Match', async accounts => {
             const orderContext = {
                 marketContract: mpx._address,
                 marketContractPool: mpx._address,
-                ctk: collateral._address,
-                pos: [
+                ctkAddress: collateral._address,
+                posAddresses: [
                     long._address,
                     short._address
                 ],
@@ -525,7 +526,7 @@ contract('Match', async accounts => {
             assert.equal(await call(long.methods.balanceOf(proxy._address)), 0);
         });
 
-        it('should fail to mint on low funds', async () => {
+        it('should fail to mint on low fee rate', async () => {
             const initalBalance = new BigNumber(toWei(1200));
             await send(admin, collateral.methods.mint(u1, initalBalance.toFixed()));
             await send(admin, collateral.methods.mint(u2, initalBalance.toFixed()));
@@ -542,7 +543,6 @@ contract('Match', async accounts => {
                 .times(toMintAmount);
             const mintFee = new BigNumber(await call(mpx.methods.COLLATERAL_TOKEN_FEE_PER_UNIT()))
             .times(toMintAmount);
-
 
             const result = {
                 maker: u1,
@@ -562,8 +562,8 @@ contract('Match', async accounts => {
             const orderContext = {
                 marketContract: mpx._address,
                 marketContractPool: mpx._address,
-                ctk: collateral._address,
-                pos: [
+                ctkAddress: collateral._address,
+                posAddresses: [
                     long._address,
                     short._address
                 ],
@@ -578,9 +578,64 @@ contract('Match', async accounts => {
             await shouldFailOnError(
                 relayer,
                 exchange.methods.doMintPublic(result, orderAddressSet, orderContext),
-                "INSUFFICIENT_FEE"
+                "MINT_FAILED"
             );
+        });
 
+        it('should fail to mint on low funds ', async () => {
+            const initalBalance = new BigNumber(toWei(1200));
+            await send(admin, collateral.methods.mint(u1, initalBalance.toFixed()));
+            await send(admin, collateral.methods.mint(u2, initalBalance.toFixed()));
+            await send(u1, collateral.methods.approve(proxy._address, infinity));
+            await send(u2, collateral.methods.approve(proxy._address, infinity));
+
+            const makerMargin = new BigNumber(toWei(500));
+            const takerMargin = new BigNumber(toWei(500));
+            const toMintAmount = new BigNumber(toBase(1));
+            const makerFee = new BigNumber(toWei(10));
+            const takerFee = new BigNumber(toWei(13));
+            const gasFee = new BigNumber(toWei(0.1));
+            const mintCost = new BigNumber(await call(mpx.methods.COLLATERAL_PER_UNIT()))
+                .times(toMintAmount);
+            const mintFee = new BigNumber(await call(mpx.methods.COLLATERAL_TOKEN_FEE_PER_UNIT()))
+                .times(toMintAmount);
+
+            const result = {
+                maker: u1,
+                taker: u2,
+                makerFee: makerFee.toFixed(),
+                takerFee: takerFee.toFixed(),
+                makerGasFee: gasFee.toFixed(),
+                takerGasFee: gasFee.toFixed(),
+                posFilledAmount: toMintAmount.toFixed(),
+                ctkFilledAmount: makerMargin.toFixed(),
+                fillAction: FillActions.MINT,
+            };
+            const orderAddressSet = {
+                marketContract: mpx._address,
+                relayer: relayer,
+            };
+            const orderContext = {
+                marketContract: mpx._address,
+                marketContractPool: mpx._address,
+                ctkAddress: collateral._address,
+                posAddresses: [
+                    long._address,
+                    short._address
+                ],
+                takerSide: 0,
+            };
+
+            const ctkRequired = new BigNumber(await call(mpx.methods.COLLATERAL_PER_UNIT())).times(toMintAmount);
+            const ctkFeeRequired = new BigNumber(await call(mpx.methods.COLLATERAL_TOKEN_FEE_PER_UNIT())).times(toMintAmount);
+            assert.equal(ctkRequired.plus(ctkFeeRequired).toFixed(), toWei(1024));
+
+            await send(admin, proxy.methods.approveCollateralPool(mpx._address, mpx._address, infinity));
+            await shouldFailOnError(
+                relayer,
+                exchange.methods.doMintPublic(result, orderAddressSet, orderContext),
+                "MINT_FAILED"
+            );
         });
     });
 
@@ -618,8 +673,8 @@ contract('Match', async accounts => {
             const orderContext = {
                 marketContract: mpx._address,
                 marketContractPool: mpx._address,
-                ctk: collateral._address,
-                pos: [
+                ctkAddress: collateral._address,
+                posAddresses: [
                     long._address,
                     short._address
                 ],
@@ -678,8 +733,8 @@ contract('Match', async accounts => {
             const orderContext = {
                 marketContract: mpx._address,
                 marketContractPool: mpx._address,
-                ctk: collateral._address,
-                pos: [
+                ctkAddress: collateral._address,
+                posAddresses: [
                     long._address,
                     short._address
                 ],
@@ -739,8 +794,8 @@ contract('Match', async accounts => {
             const orderContext = {
                 marketContract: mpx._address,
                 marketContractPool: mpx._address,
-                ctk: collateral._address,
-                pos: [
+                ctkAddress: collateral._address,
+                posAddresses: [
                     long._address,
                     short._address
                 ],
@@ -800,8 +855,8 @@ contract('Match', async accounts => {
             const orderContext = {
                 marketContract: mpx._address,
                 marketContractPool: mpx._address,
-                ctk: collateral._address,
-                pos: [
+                ctkAddress: collateral._address,
+                posAddresses: [
                     long._address,
                     short._address
                 ],
@@ -815,6 +870,96 @@ contract('Match', async accounts => {
                 "TRANSFER_FROM_FAILED"
             );
 
+        });
+    });
+
+    contract('validatePricePublic', async accounts => {
+        it('should success', async() => {
+            const makerOrder = await buildOrder({
+                trader: u1,
+                relayer,
+                marketContract: mpx._address,
+                version: 2,
+                side: "buy",
+                type: 'limit',
+                expiredAtSeconds: 3500000000,
+                asMakerFeeRate: 150,
+                asTakerFeeRate: 0,
+                amount: toBase(1),
+                price: toBase(8000),
+                gasAmount: toWei(0.1),
+            });
+            const takerOrder = await buildOrder({
+                trader: u2,
+                relayer,
+                marketContract: mpx._address,
+                version: 2,
+                side: 'sell',
+                type: 'limit',
+                expiredAtSeconds: 3500000000,
+                asMakerFeeRate: 0,
+                asTakerFeeRate: 150,
+                amount: toBase(1),
+                price: toBase(8000),
+                gasAmount: toWei(0.1),
+            });
+            const orderContext = {
+                marketContract: mpx._address,
+                marketContractPool: mpx._address,
+                ctkAddress: collateral._address,
+                posAddresses: [
+                    long._address,
+                    short._address
+                ],
+                takerSide: 1,
+            };
+            await send(relayer, exchange.methods.validatePricePublic(takerOrder, makerOrder, orderContext));
+        });
+        
+        it('should fail on insufficent fee', async() => {
+            const makerOrder = await buildOrder({
+                trader: u1,
+                relayer,
+                marketContract: mpx._address,
+                version: 2,
+                side: "buy",
+                type: 'limit',
+                expiredAtSeconds: 3500000000,
+                asMakerFeeRate: 150,
+                asTakerFeeRate: 0,
+                amount: toBase(1),
+                price: toBase(8000),
+                gasAmount: toWei(0.1),
+            });
+            const takerOrder = await buildOrder({
+                trader: u2,
+                relayer,
+                marketContract: mpx._address,
+                version: 2,
+                side: 'sell',
+                type: 'limit',
+                expiredAtSeconds: 3500000000,
+                asMakerFeeRate: 0,
+                asTakerFeeRate: 149,
+                amount: toBase(1),
+                price: toBase(8000),
+                gasAmount: toWei(0.1),
+            });
+            const orderContext = {
+                marketContract: mpx._address,
+                marketContractPool: mpx._address,
+                ctkAddress: collateral._address,
+                posAddresses: [
+                    long._address,
+                    short._address
+                ],
+                takerSide: 1,
+            };
+            await shouldFailOnError(
+                relayer, 
+                exchange.methods.validatePricePublic(takerOrder, makerOrder, orderContext),
+                "MINT_PRICE_NOT_MET"
+            );
         });
     });
 
@@ -852,8 +997,8 @@ contract('Match', async accounts => {
             const orderContext = {
                 marketContract: mpx._address,
                 marketContractPool: mpx._address,
-                ctk: collateral._address,
-                pos: [
+                ctkAddress: collateral._address,
+                posAddresses: [
                     long._address,
                     short._address
                 ],
@@ -917,8 +1062,8 @@ contract('Match', async accounts => {
             const orderContext = {
                 marketContract: mpx._address,
                 marketContractPool: mpx._address,
-                ctk: collateral._address,
-                pos: [
+                ctkAddress: collateral._address,
+                posAddresses: [
                     long._address,
                     short._address
                 ],

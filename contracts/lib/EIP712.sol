@@ -17,7 +17,7 @@
 
 */
 
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.2;
 
 /**
  * EIP712 Ethereum typed structured data hashing and signing

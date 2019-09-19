@@ -81,7 +81,7 @@ contract('match', async accounts => {
         const gasLimit = 8000000;
         return await method.send({ from: user, gasLimit: gasLimit });
     }
-    
+
     const buildMpxOrder = async (config) => {
         const orderParam = {
             trader: config.trader,
@@ -150,9 +150,9 @@ contract('match', async accounts => {
         const mpxPoolAddress = await call(mpx.methods.COLLATERAL_POOL_ADDRESS());
         assert.equal(context.marketContract, mpx._address, 'marketContract');
         assert.equal(context.marketContractPool, mpxPoolAddress, 'marketContractPool');
-        assert.equal(context.ctk, ctk._address, 'ctk');
-        assert.equal(context.pos[0], long._address, 'pos[0]');
-        assert.equal(context.pos[1], short._address, 'pos[1]');
+        assert.equal(context.ctkAddress, ctk._address, 'ctk');
+        assert.equal(context.posAddresses[0], long._address, 'pos[0]');
+        assert.equal(context.posAddresses[1], short._address, 'pos[1]');
         assert.equal(context.takerSide, '1', 'takerSide');
     });
 
@@ -240,8 +240,7 @@ contract('match', async accounts => {
             takerOrder, takerInfo,
             makerOrder1, maker1Info,
             orderContext,
-            toBase(0.1), // posFilledAmount
-            300, // takerFeeRate
+            toBase(0.1) // posFilledAmount
         ).call();
         const retFilledAmount = tmp.filledAmount;
         const retResult = tmp.result;
@@ -330,8 +329,7 @@ contract('match', async accounts => {
             takerOrder, takerInfo,
             makerOrder1, maker1Info,
             orderContext,
-            toBase(0.1), // posFilledAmount
-            300, // takerFeeRate
+            toBase(0.1) // posFilledAmount
         ).call();
         const retFilledAmount = tmp.filledAmount;
         const retResult = tmp.result;
@@ -390,7 +388,7 @@ contract('match', async accounts => {
             [ toBase(0.5), toBase(0.5), ], // posFilledAmount
             getAddressSet(), orderContext
         ).call();
-        assert.equal(retResults.length, 4, 'results.length');
+        assert.equal(retResults.length, 6, 'results.length');
         assert.equal(retResults[0].fillAction, 2, 'results[0].fillAction'); // SELL
         assert.equal(retResults[1].fillAction, 4, 'results[1].fillAction'); // REDEEM
         assert.equal(retResults[2].fillAction, 0, 'results[2].fillAction'); // INVALID

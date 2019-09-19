@@ -1,4 +1,4 @@
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.2;
 
 contract ERC20Basic {
     uint256 public totalSupply;
@@ -191,7 +191,7 @@ contract TestToken is StandardToken {
     event Mint(address indexed _to, uint _value);
     event Burn(address indexed _to, uint _value);
 
-    constructor(string _name, string _symbol, uint8 _decimals) public {
+    constructor(string memory _name, string memory _symbol, uint8 _decimals) public {
         name = _name;
         symbol = _symbol;
         decimals = _decimals;

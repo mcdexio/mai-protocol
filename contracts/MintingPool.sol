@@ -1,15 +1,35 @@
-pragma solidity ^0.4.24;
+/*
+    Copyright 2019 mcdexio
 
-import "./lib/SafeMath.sol";
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+*/
+
+pragma solidity ^0.5.2;
+
 import "./lib/LibOwnable.sol";
 import "./lib/LibWhitelist.sol";
-import "./lib/MathLib.sol";
 import "./interfaces/IMarketContractPool.sol";
 import "./interfaces/IMarketContract.sol";
-import "./interfaces/IERC20.sol";
 
-contract ExchangePool is LibOwnable, LibWhitelist {
+import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+
+contract MintingPool is LibOwnable, LibWhitelist {
+
     using SafeMath for uint256;
+    using SafeERC20 for IERC20;
 
     mapping(address => uint256) public minted;
     mapping(address => uint256) public redeemed;
@@ -24,20 +44,19 @@ contract ExchangePool is LibOwnable, LibWhitelist {
         address marketContractAddress,
         uint256 amount
     )
-        public
+        external
         onlyOwner
     {
         require(amount > 0, "INVALID_AMOUNT");
 
         IMarketContract marketContract = IMarketContract(marketContractAddress);
-        IERC20 marketToken = IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS());
-        marketToken.transfer(msg.sender, amount);
+        IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS()).safeTransfer(msg.sender, amount);
 
         emit Withdraw(marketContract.COLLATERAL_TOKEN_ADDRESS(), msg.sender, amount);
     }
 
     function withdrawMarketToken(address marketContractAddress, uint256 amount)
-        public
+        external
         onlyOwner
     {
         require(amount > 0, "INVALID_AMOUNT");
@@ -46,31 +65,13 @@ contract ExchangePool is LibOwnable, LibWhitelist {
         IMarketContractPool marketContractPool = IMarketContractPool(
             marketContract.COLLATERAL_POOL_ADDRESS()
         );
-
-        IERC20 marketToken = IERC20(marketContractPool.mktToken());
-        marketToken.transfer(msg.sender, amount);
+        IERC20(marketContractPool.mktToken()).safeTransfer(msg.sender, amount);
 
         emit Withdraw(marketContractPool.mktToken(), msg.sender, amount);
     }
 
-    function approveCollateralPool(address marketContractAddress, uint256 amount)
-        public
-        onlyOwner
-    {
-        IMarketContract marketContract = IMarketContract(marketContractAddress);
-        IMarketContractPool marketContractPool = IMarketContractPool(
-            marketContract.COLLATERAL_POOL_ADDRESS()
-        );
-
-        IERC20 collateralToken = IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS());
-        collateralToken.approve(marketContract.COLLATERAL_POOL_ADDRESS(), amount);
-
-        IERC20 marketToken = IERC20(marketContractPool.mktToken());
-        marketToken.approve(marketContract.COLLATERAL_POOL_ADDRESS(), amount);
-    }
-
     /**
-     * Mint position tokens with collateral within contract for further usage.
+     * Mint position tokens with collateral within contract for further exchange.
      * Called by administrator periodly to adjust the ratio of collateral to position tokens.
      * Not like in mintPositionTokens, payInMKT will force using mkt to pay fee.
      *
@@ -99,6 +100,14 @@ contract ExchangePool is LibOwnable, LibWhitelist {
         emit Mint(marketContractAddress, address(this), qtyToMint);
     }
 
+    /**
+     * Redeem collateral with position tokens within contract for further exchange.
+     * Called by administrator periodly to adjust the ratio of collateral to position tokens.
+     * The return amount of the collateral is decided by specified market protocol.
+     *
+     * @param marketContractAddress Address of market contract.
+     * @param qtyToRedeem Quantity of position tokens to redeem.
+     */
     function internalRedeemPositionTokens(
         address marketContractAddress,
         uint qtyToRedeem
@@ -115,7 +124,7 @@ contract ExchangePool is LibOwnable, LibWhitelist {
         emit Redeem(marketContractAddress, address(this), qtyToRedeem);
     }
 
-    /**
+ /**
      * Send asked position Tokens msg.sender. Tokens will be directly transfer to sender when pool
      * has enough position tokens in it, otherwise tokens will be minted from market contract pool.
      * Position tokens are always tranferred in pairs (long == short).
@@ -138,41 +147,34 @@ contract ExchangePool is LibOwnable, LibWhitelist {
         require(qtyToMint > 0, "INVALID_AMOUNT");
 
         IMarketContract marketContract = IMarketContract(marketContractAddress);
-        IERC20 collateralToken = IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS());
-        IERC20 longPositionToken = IERC20(marketContract.LONG_POSITION_TOKEN());
-        IERC20 shortPositionToken = IERC20(marketContract.SHORT_POSITION_TOKEN());
 
-        uint256 neededCollateral = MathLib.multiply(
-            qtyToMint,
-            marketContract.COLLATERAL_PER_UNIT()
-                .add(marketContract.COLLATERAL_TOKEN_FEE_PER_UNIT())
+        uint256 neededCollateral = calculateTotalCollateral(marketContract, qtyToMint);
+
+        IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS()).safeTransferFrom(
+            msg.sender,
+            address(this),
+            neededCollateral
         );
-        collateralToken.transferFrom(msg.sender, address(this), neededCollateral);
 
-        if (longPositionToken.balanceOf(address(this)) >= qtyToMint
-            && shortPositionToken.balanceOf(address(this)) >= qtyToMint) {
-
+        if (hasEnoughPositionBalance(marketContractAddress, qtyToMint)) {
             sent[marketContractAddress] = sent[marketContractAddress].add(qtyToMint);
         } else {
-
-            uint256 neededMakretToken = MathLib.multiply(
-                qtyToMint,
-                marketContract.MKT_TOKEN_FEE_PER_UNIT()
-            );
+            uint256 neededMakretToken = calculateMarketTokenFee(marketContract, qtyToMint);
 
             IMarketContractPool marketContractPool = IMarketContractPool(
                 marketContract.COLLATERAL_POOL_ADDRESS()
             );
-            IERC20 marketToken = IERC20(marketContractPool.mktToken());
-            bool useMarketToken = (marketToken.balanceOf(address(this)) >= neededMakretToken);
-
+            bool useMarketToken = hasEnoughBalance(
+                marketContractPool.mktToken(),
+                neededMakretToken
+            );
             marketContractPool.mintPositionTokens(marketContractAddress, qtyToMint, useMarketToken);
 
             minted[marketContractAddress] = minted[marketContractAddress].add(qtyToMint);
         }
 
-        longPositionToken.transfer(msg.sender, qtyToMint);
-        shortPositionToken.transfer(msg.sender, qtyToMint);
+        IERC20(marketContract.LONG_POSITION_TOKEN()).safeTransfer(msg.sender, qtyToMint);
+        IERC20(marketContract.SHORT_POSITION_TOKEN()).safeTransfer(msg.sender, qtyToMint);
 
         emit Mint(marketContractAddress, msg.sender, qtyToMint);
     }
@@ -187,29 +189,103 @@ contract ExchangePool is LibOwnable, LibWhitelist {
         require(qtyToRedeem > 0, "INVALID_AMOUNT");
 
         IMarketContract marketContract = IMarketContract(marketContractAddress);
-        IERC20 collateralToken = IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS());
-        IERC20 longPositionToken = IERC20(marketContract.LONG_POSITION_TOKEN());
-        IERC20 shortPositionToken = IERC20(marketContract.SHORT_POSITION_TOKEN());
 
-        longPositionToken.transferFrom(msg.sender, address(this), qtyToRedeem);
-        shortPositionToken.transferFrom(msg.sender, address(this), qtyToRedeem);
-
-        uint256 collateralToReturn = MathLib.multiply(
-            qtyToRedeem,
-            marketContract.COLLATERAL_PER_UNIT()
+        IERC20(marketContract.LONG_POSITION_TOKEN()).safeTransferFrom(
+            msg.sender,
+            address(this),
+            qtyToRedeem
         );
-        if (collateralToken.balanceOf(address(this)) < collateralToReturn) {
+        IERC20(marketContract.SHORT_POSITION_TOKEN()).safeTransferFrom(
+            msg.sender,
+            address(this),
+            qtyToRedeem
+        );
+
+        uint256 collateralToReturn = calculateCollateralToReturn(marketContract, qtyToRedeem);
+
+        if (hasEnoughBalance(marketContract.COLLATERAL_TOKEN_ADDRESS(), collateralToReturn)) {
+            received[marketContractAddress] = received[marketContractAddress].add(qtyToRedeem);
+        } else {
             IMarketContractPool marketContractPool = IMarketContractPool(
                 marketContract.COLLATERAL_POOL_ADDRESS()
             );
             marketContractPool.redeemPositionTokens(marketContractAddress, qtyToRedeem);
 
             redeemed[marketContractAddress] = redeemed[marketContractAddress].add(qtyToRedeem);
-        } else {
-            received[marketContractAddress] = received[marketContractAddress].add(qtyToRedeem);
         }
-        collateralToken.transfer(msg.sender, collateralToReturn);
+        IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS()).safeTransfer(
+            msg.sender,
+            collateralToReturn
+        );
 
         emit Redeem(marketContractAddress, msg.sender, qtyToRedeem);
+    }
+
+    function approveCollateralPool(address marketContractAddress, uint256 amount)
+        public
+        onlyOwner
+    {
+        IMarketContract marketContract = IMarketContract(marketContractAddress);
+        IMarketContractPool marketContractPool = IMarketContractPool(
+            marketContract.COLLATERAL_POOL_ADDRESS()
+        );
+        // approve collateral, usually dai
+        IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS()).approve(
+            marketContract.COLLATERAL_POOL_ADDRESS(),
+            amount
+        );
+        // approve mkt, for lower mint fee
+        IERC20(marketContractPool.mktToken()).approve(
+            marketContract.COLLATERAL_POOL_ADDRESS(),
+            amount
+        );
+    }
+
+    function hasEnoughBalance(address tokenAddress, uint256 amount)
+        internal
+        view
+        returns (bool)
+    {
+        return IERC20(tokenAddress).balanceOf(address(this)) >= amount;
+    }
+
+    function hasEnoughPositionBalance(address marketContractAddress, uint256 amount)
+        internal
+        view
+        returns (bool)
+    {
+        IMarketContract marketContract = IMarketContract(marketContractAddress);
+        return hasEnoughBalance(marketContract.LONG_POSITION_TOKEN(), amount)
+            && hasEnoughBalance(marketContract.SHORT_POSITION_TOKEN(), amount);
+    }
+
+    /**
+     * Helper to calculate total required collateral for minting.
+     */
+    function calculateTotalCollateral(IMarketContract marketContract, uint256 qtyToMint)
+        internal
+        view
+        returns (uint256)
+    {
+        return marketContract.COLLATERAL_PER_UNIT()
+            .add(marketContract.COLLATERAL_TOKEN_FEE_PER_UNIT())
+            .mul(qtyToMint);
+    }
+
+    function calculateMarketTokenFee(IMarketContract marketContract, uint256 qtyToMint)
+        internal
+        view
+        returns (uint256)
+    {
+        return marketContract.MKT_TOKEN_FEE_PER_UNIT().mul(qtyToMint);
+    }
+
+
+    function calculateCollateralToReturn(IMarketContract marketContract, uint256 qtyToRedeem)
+        internal
+        view
+        returns (uint256)
+    {
+        return marketContract.COLLATERAL_PER_UNIT().mul(qtyToRedeem);
     }
 }

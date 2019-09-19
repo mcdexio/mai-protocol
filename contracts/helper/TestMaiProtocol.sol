@@ -16,7 +16,7 @@
     limitations under the License.
 */
 
-pragma solidity ^0.4.24;
+pragma solidity ^0.5.2;
 pragma experimental ABIEncoderV2;
 
 import "../MaiProtocol.sol";
@@ -50,8 +50,12 @@ contract TestMaiProtocol is MaiProtocol {
         public
         returns (MatchResult[] memory results)
     {
-        return getMatchPlan(takerOrderParam, makerOrderParams,
-            posFilledAmounts, orderAddressSet, orderContext);
+        return getMatchPlan(
+            takerOrderParam,
+            makerOrderParams,
+            posFilledAmounts,
+            orderAddressSet,
+            orderContext);
     }
 
     function calculateMiddleCollateralPerUnitPublic(OrderContext memory orderContext)
@@ -62,7 +66,10 @@ contract TestMaiProtocol is MaiProtocol {
         return calculateMiddleCollateralPerUnit(orderContext);
     }
 
-    function calculateLongMarginPublic(OrderContext memory orderContext, OrderParam memory orderParam)
+    function calculateLongMarginPublic(
+        OrderContext memory orderContext,
+        OrderParam memory orderParam
+    )
         public
         view
         returns (uint256)
@@ -70,12 +77,26 @@ contract TestMaiProtocol is MaiProtocol {
         return calculateLongMargin(orderContext, orderParam);
     }
 
-    function calculateShortMarginPublic(OrderContext memory orderContext, OrderParam memory orderParam)
+    function calculateShortMarginPublic(
+        OrderContext memory orderContext,
+        OrderParam memory orderParam
+    )
         public
         view
         returns (uint256)
     {
         return calculateShortMargin(orderContext, orderParam);
+    }
+
+    function validatePricePublic(
+        OrderParam memory takerOrderParam,
+        OrderParam memory makerOrderParam,
+        OrderContext memory orderContext
+    )
+        public
+        view
+    {
+        validatePrice(takerOrderParam, makerOrderParam, orderContext);
     }
 
     function getMatchResultPublic(
@@ -84,17 +105,24 @@ contract TestMaiProtocol is MaiProtocol {
         OrderParam memory makerOrderParam,
         OrderInfo memory makerOrderInfo,
         OrderContext memory orderContext,
-        uint256 posFilledAmount,
-        uint256 takerFeeRate
+        uint256 posFilledAmount
     )
         public
         view
-        returns (MatchResult memory result, uint256 filledAmount, OrderInfo memory retTakerOrderInfo, OrderInfo memory retMakerOrderInfo)
+        returns (
+            MatchResult memory result,
+            uint256 filledAmount,
+            OrderInfo memory retTakerOrderInfo,
+            OrderInfo memory retMakerOrderInfo
+        )
     {
         (result, filledAmount) = getMatchResult(
-            takerOrderParam, takerOrderInfo,
-            makerOrderParam, makerOrderInfo,
-            orderContext, posFilledAmount, takerFeeRate
+            takerOrderParam,
+            takerOrderInfo,
+            makerOrderParam,
+            makerOrderInfo,
+            orderContext,
+            posFilledAmount
         );
         return (result, filledAmount, takerOrderInfo, makerOrderInfo);
     }
@@ -110,7 +138,12 @@ contract TestMaiProtocol is MaiProtocol {
     )
         public
         pure
-        returns (uint256 filledAmount, MatchResult memory retResult, OrderInfo memory retTakerOrderInfo, OrderInfo memory retMakerOrderInfo)
+        returns (
+            uint256 filledAmount,
+            MatchResult memory retResult,
+            OrderInfo memory retTakerOrderInfo,
+            OrderInfo memory retMakerOrderInfo
+        )
     {
         filledAmount = fillMatchResult(
             result, takerOrderParam, takerOrderInfo,
@@ -118,20 +151,6 @@ contract TestMaiProtocol is MaiProtocol {
             orderContext, posFilledAmount
         );
         return (filledAmount, result, takerOrderInfo, makerOrderInfo);
-    }
-
-    function validateMatchPricePublic(
-        MatchResult memory result,
-        OrderInfo memory takerOrderInfo,
-        OrderInfo memory makerOrderInfo,
-        OrderContext memory orderContext
-    )
-        public
-        view
-    {
-        return validateMatchPrice(
-            result, takerOrderInfo, makerOrderInfo, orderContext
-        );
     }
 
     function getOrderInfoPublic(
@@ -155,14 +174,6 @@ contract TestMaiProtocol is MaiProtocol {
         returns (Order memory order)
     {
         return getOrderFromOrderParam(orderParam, orderAddressSet);
-    }
-
-    function getTakerFeeRatePublic(OrderParam memory orderParam)
-        public
-        pure
-        returns(uint256)
-    {
-        return getTakerFeeRate(orderParam);
     }
 
     function calculateTotalFeePublic(MatchResult memory result)
