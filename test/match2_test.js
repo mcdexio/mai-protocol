@@ -135,7 +135,6 @@ contract('Match', async accounts => {
             await method.send({ from: user, gasLimit: gasLimit });
             throw null;
         } catch (error) {
-            console.log("error.message =", error.message);
             assert.equal(error.message.includes(message), true);
         }
     }
@@ -146,6 +145,31 @@ contract('Match', async accounts => {
         SELL: 2,
         MINT: 3,
         REDEEM: 4,
+    });
+
+    contract('validateMarketContractPublic', async () => {
+        it('should fail if contract not in whitelist', async () => {
+            await exchange.methods.setMarketRegistryAddress(mpx._address)
+                .send({ from: admin });
+            try {
+                await exchange.methods.validateMarketContractPublic("0x0000000000000000000000000000000000000512").call();
+                throw null;
+            } catch (error) {
+                assert.equal(error.message.includes("INVALID_MARKET_CONTRACT"), true);
+                return;
+            }
+        });
+
+        it('should success if registry disabled', async () => {
+            await exchange.methods.setMarketRegistryAddress("0x0000000000000000000000000000000000000000").send({ from: admin });
+            await exchange.methods.validateMarketContractPublic("0x0000000000000000000000000000000000000512").call();
+        });
+
+        it('should success', async () => {
+            await mpx.methods.addAddressToWhiteList("0x0000000000000000000000000000000000001024").send({ from: admin });
+            await exchange.methods.setMarketRegistryAddress(mpx._address).send({ from: admin });
+            await exchange.methods.validateMarketContractPublic("0x0000000000000000000000000000000000001024").call();
+        });
     });
 
     contract('transferPublic', async accounts => {
@@ -182,6 +206,11 @@ contract('Match', async accounts => {
             assert.equal(hasException, true);
             assert.equal(await call(collateral.methods.balanceOf(proxy._address)), amount.toFixed());
             assert.equal(await call(collateral.methods.balanceOf(u1)), 0);
+        });
+
+        it('should transfer 0', async () => {
+            await exchange.methods.transferPublic(collateral._address, u1, 0)
+                .send({ from: relayer, gasLimit: gasLimit });
         });
     });
 
@@ -242,6 +271,11 @@ contract('Match', async accounts => {
             assert.equal(await call(collateral.methods.balanceOf(u1)), amount.toFixed());
             assert.equal(await call(collateral.methods.balanceOf(u2)), 0);
         });
+
+        it('should transferFrom 0', async () => {
+            await exchange.methods.transferFromPublic(collateral._address, u1, u2, 0)
+                .send({ from: relayer, gasLimit: gasLimit });
+        });
     });
 
     contract('mintPositionTokensPublic', async accounts => {
@@ -298,13 +332,16 @@ contract('Match', async accounts => {
             assert.equal(await call(long.methods.balanceOf(proxy._address)), posAmount.toFixed());
             assert.equal(await call(short.methods.balanceOf(proxy._address)), posAmount.toFixed());
         });
+
+        it('should mint 0 position tokens', async () => {
+            await send(relayer, exchange.methods.mintPositionTokensPublic(mpx._address, 0));
+        });
     });
 
     contract('redeemPositionTokensPublic', async accounts => {
         it('should redeem position token without approve', async () => {
             const posAmount = new BigNumber(toBase(1));
             const posValue = new BigNumber(await call(mpx.methods.COLLATERAL_PER_UNIT())).times(posAmount);
-
 
             await send(admin, long.methods.mint(proxy._address, posAmount.toFixed()));
             await send(admin, short.methods.mint(proxy._address, posAmount.toFixed()));
@@ -318,6 +355,29 @@ contract('Match', async accounts => {
             assert.equal(await call(collateral.methods.balanceOf(proxy._address)), posValue.toFixed());
             assert.equal(await call(long.methods.balanceOf(proxy._address)), 0);
             assert.equal(await call(short.methods.balanceOf(proxy._address)), 0);
+        });
+
+        it('should fail to redeem position token without sufficient position token', async () => {
+            const posAmount = new BigNumber(toBase(1));
+            const posValue = new BigNumber(await call(mpx.methods.COLLATERAL_PER_UNIT())).times(posAmount);
+
+            await send(admin, long.methods.mint(proxy._address, posAmount.toFixed()));
+            await send(admin, short.methods.mint(proxy._address, posAmount.toFixed()));
+
+            assert.equal(await call(collateral.methods.balanceOf(proxy._address)), 0);
+            assert.equal(await call(long.methods.balanceOf(proxy._address)), posAmount.toFixed());
+            assert.equal(await call(short.methods.balanceOf(proxy._address)), posAmount.toFixed());
+
+            try {
+                await send(relayer, exchange.methods.redeemPositionTokensPublic(mpx._address, toBase(1.1)));
+                throw null;
+            } catch (error) {
+                assert.equal(error.message.includes("REDEEM_FAILED"), true);
+            }
+        });
+
+        it('should redeem 0 position token', async () => {
+            await send(relayer, exchange.methods.redeemPositionTokensPublic(mpx._address, 0));
         });
     });
 
@@ -915,7 +975,7 @@ contract('Match', async accounts => {
             };
             await send(relayer, exchange.methods.validatePricePublic(takerOrder, makerOrder, orderContext));
         });
-        
+
         it('should fail on insufficent fee', async() => {
             const makerOrder = await buildOrder({
                 trader: u1,
@@ -956,7 +1016,7 @@ contract('Match', async accounts => {
                 takerSide: 1,
             };
             await shouldFailOnError(
-                relayer, 
+                relayer,
                 exchange.methods.validatePricePublic(takerOrder, makerOrder, orderContext),
                 "MINT_PRICE_NOT_MET"
             );

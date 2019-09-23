@@ -268,4 +268,16 @@ contract('Mai', async accounts => {
         };
         await matchTest(testConfig);
     });
+
+    it('fail to set set market registry address', async () => {
+        try {
+            await exchange.methods.setMarketRegistryAddress("0x0000000000000000000000000000000000000000")
+                .send({ from: u1 });
+            throw null;
+        } catch (error) {
+            assert.equal(error.message.includes("NOT_OWNER"), true);
+            return;
+        }
+    });
+
 });

@@ -11,5 +11,8 @@ module.exports = {
         'helper/TestMarketContract.sol',
         'lib/MathLib.sol',
         'lib/SafeMath.sol'
+    ],
+    copyPackages: [
+        '@openzeppelin/contracts'
     ]
 };

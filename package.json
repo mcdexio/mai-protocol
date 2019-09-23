@@ -5,6 +5,7 @@
     "coverage": "solidity-coverage"
   },
   "dependencies": {
+    "@openzeppelin/contracts": "^2.3.0",
     "bignumber.js": "^7.2.1",
     "ethereumjs-util": "^5.2.0",
     "solidity-coverage": "^0.5.11",

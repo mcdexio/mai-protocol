@@ -28,6 +28,18 @@ contract TestMaiProtocol is MaiProtocol {
     {
     }
 
+    function setFilled(
+        OrderParam memory orderParam,
+        OrderAddressSet memory orderAddressSet,
+        uint256 amount
+    )
+        public
+    {
+        Order memory order = getOrderFromOrderParam(orderParam, orderAddressSet);
+        bytes32 orderHash = getOrderHash(order);
+        filled[orderHash] = amount;
+    }
+
     function getOrderContextPublic(
         OrderAddressSet memory orderAddressSet,
         OrderParam memory takerOrderParam
@@ -39,6 +51,12 @@ contract TestMaiProtocol is MaiProtocol {
         return getOrderContext(orderAddressSet, takerOrderParam);
     }
 
+    function validateMarketContractPublic(address marketContractAddress)
+        public
+        view
+    {
+        validateMarketContract(marketContractAddress);
+    }
 
     function getMatchPlanPublic(
         OrderParam memory takerOrderParam,

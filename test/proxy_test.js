@@ -1,7 +1,21 @@
 const assert = require('assert');
 const TestToken = artifacts.require('./helper/TestToken.sol');
-const { newContract, getContracts, getWeb3 } = require('./utils');
+const { newContract, getContracts, getMarketContract } = require('./utils');
 const BigNumber = require('bignumber.js');
+
+const weis = new BigNumber('1000000000000000000');
+
+const toWei = (...xs) => {
+    let sum = new BigNumber(0);
+    for (var x of xs) {
+        sum = sum.plus(new BigNumber(x).times(weis));
+    }
+    return sum.toFixed();
+};
+
+const fromWei = x => {
+    return new BigNumber(x).div(weis).toString();
+};
 
 contract('Proxy', accounts => {
     let proxy;
@@ -10,8 +24,49 @@ contract('Proxy', accounts => {
         const contracts = await getContracts();
         proxy = contracts.proxy;
 
+        const mpxContract = await getMarketContract({
+            cap: 8500e10,
+            floor: 7500e10,
+            multiplier: 1000,
+            feeRate: 300,
+        });
+        mpx = mpxContract.mpx;
+        ctk = mpxContract.collateral;
+        long = mpxContract.long;
+        short = mpxContract.short;
+
         // add creator into whitelist
         await proxy.methods.addAddress(accounts[1]).send({ from: accounts[0] });
+    });
+
+    it('should withdraw collateral', async () => {
+        const owner = accounts[0];
+
+        await ctk.methods.transfer(proxy._address, toWei(10)).send({ from: owner });
+
+        const balance = new BigNumber(await ctk.methods.balanceOf(owner).call());
+        const toWithdraw = new BigNumber(toWei(9));
+        // transfer from
+        await proxy.methods
+            .withdrawCollateral(mpx._address, toWithdraw.toFixed())
+            .send({ from: owner });
+
+        assert.equal(balance.plus(toWithdraw).toFixed(), await ctk.methods.balanceOf(owner).call());
+    });
+
+    it('should fail to withdraw collateral', async () => {
+        const owner = accounts[0];
+
+        await ctk.methods.transfer(proxy._address, toWei(10)).send({ from: owner });
+
+        const balance = new BigNumber(await ctk.methods.balanceOf(owner).call());
+        const toWithdraw = new BigNumber(toWei(10.1));
+        // transfer from
+        await proxy.methods
+            .withdrawCollateral(mpx._address, toWithdraw.toFixed())
+            .send({ from: owner });
+
+        assert.equal(balance.plus(toWithdraw).toFixed(), await ctk.methods.balanceOf(owner).call());
     });
 
     it('should transfer 10000 token a to b', async () => {
