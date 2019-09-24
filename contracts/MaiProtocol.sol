@@ -18,7 +18,7 @@
 */
 
 pragma solidity ^0.5.2;
-pragma experimental ABIEncoderV2;
+pragma experimental ABIEncoderV2; // to enable structure-type parameter
 
 import "./lib/LibOrder.sol";
 import "./lib/LibOwnable.sol";
@@ -169,7 +169,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     )
         public
     {
-        require(canmatchMarketContractOrdersFrom(orderAddressSet.relayer), INVALID_SENDER);
+        require(canMatchMarketContractOrdersFrom(orderAddressSet.relayer), INVALID_SENDER);
         require(!isMakerOnly(takerOrderParam.data), MAKER_ONLY_ORDER_CANNOT_BE_TAKER);
 
         validateMarketContract(orderAddressSet.marketContract);
@@ -924,7 +924,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
      */
     function doBuy(
         MatchResult memory result,
-        OrderAddressSet memory orderAddressSet,
+        OrderAddressSet memory,
         OrderContext memory orderContext
     )
         internal

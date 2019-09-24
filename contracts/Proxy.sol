@@ -43,7 +43,7 @@ contract Proxy is LibOwnable, LibWhitelist {
         collateralPoolAddress = _collateralPoolAddress;
     }
 
-    /// Approve transfer from proxy for mint or redeem. This method must be called immediately
+    /// @dev Approve transfer from proxy for mint or redeem. This method must be called immediately
     /// after every trading pair added to dex system.
     /// @param contractAddress Address of market contract.
     function approveCollateralPool(address contractAddress, address spender, uint256 amount)

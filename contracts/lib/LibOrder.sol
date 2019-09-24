@@ -18,7 +18,7 @@
 */
 
 pragma solidity ^0.5.2;
-pragma experimental ABIEncoderV2;
+pragma experimental ABIEncoderV2; // to enable structure-type parameter
 
 import "./EIP712.sol";
 import "./LibSignature.sol";

@@ -138,11 +138,10 @@ contract MintingPool is LibOwnable, LibWhitelist {
     /// paid in collateral token.
     /// @param marketContractAddress Address of market contract.
     /// @param qtyToMint Quantity of position tokens to mint.
-    /// @param isAttemptToPayInMKT Try to use mkt as mint fee, only when pool has enough mkt tokens.
     function mintPositionTokens(
         address marketContractAddress,
         uint qtyToMint,
-        bool isAttemptToPayInMKT
+        bool
     )
         external
         onlyAddressInWhitelist

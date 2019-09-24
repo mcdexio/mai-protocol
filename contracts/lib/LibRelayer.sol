@@ -65,7 +65,7 @@ contract LibRelayer {
     /**
      * @return true if msg.sender is allowed to match orders which belong to relayer
      */
-    function canmatchMarketContractOrdersFrom(address relayer) public view returns(bool) {
+    function canMatchMarketContractOrdersFrom(address relayer) public view returns(bool) {
         return msg.sender == relayer || relayerDelegates[relayer][msg.sender] == true;
     }
 
