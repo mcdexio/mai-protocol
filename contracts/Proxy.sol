@@ -32,9 +32,7 @@ contract Proxy is LibOwnable, LibWhitelist {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
-    /**
-     *  Address of token pool, 0x0 indicates using contract collateral pool
-     */
+    /// Address of token pool, 0x0 indicates using contract collateral pool
     address public collateralPoolAddress;
 
     event Withdraw(address indexed contractAddress, address indexed to, uint256 amount);
@@ -91,6 +89,9 @@ contract Proxy is LibOwnable, LibWhitelist {
         IERC20(token).safeTransferFrom(from, to, value);
     }
 
+    /// @dev Invoking mintPositionTokens.
+    /// @param contractAddress Address of MARKET Protocol contract.
+    /// @param qtyToMint Quantity to mint in position token.
     function mintPositionTokens(
         address contractAddress,
         uint256 qtyToMint
@@ -111,9 +112,12 @@ contract Proxy is LibOwnable, LibWhitelist {
         marketContractPool.mintPositionTokens(contractAddress, qtyToMint, isAttemptToPayInMKT);
     }
 
+    /// @dev Invoking redeemPositionTokens.
+    /// @param contractAddress Address of MARKET Protocol contract.
+    /// @param qtyToRedeem Quantity to redeem in position token.
     function redeemPositionTokens(
         address contractAddress,
-        uint256 qtyToMint
+        uint256 qtyToRedeem
     )
         external
         onlyAddressInWhitelist
@@ -125,6 +129,6 @@ contract Proxy is LibOwnable, LibWhitelist {
             IMarketContract marketContract = IMarketContract(contractAddress);
             marketContractPool = IMarketContractPool(marketContract.COLLATERAL_POOL_ADDRESS());
         }
-        marketContractPool.redeemPositionTokens(contractAddress, qtyToMint);
+        marketContractPool.redeemPositionTokens(contractAddress, qtyToRedeem);
     }
 }

@@ -60,6 +60,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
      * buy order the amount is specified in quote token units.
      */
     mapping (bytes32 => uint256) public filled;
+
     /**
      * Mapping of orderHash => whether order has been cancelled.
      */
@@ -92,10 +93,8 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     struct OrderInfo {
         bytes32 orderHash;
         uint256 filledAmount;
-
-        // [0] = long position token, [1] = short position token
-        uint256[2] margins;
-        uint256[2] balances;
+        uint256[2] margins;     // [0] = long position token, [1] = short position token
+        uint256[2] balances;    // [0] = long position balance, [1] = short position balance
     }
 
     struct OrderAddressSet {
@@ -106,10 +105,9 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     struct OrderContext {
         IMarketContract marketContract;         // market contract
         IMarketContractPool marketContractPool; // market contract pool
-        address ctkAddress;                             // collateral token
-        address[2] posAddresses;                          // [0] = long position token
-                                                // [1] = short position token
-        uint256 takerSide;                      // 0 = buy, 1 = short
+        address ctkAddress;                     // collateral token
+        address[2] posAddresses;                // [0] = long position, [1] = short position
+        uint256 takerSide;                      // 0 = buy/long, 1 = sell/short
     }
 
     struct MatchResult {
@@ -133,6 +131,12 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         proxyAddress = _proxyAddress;
     }
 
+    /**
+     * Set market registry address, enable market contract addresss check.
+     * If enabled, only market contract on whitelist of registry can be used as the trading asset.
+     *
+     * @param _marketRegistryAddress Address of MARKET Protocol registry contract.
+     */
     function setMarketRegistryAddress(address _marketRegistryAddress)
         external
         onlyOwner
@@ -140,6 +144,23 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         marketRegistryAddress = _marketRegistryAddress;
     }
 
+    /**
+     * Do match for MARKET Protocol contract.
+     * The match function will generate plans before exchanging to check all requirements are met,
+     * then call settleResults to handle all matching results.
+     *
+     * The result could be one of mint, redeem, buy and sell, which are called fill actions.
+     * At most 3 actions could happen between one trading pair, and a taker may be matched with
+     * more than one maker before the asked amount full filled.
+     *
+     * Trading tokens is specified by caller (backend of dex), and is verified by contract.
+     *
+     * @param takerOrderParam A OrderParam object representing the order from the taker.
+     * @param makerOrderParams An array of OrderParam objects representing orders
+     *                         from a list of makers.
+     * @param posFilledAmounts An array of uint256 representing filled amount for each pair.
+     * @param orderAddressSet An object containing addresses common across each order.
+     */
     function matchMarketContractOrders(
         OrderParam memory takerOrderParam,
         OrderParam[] memory makerOrderParams,
@@ -164,6 +185,15 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         settleResults(results, takerOrderParam, orderAddressSet, orderContext);
     }
 
+    /**
+     * Get order context from given orderParam on taker's side.
+     * An order context contains all information about MARKET Protocol contract
+     * for further use.
+     *
+     * @param orderAddressSet An object containing addresses common across each order.
+     * @param takerOrderParam A OrderParam object representing the order from the taker.
+     # @return A OrderContext object contains information abount MARKET Protocol contract.
+     */
     function getOrderContext(
         OrderAddressSet memory orderAddressSet,
         OrderParam memory takerOrderParam
@@ -190,6 +220,18 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         return orderContext;
     }
 
+    /**
+     * Generate matching plans.
+     *
+     * @param takerOrderParam A OrderParam object representing the order from the taker.
+     * @param makerOrderParams An array of OrderParam objects representing orders
+     *                         from a list of makers.
+     * @param posFilledAmounts An array of uint256 representing filled amount for each pair.
+     * @param orderAddressSet An object containing addresses common across each order.
+     * @param orderContext A OrderContext object contains information abount
+     *                     MARKET Protocol contract.
+     * @return A array of MatchResult object contains matching results.
+     */
     function getMatchPlan(
         OrderParam memory takerOrderParam,
         OrderParam[] memory makerOrderParams,
@@ -207,7 +249,8 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         );
 
         uint256 resultIndex;
-        // Each matched pair will produce two results at most (exchange + mint, exchange + redeem).
+        // Each matched pair will produce 3 results at most. so that alloc MAX_MATCHES (3)
+        // to avoid overflow.
         results = new MatchResult[](makerOrderParams.length * MAX_MATCHES);
         for (uint256 i = 0; i < makerOrderParams.length; i++) {
             require(!isMarketOrder(makerOrderParams[i].data), MAKER_ORDER_CAN_NOT_BE_MARKET_ORDER);
@@ -240,6 +283,8 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
                 results[resultIndex] = result;
                 resultIndex++;
             }
+            // must be full filled for a maker, if not, that means the exchange progress
+            // is not expected.
             require(toFillAmount == 0, UNMATCHED_FILL);
             filled[makerOrderInfo.orderHash] = makerOrderInfo.filledAmount;
         }
@@ -248,6 +293,13 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         return results;
     }
 
+    /**
+     * Check wether the given contract address is on the whitelist of market contract registry.
+     * Only enabled when marketRegistryAddress variable is properly set.
+     * If marketRegistryAddress is set to 0x0, the check is disable.
+     *
+     * @param marketContractAddress Address of MARKET Protocol contract.
+     */
     function validateMarketContract(address marketContractAddress) internal view {
         if (marketRegistryAddress == address(0x0)) {
             return;
@@ -259,6 +311,15 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         );
     }
 
+    /**
+     * Calculate per-unit middle price in collateral.
+     * The basic formula is (CAP + FLOOR) / 2.
+     * The QTY_MULTIPLIER is to fix the decimals diff between price and collateral.
+     *
+     * @param orderContext A OrderContext object contains information abount
+     *                     MARKET Protocol contract.
+     * @return The per-unit middle price in collateral.
+     */
     function calculateMiddleCollateralPerUnit(OrderContext memory orderContext)
         internal
         view
@@ -270,6 +331,15 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             .div(2);
     }
 
+    /**
+     * Calculate long side margin in collateral, convert price to margin.
+     * Long side margin = PRICE - FLOOR.
+     *
+     * @param orderContext A OrderContext object contains information abount
+     *                     MARKET Protocol contract.
+     * @param orderParam A OrderParam object representing the order.
+     # @return Long side margin in collateral.
+     */
     function calculateLongMargin(OrderContext memory orderContext, OrderParam memory orderParam)
         internal
         view
@@ -280,6 +350,15 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             .mul(orderContext.marketContract.QTY_MULTIPLIER());
     }
 
+    /**
+     * Calculate short side margin in collateral, convert price to margin.
+     * Short side margin = CAP - PRICE.
+     *
+     * @param orderContext A OrderContext object contains information abount
+     *                     MARKET Protocol contract.
+     * @param orderParam A OrderParam object representing the order.
+     # @return Short side margin in collateral.
+     */
     function calculateShortMargin(OrderContext memory orderContext, OrderParam memory orderParam)
         internal
         view
@@ -290,6 +369,16 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             .mul(orderContext.marketContract.QTY_MULTIPLIER());
     }
 
+    /**
+     * Check if price asked by maker and price bid by taker are met.
+     * Currently, to maker sure the `MINT` action always work, we assume that the trading fee
+     * can always cover mint fee.
+     *
+     * @param takerOrderParam A OrderParam object representing the order from taker.
+     * @param makerOrderParam A OrderParam object representing the order from maker.
+     * @param orderContext A OrderContext object contains information abount
+     *                     MARKET Protocol contract.
+     */
     function validatePrice(
         OrderParam memory takerOrderParam,
         OrderParam memory makerOrderParam,
@@ -311,6 +400,20 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         }
     }
 
+    /**
+     * Check if price asked by maker and price bid by taker are met.
+     * Currently, to maker sure the `MINT` action always work, we assume that the trading fee
+     * can always cover mint fee.
+     *
+     * @param takerOrderParam A OrderParam object representing the order from taker.
+     * @param takerOrderInfo The OrderInfo object representing the current taker order state
+     * @param makerOrderParam A OrderParam object representing the order from maker.
+     * @param makerOrderInfo The OrderInfo object representing the current maker order state
+     * @param orderContext A OrderContext object contains information abount
+     *                     MARKET Protocol contract.
+     * @param posFilledAmount A integer representing how much position tokens should be filled.
+     * @return A MatchResult object and filled amount.
+     */
     function getMatchResult(
         OrderParam memory takerOrderParam,
         OrderInfo memory takerOrderInfo,
@@ -355,6 +458,14 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         return (result, filledAmount);
     }
 
+    /**
+     * Calculate per-unit fee for maker in collateral.
+     *
+     * @param orderContext A OrderContext object contains information abount
+     *                     MARKET Protocol contract.
+     * @param orderParam A OrderParam object representing the order.
+     * @return Per-unit maker fee in collateral.
+     */
     function getMakerFeeBase(
         OrderContext memory orderContext,
         OrderParam memory orderParam
@@ -369,6 +480,14 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             .div(FEE_RATE_BASE);
     }
 
+    /**
+     * Calculate per-unit fee for taker in collateral.
+     *
+     * @param orderContext A OrderContext object contains information abount
+     *                     MARKET Protocol contract.
+     * @param orderParam A OrderParam object representing the order.
+     * @return Per-unit taker fee in collateral.
+     */
     function getTakerFeeBase(
         OrderContext memory orderContext,
         OrderParam memory orderParam
@@ -383,6 +502,19 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             .div(FEE_RATE_BASE);
     }
 
+    /**
+     * According to the matching result, calculate and update trading infomations.
+     *
+     * @param result A MatchResult object indicating that how the order be filled.
+     * @param takerOrderParam A OrderParam object representing the order from taker.
+     * @param takerOrderInfo The OrderInfo object representing the current taker order state
+     * @param makerOrderParam A OrderParam object representing the order from maker.
+     * @param makerOrderInfo The OrderInfo object representing the current maker order state
+     * @param orderContext A OrderContext object contains information abount
+     *                     MARKET Protocol contract.
+     * @param posFilledAmount A integer representing how much position tokens should be filled.
+     * @return Filled amount.
+     */
     function fillMatchResult(
         MatchResult memory result,
         OrderParam memory takerOrderParam,
@@ -567,6 +699,12 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         order.data = orderParam.data;
     }
 
+    /**
+     * Calculate all total fee required.
+     *
+     * @param result A MatchResult object indicating that how the order be filled.
+     * @return Total fee for trading.
+     */
     function calculateTotalFee(MatchResult memory result)
         internal
         pure

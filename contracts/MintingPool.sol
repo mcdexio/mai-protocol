@@ -31,6 +31,9 @@ contract MintingPool is LibOwnable, LibWhitelist {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
+    /**
+     * Statistic record. MPX Contract => Amounts
+     */
     mapping(address => uint256) public minted;
     mapping(address => uint256) public redeemed;
     mapping(address => uint256) public sent;
@@ -40,6 +43,9 @@ contract MintingPool is LibOwnable, LibWhitelist {
     event Redeem(address indexed contractAddress, address indexed to, uint256 value);
     event Withdraw(address indexed tokenAddress, address indexed to, uint256 amount);
 
+    /// @dev Withdraw collaterals left in the pool, owner only.
+    /// @param marketContractAddress Address of market contract.
+    /// @param amount Amount of collater to withdraw.
     function withdrawCollateral(
         address marketContractAddress,
         uint256 amount
@@ -55,6 +61,9 @@ contract MintingPool is LibOwnable, LibWhitelist {
         emit Withdraw(marketContract.COLLATERAL_TOKEN_ADDRESS(), msg.sender, amount);
     }
 
+    /// @dev Withdraw market tokens (MKT) left in the pool, owner only.
+    /// @param marketContractAddress Address of market contract.
+    /// @param amount Amount of collater to withdraw.
     function withdrawMarketToken(address marketContractAddress, uint256 amount)
         external
         onlyOwner
@@ -70,15 +79,12 @@ contract MintingPool is LibOwnable, LibWhitelist {
         emit Withdraw(marketContractPool.mktToken(), msg.sender, amount);
     }
 
-    /**
-     * Mint position tokens with collateral within contract for further exchange.
-     * Called by administrator periodly to adjust the ratio of collateral to position tokens.
-     * Not like in mintPositionTokens, payInMKT will force using mkt to pay fee.
-     *
-     * @param marketContractAddress Address of market contract.
-     * @param qtyToMint Quantity of position tokens to mint.
-     * @param payInMKT Try to use mkt as mint fee, only when pool has enough mkt tokens.
-     */
+    /// @dev Mint position tokens with collateral within contract for further exchange.
+    /// Called by administrator periodly to adjust the ratio of collateral to position tokens.
+    /// Not like in mintPositionTokens, payInMKT will force using mkt to pay fee.
+    /// @param marketContractAddress Address of market contract.
+    /// @param qtyToMint Quantity of position tokens to mint.
+    /// @param payInMKT Try to use mkt as mint fee, only when pool has enough mkt tokens.
     function internalMintPositionTokens(
         address marketContractAddress,
         uint qtyToMint,
@@ -100,14 +106,12 @@ contract MintingPool is LibOwnable, LibWhitelist {
         emit Mint(marketContractAddress, address(this), qtyToMint);
     }
 
-    /**
-     * Redeem collateral with position tokens within contract for further exchange.
-     * Called by administrator periodly to adjust the ratio of collateral to position tokens.
-     * The return amount of the collateral is decided by specified market protocol.
-     *
-     * @param marketContractAddress Address of market contract.
-     * @param qtyToRedeem Quantity of position tokens to redeem.
-     */
+
+    /// @dev Redeem collateral with position tokens within contract for further exchange.
+    /// Called by administrator periodly to adjust the ratio of collateral to position tokens.
+    /// The return amount of the collateral is decided by specified market protocol.
+    /// @param marketContractAddress Address of market contract.
+    /// @param qtyToRedeem Quantity of position tokens to redeem.
     function internalRedeemPositionTokens(
         address marketContractAddress,
         uint qtyToRedeem
@@ -124,18 +128,17 @@ contract MintingPool is LibOwnable, LibWhitelist {
         emit Redeem(marketContractAddress, address(this), qtyToRedeem);
     }
 
- /**
-     * Send asked position Tokens msg.sender. Tokens will be directly transfer to sender when pool
-     * has enough position tokens in it, otherwise tokens will be minted from market contract pool.
-     * Position tokens are always tranferred in pairs (long == short).
-     * isAttemptToPayInMKT is not a promising but an attempt. It works only when the amount of mkt
-     * tokens in pool could fully cover the mint fee of position tokens, or the fee would still be
-     * paid in collateral token.
-     *
-     * @param marketContractAddress Address of market contract.
-     * @param qtyToMint Quantity of position tokens to mint.
-     * @param isAttemptToPayInMKT Try to use mkt as mint fee, only when pool has enough mkt tokens.
-     */
+
+    /// @dev Mint position Tokens and send them to msg.sender.
+    /// Tokens will be directly transfer to sender when pool
+    /// has enough position tokens in it, otherwise tokens will be minted from market contract pool.
+    /// Position tokens are always tranferred in pairs (long == short).
+    /// isAttemptToPayInMKT is not a promising but an attempt. It works only when the amount of mkt
+    /// tokens in pool could fully cover the mint fee of position tokens, or the fee would still be
+    /// paid in collateral token.
+    /// @param marketContractAddress Address of market contract.
+    /// @param qtyToMint Quantity of position tokens to mint.
+    /// @param isAttemptToPayInMKT Try to use mkt as mint fee, only when pool has enough mkt tokens.
     function mintPositionTokens(
         address marketContractAddress,
         uint qtyToMint,
@@ -179,6 +182,12 @@ contract MintingPool is LibOwnable, LibWhitelist {
         emit Mint(marketContractAddress, msg.sender, qtyToMint);
     }
 
+    /// @dev Redeem position Tokens owned by msg.sender, get collateral back.
+    /// Tokens will be directly transfer to sender when pool has enough position tokens in it,
+    /// otherwise tokens will be minted from market contract pool.
+    /// Position tokens are always tranferred in pairs (long == short).
+    /// @param marketContractAddress Address of market contract.
+    /// @param qtyToRedeem Quantity of position tokens to redeem.
     function redeemPositionTokens(
         address marketContractAddress,
         uint qtyToRedeem
@@ -221,6 +230,10 @@ contract MintingPool is LibOwnable, LibWhitelist {
         emit Redeem(marketContractAddress, msg.sender, qtyToRedeem);
     }
 
+    /// @dev Approve collateral and mkt to allow market contract transfer these tokens.
+    /// Function `mintPositionTokens` requires collateral/mkt allowance to work properly.
+    /// @param marketContractAddress Address of market contract.
+    /// @param amount Amount to approve for speicified market contarct.
     function approveCollateralPool(address marketContractAddress, uint256 amount)
         public
         onlyOwner
@@ -241,6 +254,10 @@ contract MintingPool is LibOwnable, LibWhitelist {
         );
     }
 
+    /// @dev Helper function to detect balance of the pool for given token is greater than
+    /// the threshold.
+    /// @param tokenAddress Address of an ERC20 token.
+    /// @param amount Amount threshold.
     function hasEnoughBalance(address tokenAddress, uint256 amount)
         internal
         view
@@ -249,6 +266,10 @@ contract MintingPool is LibOwnable, LibWhitelist {
         return IERC20(tokenAddress).balanceOf(address(this)) >= amount;
     }
 
+    /// @dev Helper function to detect position balance of the pool for given token is greater than
+    /// the threshold.
+    /// @param marketContractAddress Address of MARKET Protocol contract
+    /// @param amount Amount threshold.
     function hasEnoughPositionBalance(address marketContractAddress, uint256 amount)
         internal
         view
@@ -259,9 +280,10 @@ contract MintingPool is LibOwnable, LibWhitelist {
             && hasEnoughBalance(marketContract.SHORT_POSITION_TOKEN(), amount);
     }
 
-    /**
-     * Helper to calculate total required collateral for minting.
-     */
+    /// @dev Helper to calculate total required collateral for minting.
+    /// @param marketContract A IMarketContract interface.
+    /// @param qtyToMint Amount to mint.
+    /// @return Total collateral required for minting
     function calculateTotalCollateral(IMarketContract marketContract, uint256 qtyToMint)
         internal
         view
@@ -272,6 +294,10 @@ contract MintingPool is LibOwnable, LibWhitelist {
             .mul(qtyToMint);
     }
 
+    /// @dev Helper to calculate total required market token for minting.
+    /// @param marketContract A IMarketContract interface.
+    /// @param qtyToMint Amount to mint.
+    /// @return Total market token required for minting
     function calculateMarketTokenFee(IMarketContract marketContract, uint256 qtyToMint)
         internal
         view
@@ -280,7 +306,10 @@ contract MintingPool is LibOwnable, LibWhitelist {
         return marketContract.MKT_TOKEN_FEE_PER_UNIT().mul(qtyToMint);
     }
 
-
+    /// @dev Helper to calculate total required collateral for redeeming.
+    /// @param marketContract A IMarketContract interface.
+    /// @param qtyToRedeem Amount to redeem.
+    /// @return Total collateral required for redeeming
     function calculateCollateralToReturn(IMarketContract marketContract, uint256 qtyToRedeem)
         internal
         view
