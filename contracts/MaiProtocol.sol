@@ -26,7 +26,6 @@ import "./lib/LibMath.sol";
 import "./lib/LibSignature.sol";
 import "./lib/LibRelayer.sol";
 import "./lib/LibExchangeErrors.sol";
-import "./lib/MathLib.sol";
 import "./interfaces/IMarketContractPool.sol";
 import "./interfaces/IMarketContract.sol";
 import "./interfaces/IMarketContractRegistry.sol";
@@ -241,6 +240,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
                 results[resultIndex] = result;
                 resultIndex++;
             }
+            require(toFillAmount == 0, UNMATCHED_FILL);
             filled[makerOrderInfo.orderHash] = makerOrderInfo.filledAmount;
         }
         filled[takerOrderInfo.orderHash] = takerOrderInfo.filledAmount;

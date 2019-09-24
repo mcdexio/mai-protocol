@@ -8,9 +8,7 @@ module.exports = {
         'helper/TestToken.sol',
         'helper/WethToken.sol',
         'helper/TestMaiProtocol.sol',
-        'helper/TestMarketContract.sol',
-        'lib/MathLib.sol',
-        'lib/SafeMath.sol'
+        'helper/TestMarketContract.sol'
     ],
     copyPackages: [
         '@openzeppelin/contracts'

@@ -3,7 +3,7 @@ const contractAddresses = require('./contract-addresses.js');
 
 const Proxy = artifacts.require('Proxy.sol');
 const IMarketContract = artifacts.require('./interfaces/IMarketContract.sol');
-const IERC20 = artifacts.require('./interfaces/IERC20.sol');
+const IERC20 = artifacts.require('./IERC20.sol');
 
 const infinity = '999999999999999999999999999999999999999999';
 
@@ -32,8 +32,10 @@ module.exports = async () => {
         const allowance = await collateral.allowance(relayerAccount, contractAddresses.proxy);
         console.log("Current relayer", relayerAccount, "allowance is", allowance.toString());
 
+        process.exit(0);
     } catch (error) {
         console.log(error);
+        process.exit(1);
     }
 
 }
