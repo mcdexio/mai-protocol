@@ -17,8 +17,10 @@ cache:
 
 before_install:
   - pwd
+  - chmod +x ./scripts/coverage_setup.sh
+  - chmod +x ./scripts/travis_npm_compile.sh
   - ./scripts/coverage_setup.sh
-  - ./scripts/travis_npm_compile.sh
+  - npm install
   #- docker-compose up -d
   #- docker-compose --version
   #- docker-compose ps
