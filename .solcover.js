@@ -1,6 +1,6 @@
 module.exports = {
-    port: 6545,
-    // norpc: true, // node_modules/.bin/testrpc-sc -p 6545 --gasLimit 17592186044415
+    port: 8555,
+    // norpc: true,
     skipFiles: [
         'helper/TestMath.sol',
         'helper/TestOrder.sol',
