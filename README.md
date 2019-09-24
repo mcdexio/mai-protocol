@@ -1,6 +1,6 @@
 # Mai Protocol
 
-[![CircleCI](https://circleci.com/gh/mcdexio/mai-protocol/tree/master.svg?style=svg)](https://circleci.com/gh/mcdexio/mai-protocol/tree/master)
+[![Build Status](https://travis-ci.org/mcdexio/mai-protocol.svg?branch=master)](https://travis-ci.org/mcdexio/mai-protocol)
 [![codecov](https://codecov.io/gh/mcdexio/mai-protocol/branch/master/graph/badge.svg)](https://codecov.io/gh/mcdexio/mai-protocol)
 
 
