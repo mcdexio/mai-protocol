@@ -1,8 +1,7 @@
 # Mai Protocol
 
 [![Build Status](https://travis-ci.org/mcdexio/mai-protocol.svg?branch=master)](https://travis-ci.org/mcdexio/mai-protocol)
-[![codecov](https://codecov.io/gh/mcdexio/mai-protocol/branch/master/graph/badge.svg)](https://codecov.io/gh/mcdexio/mai-protocol)
-
+[![Coverage Status](https://coveralls.io/repos/github/mcdexio/mai-protocol/badge.svg?branch=master)](https://coveralls.io/github/mcdexio/mai-protocol?branch=master)
 
 Mai Protocol is an open-source framework for building decentralized derivatives exchanges on Ethereum.
 
