@@ -417,7 +417,7 @@ contract('Match', async accounts => {
                 relayer: relayer,
             };
             const orderContext = {
-                marketContractAddress: mpx._address,
+                marketContract: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -485,7 +485,7 @@ contract('Match', async accounts => {
                 relayer: relayer,
             };
             const orderContext = {
-                marketContractAddress: mpx._address,
+                marketContract: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -553,7 +553,7 @@ contract('Match', async accounts => {
                 relayer: relayer,
             };
             const orderContext = {
-                marketContractAddress: mpx._address,
+                marketContract: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -620,7 +620,7 @@ contract('Match', async accounts => {
                 relayer: relayer,
             };
             const orderContext = {
-                marketContractAddress: mpx._address,
+                marketContract: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -676,7 +676,7 @@ contract('Match', async accounts => {
                 relayer: relayer,
             };
             const orderContext = {
-                marketContractAddress: mpx._address,
+                marketContract: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -731,7 +731,7 @@ contract('Match', async accounts => {
                 relayer: relayer,
             };
             const orderContext = {
-                marketContractAddress: mpx._address,
+                marketContract: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -791,7 +791,7 @@ contract('Match', async accounts => {
                 relayer: relayer,
             };
             const orderContext = {
-                marketContractAddress: mpx._address,
+                marketContract: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -852,7 +852,7 @@ contract('Match', async accounts => {
                 relayer: relayer,
             };
             const orderContext = {
-                marketContractAddress: mpx._address,
+                marketContract: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -913,7 +913,7 @@ contract('Match', async accounts => {
                 relayer: relayer,
             };
             const orderContext = {
-                marketContractAddress: mpx._address,
+                marketContract: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -964,7 +964,7 @@ contract('Match', async accounts => {
                 gasTokenAmount: toWei(0.1),
             });
             const orderContext = {
-                marketContractAddress: mpx._address,
+                marketContract: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -1006,7 +1006,7 @@ contract('Match', async accounts => {
                 gasTokenAmount: toWei(0.1),
             });
             const orderContext = {
-                marketContractAddress: mpx._address,
+                marketContract: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -1055,7 +1055,7 @@ contract('Match', async accounts => {
                 relayer: relayer,
             };
             const orderContext = {
-                marketContractAddress: mpx._address,
+                marketContract: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -1120,7 +1120,7 @@ contract('Match', async accounts => {
                 relayer: relayer,
             };
             const orderContext = {
-                marketContractAddress: mpx._address,
+                marketContract: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
