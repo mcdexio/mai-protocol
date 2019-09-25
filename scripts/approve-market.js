@@ -7,12 +7,6 @@ const IERC20 = artifacts.require('./IERC20.sol');
 
 const infinity = '999999999999999999999999999999999999999999';
 
-// ==== begin of settings ======
-const relayerAccount = "0x93388b4efe13b9b18ed480783c05462409851547";
-
-// ==== end of settings ======
-
-
 module.exports = async () => {
     try {
         const mpContract = await IMarketContract.at(contractAddresses.marketContract);
@@ -26,11 +20,11 @@ module.exports = async () => {
 
         console.log("Approving [ Replayer -> Proxy ] ...");
         const collateral = await IERC20.at(contractAddresses.collateral);
-        await collateral.approve(contractAddresses.proxy, infinity, { from: relayerAccount });
-        console.log("Approved  [", relayerAccount, "->", contractAddresses.proxy, "]");
+        await collateral.approve(contractAddresses.proxy, infinity, { from: contractAddresses.relayerAccount });
+        console.log("Approved  [", contractAddresses.relayerAccount, "->", contractAddresses.proxy, "]");
 
-        const allowance = await collateral.allowance(relayerAccount, contractAddresses.proxy);
-        console.log("Current relayer", relayerAccount, "allowance is", allowance.toString());
+        const allowance = await collateral.allowance(contractAddresses.relayerAccount, contractAddresses.proxy);
+        console.log("Current relayer", contractAddresses.relayerAccount, "allowance is", allowance.toString());
 
         process.exit(0);
     } catch (error) {
