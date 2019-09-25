@@ -37,6 +37,8 @@ contract TestMarketContract {
 
     event Mint(address indexed to, uint value);
     event Redeem(address indexed to, uint value);
+    event UpdatedLastPrice(uint256 price);
+    event ContractSettled(uint settlePrice);
 
     constructor(
         address collateralToken,
@@ -158,5 +160,23 @@ contract TestMarketContract {
         returns (bool)
     {
         return contractWhitelist[contractAddress];
+    }
+
+    function settleContract(uint finalSettlementPrice)
+        public
+    {
+        settlementTimeStamp = now;
+        settlementPrice = finalSettlementPrice;
+        emit ContractSettled(finalSettlementPrice);
+    }
+
+    function arbitrateSettlement(uint256 price)
+        public
+    {
+        require(price >= PRICE_FLOOR && price <= PRICE_CAP, "arbitration price must be within contract bounds");
+        lastPrice = price;
+        emit UpdatedLastPrice(price);
+        settleContract(price);
+        isSettled = true;
     }
 }

@@ -317,9 +317,11 @@ contract('Mai', async accounts => {
         }
     });
 
-    describe('expiredMP', async () => {
-        it('error after expire + delay', async () => {
-            await increaseEvmTime(31 * 86400);
+    describe('expired market contract', async () => {
+        it('error after settle + delay', async () => {
+            await mpx.methods.arbitrateSettlement(toPrice('8000')).send({from: admin});
+            await increaseEvmTime(1 * 86400 + 1);
+            assert.ok(await mpx.methods.isPostSettlementDelay().call(), "now it is after settlement delay");
             let bad1 = null;
             try {
                 const testConfig = {
@@ -333,6 +335,7 @@ contract('Mai', async accounts => {
                         side: "buy",
                         amount: toBase(1),
                         price: toPrice(7900),
+                        takerFeeRate: 250,
                     },
                     makerOrders: [
                         {
@@ -340,6 +343,7 @@ contract('Mai', async accounts => {
                             side: "sell",
                             amount: toBase(1),
                             price: toPrice(7900),
+                            makerFeeRate: 250,
                         }
                     ],
                     filledAmounts: [
@@ -356,6 +360,41 @@ contract('Mai', async accounts => {
             }
             assert.notEqual(bad1, null, "should revert")
             assert.ok(bad1.message.includes('MP_EXPIRED'), "should throw MP_EXPIRED")
+        });
+
+        it('can mint after settlement', async () => {
+            await mpx.methods.arbitrateSettlement(toPrice('8000')).send({from: admin});
+            const testConfig = {
+                initialBalances: {
+                    u1: { collateral: toWei(10000) },
+                    u2: { collateral: toWei(10000) },
+                    relayer: {},
+                },
+                takerOrder: {
+                    trader: u2,
+                    side: "buy",
+                    amount: toBase(0.1),
+                    price: toPrice(7900),
+                    takerFeeRate: 250,
+                },
+                makerOrders: [
+                    {
+                        trader: u1,
+                        side: "sell",
+                        amount: toBase(0.1),
+                        price: toPrice(7800),
+                        makerFeeRate: 250,
+                    }
+                ],
+                filledAmounts: [
+                    toBase(0.1)
+                ],
+                users: { admin, u1, u2, u3, relayer },
+                tokens: { collateral, long, short },
+                admin: admin,
+                gasLimit: 8000000,
+            };
+            await matchTest(testConfig);
         });
     });
 

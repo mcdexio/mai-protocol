@@ -156,13 +156,14 @@ const buildOrder = async (orderParam) => {
     return order;
 };
 
-async function increaseEvmTime(duration) {
+function increaseEvmTime(duration) {
+    const id = Date.now();
     return new Promise((resolve, reject) => {
         web3.currentProvider.send({
             jsonrpc: '2.0', 
             method: 'evm_increaseTime', 
             params: [duration], 
-            id: 0
+            id: id,
         }, (err, resp) => {
             if (err) {
                 reject(err);
@@ -172,7 +173,7 @@ async function increaseEvmTime(duration) {
                 jsonrpc: '2.0', 
                 method: 'evm_mine', 
                 params: [], 
-                id: 0
+                id: id + 1,
             }, (err, resp) => {
                 if (err) {
                     reject(err);
