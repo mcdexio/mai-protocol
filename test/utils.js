@@ -134,10 +134,10 @@ const buildOrder = async (orderParam) => {
     const order = {
         trader: orderParam.trader,
         relayer: orderParam.relayer,
-        marketContract: orderParam.marketContract,
+        marketContractAddress: orderParam.marketContractAddress,
         amount: orderParam.amount,
         price: orderParam.price,
-        gasAmount: orderParam.gasAmount,
+        gasTokenAmount: orderParam.gasTokenAmount,
         data: generateOrderData(
             orderParam.version,
             orderParam.side === 'sell',

@@ -81,10 +81,10 @@ contract('Match', async accounts => {
         const order = {
             trader: orderParam.trader,
             relayer: orderParam.relayer,
-            marketContract: orderParam.marketContract,
+            marketContractAddress: orderParam.marketContractAddress,
             amount: orderParam.amount,
             price: orderParam.price,
-            gasAmount: orderParam.gasAmount,
+            gasTokenAmount: orderParam.gasTokenAmount,
             data: generateOrderData(
                 orderParam.version,
                 orderParam.side === 'sell',
@@ -107,7 +107,7 @@ contract('Match', async accounts => {
         const orderParam = {
             trader: config.trader,
             relayer,
-            marketContract: mpx._address,
+            marketContractAddress: mpx._address,
             version: 2,
             side: config.side,
             type: 'limit',
@@ -116,7 +116,7 @@ contract('Match', async accounts => {
             asTakerFeeRate: config.takerFeeRate || '0',
             amount: config.amount,
             price: config.price,
-            gasAmount: config.gasAmount || toWei(0.1),
+            gasTokenAmount: config.gasTokenAmount || toWei(0.1),
         };
         return await buildOrder(orderParam);
     }
@@ -413,11 +413,11 @@ contract('Match', async accounts => {
                 fillAction: FillActions.MINT,
             };
             const orderAddressSet = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 relayer: relayer,
             };
             const orderContext = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -481,11 +481,11 @@ contract('Match', async accounts => {
                 fillAction: FillActions.MINT,
             };
             const orderAddressSet = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 relayer: relayer,
             };
             const orderContext = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -549,11 +549,11 @@ contract('Match', async accounts => {
                 fillAction: FillActions.MINT,
             };
             const orderAddressSet = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 relayer: relayer,
             };
             const orderContext = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -616,11 +616,11 @@ contract('Match', async accounts => {
                 fillAction: FillActions.MINT,
             };
             const orderAddressSet = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 relayer: relayer,
             };
             const orderContext = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -672,11 +672,11 @@ contract('Match', async accounts => {
                 fillAction: FillActions.MINT,
             };
             const orderAddressSet = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 relayer: relayer,
             };
             const orderContext = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -727,11 +727,11 @@ contract('Match', async accounts => {
                 fillAction: FillActions.BUY,
             };
             const orderAddressSet = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 relayer: relayer,
             };
             const orderContext = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -787,11 +787,11 @@ contract('Match', async accounts => {
                 fillAction: FillActions.BUY,
             };
             const orderAddressSet = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 relayer: relayer,
             };
             const orderContext = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -848,11 +848,11 @@ contract('Match', async accounts => {
                 fillAction: FillActions.REDEEM,
             };
             const orderAddressSet = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 relayer: relayer,
             };
             const orderContext = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -909,11 +909,11 @@ contract('Match', async accounts => {
                 fillAction: FillActions.REDEEM,
             };
             const orderAddressSet = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 relayer: relayer,
             };
             const orderContext = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -938,7 +938,7 @@ contract('Match', async accounts => {
             const makerOrder = await buildOrder({
                 trader: u1,
                 relayer,
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 version: 2,
                 side: "buy",
                 type: 'limit',
@@ -947,12 +947,12 @@ contract('Match', async accounts => {
                 asTakerFeeRate: 0,
                 amount: toBase(1),
                 price: toBase(8000),
-                gasAmount: toWei(0.1),
+                gasTokenAmount: toWei(0.1),
             });
             const takerOrder = await buildOrder({
                 trader: u2,
                 relayer,
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 version: 2,
                 side: 'sell',
                 type: 'limit',
@@ -961,10 +961,10 @@ contract('Match', async accounts => {
                 asTakerFeeRate: 150,
                 amount: toBase(1),
                 price: toBase(8000),
-                gasAmount: toWei(0.1),
+                gasTokenAmount: toWei(0.1),
             });
             const orderContext = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -980,7 +980,7 @@ contract('Match', async accounts => {
             const makerOrder = await buildOrder({
                 trader: u1,
                 relayer,
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 version: 2,
                 side: "buy",
                 type: 'limit',
@@ -989,12 +989,12 @@ contract('Match', async accounts => {
                 asTakerFeeRate: 0,
                 amount: toBase(1),
                 price: toBase(8000),
-                gasAmount: toWei(0.1),
+                gasTokenAmount: toWei(0.1),
             });
             const takerOrder = await buildOrder({
                 trader: u2,
                 relayer,
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 version: 2,
                 side: 'sell',
                 type: 'limit',
@@ -1003,10 +1003,10 @@ contract('Match', async accounts => {
                 asTakerFeeRate: 149,
                 amount: toBase(1),
                 price: toBase(8000),
-                gasAmount: toWei(0.1),
+                gasTokenAmount: toWei(0.1),
             });
             const orderContext = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -1051,11 +1051,11 @@ contract('Match', async accounts => {
                 fillAction: FillActions.SELL,
             };
             const orderAddressSet = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 relayer: relayer,
             };
             const orderContext = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [
@@ -1116,11 +1116,11 @@ contract('Match', async accounts => {
                 fillAction: FillActions.SELL,
             };
             const orderAddressSet = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 relayer: relayer,
             };
             const orderContext = {
-                marketContract: mpx._address,
+                marketContractAddress: mpx._address,
                 marketContractPool: mpx._address,
                 ctkAddress: collateral._address,
                 posAddresses: [

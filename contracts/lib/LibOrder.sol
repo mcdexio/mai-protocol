@@ -31,10 +31,10 @@ contract LibOrder is EIP712, LibSignature, LibMath {
     struct Order {
         address trader;
         address relayer;
-        address marketContract;
+        address marketContractAddress;
         uint256 amount;
         uint256 price;
-        uint256 gasAmount;
+        uint256 gasTokenAmount;
 
         /**
          * Data contains the following values packed into 32 bytes
@@ -73,7 +73,7 @@ contract LibOrder is EIP712, LibSignature, LibMath {
 
     bytes32 public constant EIP712_ORDER_TYPE = keccak256(
         abi.encodePacked(
-            "Order(address trader,address relayer,address marketContract,uint256 amount,uint256 price,uint256 gasAmount,bytes32 data)"
+            "Order(address trader,address relayer,address marketContractAddress,uint256 amount,uint256 price,uint256 gasTokenAmount,bytes32 data)"
         )
     );
 
@@ -103,7 +103,7 @@ contract LibOrder is EIP712, LibSignature, LibMath {
          *         EIP712_ORDER_TYPE,
          *         bytes32(order.trader),
          *         bytes32(order.relayer),
-         *         bytes32(order.marketContract),
+         *         bytes32(order.marketContractAddress),
          *         order.amount,
          *         order.price,
          *         order.gasTokenAmount,

@@ -77,7 +77,7 @@ contract('Mai', async accounts => {
         const orderParam = {
             trader: config.trader,
             relayer,
-            marketContract: mpx._address,
+            marketContractAddress: mpx._address,
             version: 2,
             side: config.side,
             type: 'limit',
@@ -86,7 +86,7 @@ contract('Mai', async accounts => {
             asTakerFeeRate: config.takerFeeRate || '0',
             amount: config.amount,
             price: config.price,
-            gasAmount: config.gasAmount || toWei(0.1),
+            gasTokenAmount: config.gasTokenAmount || toWei(0.1),
         };
         return await buildOrder(orderParam);
     }
@@ -157,7 +157,7 @@ contract('Mai', async accounts => {
         const users = matchConfigs.users || {};
         const tokens = matchConfigs.tokens || {};
         const orderAsset = matchConfigs.orderAsset || {
-            marketContract: mpx._address,
+            marketContractAddress: mpx._address,
             relayer: relayer,
         };
 

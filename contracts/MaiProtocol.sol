@@ -80,7 +80,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         address trader;
         uint256 amount;
         uint256 price;
-        uint256 gasAmount;
+        uint256 gasTokenAmount;
         bytes32 data;
         OrderSignature signature;
     }
@@ -98,7 +98,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     }
 
     struct OrderAddressSet {
-        address marketContract;
+        address marketContractAddress;
         address relayer;
     }
 
@@ -172,7 +172,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         require(canMatchMarketContractOrdersFrom(orderAddressSet.relayer), INVALID_SENDER);
         require(!isMakerOnly(takerOrderParam.data), MAKER_ONLY_ORDER_CANNOT_BE_TAKER);
 
-        validateMarketContract(orderAddressSet.marketContract);
+        validateMarketContract(orderAddressSet.marketContractAddress);
 
         OrderContext memory orderContext = getOrderContext(orderAddressSet, takerOrderParam);
         MatchResult[] memory results = getMatchPlan(
@@ -202,7 +202,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         view
         returns (OrderContext memory orderContext)
     {
-        orderContext.marketContract = IMarketContract(orderAddressSet.marketContract);
+        orderContext.marketContract = IMarketContract(orderAddressSet.marketContractAddress);
 
         require (!orderContext.marketContract.isPostSettlementDelay(), MP_EXPIRED);
         orderContext.marketContractPool = IMarketContractPool(
@@ -427,10 +427,10 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
 
         // Each order only pays gas once, so only pay gas when nothing has been filled yet.
         if (takerOrderInfo.filledAmount == 0) {
-            result.takerGasFee = takerOrderParam.gasAmount;
+            result.takerGasFee = takerOrderParam.gasTokenAmount;
         }
         if (makerOrderInfo.filledAmount == 0) {
-            result.makerGasFee = makerOrderParam.gasAmount;
+            result.makerGasFee = makerOrderParam.gasTokenAmount;
         }
 
         // calculate posFilledAmount && ctkFilledAmount, update balances
@@ -688,10 +688,10 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     {
         order.trader = orderParam.trader;
         order.relayer = orderAddressSet.relayer;
-        order.marketContract = orderAddressSet.marketContract;
+        order.marketContractAddress = orderAddressSet.marketContractAddress;
         order.amount = orderParam.amount;
         order.price = orderParam.price;
-        order.gasAmount = orderParam.gasAmount;
+        order.gasTokenAmount = orderParam.gasTokenAmount;
         order.data = orderParam.data;
     }
 
@@ -894,7 +894,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             result.posFilledAmount
         );
         // proxy -> mpx
-        redeemPositionTokens(orderAddressSet.marketContract, result.posFilledAmount);
+        redeemPositionTokens(orderAddressSet.marketContractAddress, result.posFilledAmount);
         // proxy -> maker
         transfer(
             orderContext.ctkAddress,
@@ -1003,7 +1003,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
                 .add(result.takerGasFee)
         );
         // proxy <- long/short position tokens
-        mintPositionTokens(orderAddressSet.marketContract, result.posFilledAmount);
+        mintPositionTokens(orderAddressSet.marketContractAddress, result.posFilledAmount);
         // proxy -> taker
         transfer(
             orderContext.posAddresses[orderContext.takerSide],
