@@ -11,7 +11,7 @@
     "ethereumjs-util": "^5.2.0",
     "solidity-coverage": "^0.5.11",
     "truffle": "^5.0.32",
-    "truffle-privatekey-provider": "^0.1.0",
+    "truffle-privatekey-provider": "1.2.0",
     "web3": "^1.2.0"
   }
 }

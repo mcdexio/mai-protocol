@@ -383,12 +383,6 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         internal
         view
     {
-        uint256 totalFee = getMakerFeeBase(orderContext, makerOrderParam)
-            .add(getTakerFeeBase(orderContext, takerOrderParam));
-        require(
-            totalFee >= orderContext.marketContract.COLLATERAL_TOKEN_FEE_PER_UNIT(),
-            MINT_PRICE_NOT_MET
-        );
         if (isSell(takerOrderParam.data)) {
             require(takerOrderParam.price <= makerOrderParam.price, INVALID_MATCH);
         } else {
@@ -842,6 +836,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
                 .add(result.makerFee)
                 .add(result.makerGasFee)
         );
+        require(result.ctkFilledAmount >= result.takerFee.add(result.takerGasFee), LOW_MARGIN);
         // relayer to taker
         return result.ctkFilledAmount
             .sub(result.takerFee)
@@ -933,6 +928,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             result.taker,
             result.posFilledAmount
         );
+        require(result.ctkFilledAmount >= result.makerFee.add(result.makerGasFee), LOW_MARGIN);
         // taker -> maker
         transferFrom(
             orderContext.ctkAddress,
@@ -982,7 +978,16 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             .mul(orderContext.marketContract.COLLATERAL_PER_UNIT());
         uint256 neededCollateralTokenFee = result.posFilledAmount
             .mul(orderContext.marketContract.COLLATERAL_TOKEN_FEE_PER_UNIT());
+        uint256 totalFee = result.takerFee.add(result.makerFee);
 
+        if (neededCollateralTokenFee > totalFee) {
+            transferFrom(
+                orderContext.ctkAddress,
+                orderAddressSet.relayer,
+                proxyAddress,
+                neededCollateralTokenFee.sub(totalFee)
+            );
+        }
         // maker -> proxy
         transferFrom(
             orderContext.ctkAddress,
@@ -1016,8 +1021,10 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             result.maker,
             result.posFilledAmount
         );
-
-        // proxy -> taker
+        if (neededCollateralTokenFee > totalFee) {
+            return result.takerGasFee.add(result.makerGasFee);
+        }
+        // proxy -> relayer
         return result.makerFee
             .add(result.takerFee)
             .add(result.takerGasFee)

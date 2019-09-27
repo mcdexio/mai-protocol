@@ -47,4 +47,5 @@ contract LibExchangeErrors {
     string constant INSUFFICIENT_FEE = "INSUFFICIENT_FEE";
     string constant INVALID_MARKET_CONTRACT = "INVALID_MARKET_CONTRACT";
     string constant UNMATCHED_FILL = "UNMATCHED_FILL";
+    string constant LOW_MARGIN = "LOW_MARGIN";
 }

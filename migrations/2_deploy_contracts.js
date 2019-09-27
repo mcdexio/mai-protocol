@@ -1,7 +1,8 @@
 const Proxy = artifacts.require("Proxy.sol");
 const MaiProtocol = artifacts.require("MaiProtocol.sol");
 
-module.exports = async function(deployer, network, accounts) {
+module.exports = function (deployer, network, accounts) {
+    /*
     // proxy
     await deployer.deploy(Proxy);
     const proxyInstance = await Proxy.deployed();
@@ -13,4 +14,13 @@ module.exports = async function(deployer, network, accounts) {
     await proxyInstance.addAddress(MaiProtocol.address);
 
     console.log(MaiProtocol.address, "added to whitelist of Proxy");
+    */
+
+    return deployer.deploy(Proxy).then((proxyInstance) => {
+        return deployer.deploy(MaiProtocol, Proxy.address).then(() => {
+            return proxyInstance.addAddress(MaiProtocol.address).then(() => {
+                console.log("  ", MaiProtocol.address, "added to whitelist of Proxy");
+            });
+        });
+    });
 };
