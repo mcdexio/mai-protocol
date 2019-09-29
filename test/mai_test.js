@@ -1,48 +1,7 @@
 const assert = require('assert');
 const BigNumber = require('bignumber.js');
 const { getContracts, getMarketContract, buildOrder, increaseEvmTime } = require('./utils');
-
-const prices = new BigNumber('10000000000');
-const bases = new BigNumber('100000');
-const weis = new BigNumber('1000000000000000000');
-
-const toPrice = (...xs) => {
-    let sum = new BigNumber(0);
-    for (var x of xs) {
-        sum = sum.plus(new BigNumber(x).times(prices));
-    }
-    return sum.toFixed();
-}
-
-const fromPrice = x => {
-    return new BigNumber(x).div(prices).toString();
-}
-
-const toBase = (...xs) => {
-    let sum = new BigNumber(0);
-    for (var x of xs) {
-        sum = sum.plus(new BigNumber(x).times(bases));
-    }
-    return sum.toFixed();
-}
-
-const fromBase = x => {
-    return new BigNumber(x).div(bases).toString();
-}
-
-const toWei = (...xs) => {
-    let sum = new BigNumber(0);
-    for (var x of xs) {
-        sum = sum.plus(new BigNumber(x).times(weis));
-    }
-    return sum.toFixed();
-};
-
-const fromWei = x => {
-    return new BigNumber(x).div(weis).toString();
-};
-
-const infinity = '999999999999999999999999999999999999999999';
+const { toPrice, fromPrice, toBase, fromBase, toWei, fromWei, infinity } = require('./utils');
 
 contract('Mai', async accounts => {
     let exchange, proxy;

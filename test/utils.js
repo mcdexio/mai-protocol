@@ -2,14 +2,56 @@ const Web3 = require('web3');
 const Proxy = artifacts.require('./Proxy.sol');
 const MaiProtocol = artifacts.require('./MaiProtocol.sol');
 const TestMaiProtocol = artifacts.require('helper/TestMaiProtocol.sol');
-const BigNumber = require('bignumber.js');
 const TestToken = artifacts.require('helper/TestToken.sol');
 const TestMarketContract = artifacts.require('helper/TestMarketContract.sol');
 const MintingPool = artifacts.require('./MintingPool.sol');
 const { generateOrderData, isValidSignature, getOrderHash } = require('../sdk/sdk');
 const { fromRpcSig } = require('ethereumjs-util');
 
+const BigNumber = require('bignumber.js');
 BigNumber.config({ EXPONENTIAL_AT: 1000 });
+
+const prices = new BigNumber('10000000000');
+const bases = new BigNumber('100000');
+const weis = new BigNumber('1000000000000000000');
+
+const toPrice = (...xs) => {
+    let sum = new BigNumber(0);
+    for (var x of xs) {
+        sum = sum.plus(new BigNumber(x).times(prices));
+    }
+    return sum.toFixed();
+}
+
+const fromPrice = x => {
+    return new BigNumber(x).div(prices).toString();
+}
+
+const toBase = (...xs) => {
+    let sum = new BigNumber(0);
+    for (var x of xs) {
+        sum = sum.plus(new BigNumber(x).times(bases));
+    }
+    return sum.toFixed();
+}
+
+const fromBase = x => {
+    return new BigNumber(x).div(bases).toString();
+}
+
+const toWei = (...xs) => {
+    let sum = new BigNumber(0);
+    for (var x of xs) {
+        sum = sum.plus(new BigNumber(x).times(weis));
+    }
+    return sum.toFixed();
+};
+
+const fromWei = x => {
+    return new BigNumber(x).div(weis).toString();
+};
+
+const infinity = '999999999999999999999999999999999999999999';
 
 const getWeb3 = () => {
     const myWeb3 = new Web3(web3.currentProvider);
@@ -112,7 +154,6 @@ const getMarketContract = async (configs) => {
     }
 }
 
-
 const clone = x => JSON.parse(JSON.stringify(x));
 
 const getOrderSignature = async (order) => {
@@ -196,5 +237,6 @@ module.exports = {
     getMarketContract,
     getOrderSignature,
     buildOrder,
-    increaseEvmTime
+    increaseEvmTime,
+    toPrice, fromPrice, toBase, fromBase, toWei, fromWei, infinity
 };
