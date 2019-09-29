@@ -1,4 +1,3 @@
-const util = require('./util.js');
 const contractAddresses = require('./contract-addresses.js');
 
 const Proxy = artifacts.require('Proxy.sol');
