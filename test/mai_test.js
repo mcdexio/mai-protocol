@@ -186,7 +186,6 @@ contract('Mai', async accounts => {
         }
     }
 
-    /*
     it('should fail if maker is market order', async () => {
         const testConfig = {
             initialBalances: {
@@ -1256,7 +1255,6 @@ contract('Mai', async accounts => {
         };
         await matchTest(testConfig);
     });
-    */
 
     it('relayer pay for mint fee', async () => {
         const testConfig = {
