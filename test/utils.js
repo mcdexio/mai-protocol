@@ -7,6 +7,7 @@ const TestMarketContract = artifacts.require('helper/TestMarketContract.sol');
 const MintingPool = artifacts.require('./MintingPool.sol');
 const { generateOrderData, isValidSignature, getOrderHash } = require('../sdk/sdk');
 const { fromRpcSig } = require('ethereumjs-util');
+const assert = require('assert');
 
 const BigNumber = require('bignumber.js');
 BigNumber.config({ EXPONENTIAL_AT: 1000 });
@@ -52,6 +53,18 @@ const fromWei = x => {
 };
 
 const infinity = '999999999999999999999999999999999999999999';
+
+const shouldFailOnError = async (message, func) => {
+    try {
+        await func();
+    } catch (error) {
+        assert.ok(
+            error.message.includes(message),
+            `exception should include "${message}", but get "${error.message}"`);
+        return;
+    }
+    assert.fail(`should fail with "${message}"`);
+}
 
 const getWeb3 = () => {
     const myWeb3 = new Web3(web3.currentProvider);
@@ -238,5 +251,6 @@ module.exports = {
     getOrderSignature,
     buildOrder,
     increaseEvmTime,
-    toPrice, fromPrice, toBase, fromBase, toWei, fromWei, infinity
+    toPrice, fromPrice, toBase, fromBase, toWei, fromWei, infinity,
+    shouldFailOnError
 };

@@ -5,27 +5,7 @@ const CollateralToken = artifacts.require('helper/TestToken.sol');
 const LongPositionToken = artifacts.require('helper/TestToken.sol');
 const ShortPositionToken = artifacts.require('helper/TestToken.sol');
 const BigNumber = require('bignumber.js');
-
-const bases = 1e5;
-const weis = 1e18;
-
-const toBase = x => {
-    return new BigNumber(x).times(bases).toString();
-}
-
-const fromBase = x => {
-    return new BigNumber(x).div(bases).toString();
-}
-
-const toWei = x => {
-    return new BigNumber(x).times(weis).toString();
-};
-
-const fromWei = x => {
-    return new BigNumber(x).div(weis).toString();
-};
-
-const infinity = '999999999999999999999999999999999999999999';
+const { toBase, fromBase, toWei, fromWei, infinity } = require('./utils');
 
 contract('MPX', accounts => {
     let mpx;

@@ -1,37 +1,7 @@
 const assert = require('assert');
 const BigNumber = require('bignumber.js');
-const { getWeb3, getContracts, getMarketContract } = require('./utils');
-const { generateOrderData, isValidSignature, getOrderHash } = require('../sdk/sdk');
-const { fromRpcSig } = require('ethereumjs-util');
-
-const bases = new BigNumber('100000');
-const weis = new BigNumber('1000000000000000000');
-
-const toBase = (...xs) => {
-    let sum = new BigNumber(0);
-    for (var x of xs) {
-        sum = sum.plus(new BigNumber(x).times(bases));
-    }
-    return sum.toFixed();
-}
-
-const fromBase = x => {
-    return new BigNumber(x).div(bases).toString();
-}
-
-const toWei = (...xs) => {
-    let sum = new BigNumber(0);
-    for (var x of xs) {
-        sum = sum.plus(new BigNumber(x).times(weis));
-    }
-    return sum.toFixed();
-};
-
-const fromWei = x => {
-    return new BigNumber(x).div(weis).toString();
-};
-
-const infinity = '999999999999999999999999999999999999999999';
+const { getContracts, getMarketContract } = require('./utils');
+const { toBase, fromBase, toWei, fromWei, infinity } = require('./utils');
 
 contract('Pool', async accounts => {
     let mpx, collateral, long, short, mkt, pool;
