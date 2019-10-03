@@ -451,7 +451,7 @@ contract('match', async accounts => {
             [ toBase(0.5), toBase(0.5), ], // posFilledAmount
             getAddressSet(), orderContext
         ).call();
-        assert.equal(retResults.length, 6, 'results.length');
+        assert.equal(retResults.length, 5, 'results.length');
         assert.equal(retResults[0].fillAction, 2, 'results[0].fillAction'); // SELL
         assert.equal(retResults[1].fillAction, 4, 'results[1].fillAction'); // REDEEM
         assert.equal(retResults[2].fillAction, 0, 'results[2].fillAction'); // INVALID
