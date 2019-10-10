@@ -247,7 +247,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         uint256 resultIndex;
         // Each matched pair will produce 3 results at most. so that alloc MAX_MATCHES (3)
         // to avoid overflow.
-        results = new MatchResult[](3 + 2 * (makerOrderParams.length - 1));
+        results = new MatchResult[](makerOrderParams.length * MAX_MATCHES);
         for (uint256 i = 0; i < makerOrderParams.length; i++) {
             require(!isMarketOrder(makerOrderParams[i].data), MAKER_ORDER_CAN_NOT_BE_MARKET_ORDER);
             require(isSell(takerOrderParam.data) != isSell(makerOrderParams[i].data), INVALID_SIDE);
@@ -264,7 +264,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             );
 
             uint256 toFillAmount = posFilledAmounts[i];
-            for (uint256 j = 0; j < (3 + 2 * (makerOrderParams.length - 1)) && toFillAmount > 0; j++) {
+            for (uint256 j = 0; j < MAX_MATCHES && toFillAmount > 0; j++) {
                 MatchResult memory result;
                 uint256 filledAmount;
                 (result, filledAmount) = getMatchResult(
@@ -777,7 +777,10 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
                  */
                 ctkFromProxyToRelayer = ctkFromProxyToRelayer
                     .add(doMint(results[i], orderAddressSet, orderContext));
+            } else {
+                break;
             }
+
             emit Match(orderAddressSet, results[i]);
         }
 
