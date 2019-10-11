@@ -19,7 +19,7 @@ Mai 1.0 contains a contract called `MaiProtocol.sol` with the following attribut
 * No order collision
 * No possibility of front-running
 * Accurate market orders
-* Ability to collect fees as a percentage of the traded assets
+* Ability to collect fees as a percentage of the collateral token
 * Allows asymmetrical maker/taker fee structure, rebates, discounts
 * Highly optimized gas usage
 
