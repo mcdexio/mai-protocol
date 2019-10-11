@@ -1,4 +1,4 @@
-# Mai Protocol
+# <img src="https://raw.github.com/mcdexio/mai-protocol/master/images/logo.png" height="26px" title="Mai Protocol" />
 
 [![Build Status](https://travis-ci.org/mcdexio/mai-protocol.svg?branch=master)](https://travis-ci.org/mcdexio/mai-protocol)
 [![Coverage Status](https://coveralls.io/repos/github/mcdexio/mai-protocol/badge.svg?branch=master)](https://coveralls.io/github/mcdexio/mai-protocol?branch=master)
