@@ -278,7 +278,7 @@ contract('Mai', async accounts => {
 
     describe('expired market contract', async () => {
         it('error after settle + delay', async () => {
-            await mpx.methods.arbitrateSettlement(toPrice('8000')).send({from: admin});
+            await mpx.methods.arbitrateSettlement(toPrice('8000')).send({ from: admin });
             await increaseEvmTime(1 * 86400 + 1);
             assert.ok(await mpx.methods.isPostSettlementDelay().call(), "now it is after settlement delay");
             let bad1 = null;
@@ -322,7 +322,7 @@ contract('Mai', async accounts => {
         });
 
         it('can mint after settlement', async () => {
-            await mpx.methods.arbitrateSettlement(toPrice('8000')).send({from: admin});
+            await mpx.methods.arbitrateSettlement(toPrice('8000')).send({ from: admin });
             const testConfig = {
                 initialBalances: {
                     u1: { collateral: toWei(10000) },
@@ -528,7 +528,7 @@ contract('Mai', async accounts => {
             initialBalances: {
                 u1: { short: toBase(0.1) },
                 u2: { collateral: toWei(100) },
-                relayer: { },
+                relayer: {},
             },
             takerOrder: {
                 trader: u1,
@@ -573,7 +573,7 @@ contract('Mai', async accounts => {
                 u1: { short: toBase(1) },
                 u2: { collateral: toWei(10000) },
                 u3: { long: toBase(1) },
-                relayer: { },
+                relayer: {},
             },
             takerOrder: {
                 trader: u1,
@@ -631,9 +631,9 @@ contract('Mai', async accounts => {
         const testConfig = {
             initialBalances: {
                 u1: { collateral: toWei(10000) },
-                u2: { short: toBase(1)  },
+                u2: { short: toBase(1) },
                 u3: { collateral: toWei(10000) },
-                relayer: { },
+                relayer: {},
             },
             takerOrder: {
                 trader: u1,
@@ -700,7 +700,7 @@ contract('Mai', async accounts => {
                     long: toBase(0.6),
                     short: toBase(1.8),
                 },
-                relayer: { },
+                relayer: {},
             },
             takerOrder: {
                 trader: u2,
@@ -989,7 +989,7 @@ contract('Mai', async accounts => {
                     long: toBase(2),
                     collateral: toWei(10000),
                 },
-                relayer: { },
+                relayer: {},
             },
             takerOrder: {
                 trader: u1,
@@ -1012,15 +1012,15 @@ contract('Mai', async accounts => {
             ],
             expectedBalances: {
                 u1: {
-                    collateral: toWei(10000, 600, -400, -400, -20*3, -0.1),
+                    collateral: toWei(10000, 600, -400, -400, -20 * 3, -0.1),
                     long: toBase(2),
                 },
                 u2: {
-                    collateral: toWei(10000, 400, 400, -600, -20*3, -0.1),
+                    collateral: toWei(10000, 400, 400, -600, -20 * 3, -0.1),
                     short: toBase(1),
                 },
                 relayer: {
-                    collateral: toWei(20*6, 0.1, 0.1, -24) // -12 = MP mint fee
+                    collateral: toWei(20 * 6, 0.1, 0.1, -24) // -12 = MP mint fee
                 },
             },
             users: { admin, u1, u2, u3, relayer },
@@ -1042,7 +1042,7 @@ contract('Mai', async accounts => {
                     long: toBase(2),
                     collateral: toWei(10000),
                 },
-                relayer: { },
+                relayer: {},
             },
             takerOrder: {
                 trader: u1,
@@ -1065,15 +1065,15 @@ contract('Mai', async accounts => {
             ],
             expectedBalances: {
                 u1: {
-                    collateral: toWei(10000, 600, -400, -400, -20*3, -0.1),
+                    collateral: toWei(10000, 600, -400, -400, -20 * 3, -0.1),
                     long: toBase(2),
                 },
                 u2: {
-                    collateral: toWei(10000, 400, 400, -600, -20*3, -0.1),
+                    collateral: toWei(10000, 400, 400, -600, -20 * 3, -0.1),
                     short: toBase(1),
                 },
                 relayer: {
-                    collateral: toWei(20*6, 0.1, 0.1, -24) // -12 = MP mint fee
+                    collateral: toWei(20 * 6, 0.1, 0.1, -24) // -12 = MP mint fee
                 },
             },
             users: { admin, u1, u2, u3, relayer },
@@ -1085,7 +1085,7 @@ contract('Mai', async accounts => {
     });
 
 
-    it('buy(long) + buy(short) = mint', async () => {
+    it('taker == maker, failed', async () => {
         const testConfig = {
             initialBalances: {
                 u1: { collateral: toWei(10000) },
@@ -1123,143 +1123,20 @@ contract('Mai', async accounts => {
             admin: admin,
             gasLimit: 8000000,
         };
-        await matchTest(testConfig);
-    });
 
-    it('sell(long) + sell(short) = redeem', async () => {
-        const testConfig = {
-            initialBalances: {
-                u1: {
-                    long: toBase(0.1),
-                    short: toBase(0.1),
-                },
-                relayer: {},
-            },
-            takerOrder: {
-                trader: u1,
-                side: "buy",
-                amount: toBase(0.1),
-                price: toPrice(8000),
-                takerFeeRate: 250,
-            },
-            makerOrders: [
-                {
-                    trader: u1,
-                    side: "sell",
-                    amount: toBase(0.1),
-                    price: toPrice(8000),
-                    makerFeeRate: 250,
-                }
-            ],
-            filledAmounts: [
-                toBase(0.1)
-            ],
-            expectedBalances: {
-                u1: {
-                    collateral: toWei(100, -2, -2, -0.1, -0.1),
-                    long: toBase(0),
-                    short: toBase(0)
-                },
-                relayer: { collateral: toWei(2, 2, 0.1, 0.1) },
-            },
-            users: { admin, u1, u2, u3, relayer },
-            tokens: { collateral, long, short },
-            admin: admin,
-            gasLimit: 8000000,
-        };
-        await matchTest(testConfig);
-    });
-
-    it('sell(long) + buy(long) = sell', async () => {
-        const testConfig = {
-            initialBalances: {
-                u1: {
-                    long: toBase(0.1),
-                    collateral: toWei(100),
-                },
-                relayer: {},
-            },
-            takerOrder: {
-                trader: u1,
-                side: "buy",
-                amount: toBase(0.1),
-                price: toPrice(8000),
-                takerFeeRate: 250,
-            },
-            makerOrders: [
-                {
-                    trader: u1,
-                    side: "sell",
-                    amount: toBase(0.1),
-                    price: toPrice(8000),
-                    makerFeeRate: 250,
-                }
-            ],
-            filledAmounts: [
-                toBase(0.1)
-            ],
-            expectedBalances: {
-                u1: {
-                    collateral: toWei(100, -2 - 2, -0.1, -0.1),
-                    long: toBase(0.1),
-                },
-                relayer: { collateral: toWei(2, 2, 0.1, 0.1) },
-            },
-            users: { admin, u1, u2, u3, relayer },
-            tokens: { collateral, long, short },
-            admin: admin,
-            gasLimit: 8000000,
-        };
-        await matchTest(testConfig);
-    });
-
-    it('sell(long) + buy(long) = sell [swap side]', async () => {
-        const testConfig = {
-            initialBalances: {
-                u1: {
-                    long: toBase(0.1),
-                    collateral: toWei(100),
-                },
-                relayer: {},
-            },
-            takerOrder: {
-                trader: u1,
-                side: "sell",
-                amount: toBase(0.1),
-                price: toPrice(8000),
-                takerFeeRate: 250,
-            },
-            makerOrders: [
-                {
-                    trader: u1,
-                    side: "buy",
-                    amount: toBase(0.1),
-                    price: toPrice(8000),
-                    makerFeeRate: 250,
-                }
-            ],
-            filledAmounts: [
-                toBase(0.1)
-            ],
-            expectedBalances: {
-                u1: {
-                    collateral: toWei(100, -2 - 2, -0.1, -0.1),
-                    long: toBase(0.1),
-                },
-                relayer: { collateral: toWei(2, 2, 0.1, 0.1) },
-            },
-            users: { admin, u1, u2, u3, relayer },
-            tokens: { collateral, long, short },
-            admin: admin,
-            gasLimit: 8000000,
-        };
-        await matchTest(testConfig);
+        try {
+            await matchTest(testConfig);
+            throw null;
+        } catch (error) {
+            assert.ok(error.message.includes("MAKER_CANNOT_BE_TAKER"));
+        }
     });
 
     it('relayer pay for mint fee', async () => {
         const testConfig = {
             initialBalances: {
                 u1: { collateral: toWei(10000) },
+                u2: { collateral: toWei(10000) },
                 relayer: { collateral: toWei(10) },
             },
             takerOrder: {
@@ -1271,7 +1148,7 @@ contract('Mai', async accounts => {
             },
             makerOrders: [
                 {
-                    trader: u1,
+                    trader: u2,
                     side: "sell",
                     amount: toBase(0.1),
                     price: toPrice(7800),
@@ -1283,9 +1160,12 @@ contract('Mai', async accounts => {
             ],
             expectedBalances: {
                 u1: {
-                    collateral: toWei(10000, -100, -0.1, -0.1),
-                    short: toBase(0.1),
+                    collateral: toWei(10000, -30, -0.1),
                     long: toBase(0.1),
+                },
+                u2: {
+                    collateral: toWei(10000, -70, -0.1),
+                    short: toBase(0.1),
                 },
                 relayer: { collateral: toWei(10, 0.1, 0.1, -2.4) },
             },
@@ -1295,52 +1175,6 @@ contract('Mai', async accounts => {
             gasLimit: 8000000,
         };
         await matchTest(testConfig);
-    });
-
-    it('relayer pay for mint fee', async () => {
-        const testConfig = {
-            initialBalances: {
-                u1: { collateral: toWei(10000) },
-                relayer: { collateral: toWei(0) },
-            },
-            takerOrder: {
-                trader: u1,
-                side: "buy",
-                amount: toBase(0.1),
-                price: toPrice(7800),
-                takerFeeRate: 0,
-            },
-            makerOrders: [
-                {
-                    trader: u1,
-                    side: "sell",
-                    amount: toBase(0.1),
-                    price: toPrice(7800),
-                    makerFeeRate: 0,
-                }
-            ],
-            filledAmounts: [
-                toBase(0.1)
-            ],
-            expectedBalances: {
-                u1: {
-                    collateral: toWei(10000, -100, -0.1, -0.1),
-                    short: toBase(0.1),
-                    long: toBase(0.1),
-                },
-                relayer: { collateral: toWei(10, 0.1, 0.1, -2.4) },
-            },
-            users: { admin, u1, u2, u3, relayer },
-            tokens: { collateral, long, short },
-            admin: admin,
-            gasLimit: 8000000,
-        };
-        try {
-            await matchTest(testConfig);
-            throw null;
-        } catch (error) {
-            assert.ok(error.message.includes("TRANSFER_FROM_FAILED"));
-        }
     });
 
     it('buy(long) with cap price, fail to pay fee', async () => {

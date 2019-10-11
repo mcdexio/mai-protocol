@@ -36,9 +36,7 @@ contract LibExchangeErrors {
     string constant MAKER_ORDER_OVER_MATCH = "MAKER_ORDER_OVER_MATCH";
     string constant TAKER_ORDER_OVER_MATCH = "TAKER_ORDER_OVER_MATCH";
     string constant ORDER_VERSION_NOT_SUPPORTED = "ORDER_VERSION_NOT_SUPPORTED";
-
     string constant MAKER_ONLY_ORDER_CANNOT_BE_TAKER = "MAKER_ONLY_ORDER_CANNOT_BE_TAKER";
-
     string constant TRANSFER_FAILED = "TRANSFER_FAILED";
     string constant MINT_POSITION_TOKENS_FAILED = "MINT_FAILED";
     string constant REDEEM_POSITION_TOKENS_FAILED = "REDEEM_FAILED";
@@ -48,4 +46,5 @@ contract LibExchangeErrors {
     string constant INVALID_MARKET_CONTRACT = "INVALID_MARKET_CONTRACT";
     string constant UNMATCHED_FILL = "UNMATCHED_FILL";
     string constant LOW_MARGIN = "LOW_MARGIN";
+    string constant MAKER_CAN_NOT_BE_SAME_WITH_TAKER = "MAKER_CANNOT_BE_TAKER";
 }

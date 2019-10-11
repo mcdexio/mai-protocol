@@ -251,6 +251,10 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         for (uint256 i = 0; i < makerOrderParams.length; i++) {
             require(!isMarketOrder(makerOrderParams[i].data), MAKER_ORDER_CAN_NOT_BE_MARKET_ORDER);
             require(isSell(takerOrderParam.data) != isSell(makerOrderParams[i].data), INVALID_SIDE);
+            require(
+                takerOrderParam.trader != makerOrderParams[i].trader,
+                MAKER_CAN_NOT_BE_SAME_WITH_TAKER
+            );
 
             OrderInfo memory makerOrderInfo = getOrderInfo(
                 makerOrderParams[i],
