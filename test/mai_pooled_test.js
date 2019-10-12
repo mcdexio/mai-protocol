@@ -52,7 +52,7 @@ contract('Mai', async accounts => {
             trader: config.trader,
             relayer,
             marketContractAddress: mpx._address,
-            version: 2,
+            version: 1,
             side: config.side,
             type: 'limit',
             expiredAtSeconds: 3500000000,
@@ -233,7 +233,7 @@ contract('Mai', async accounts => {
             expectedBalances: {
                 u1: { collateral: toWei(10000, -70, -2, -0.1), short: toBase(0.1), },
                 u2: { collateral: toWei(10000, -30, -2, -0.1), long: toBase(0.1), },
-                relayer: { collateral: toWei(2, 2, 0.1, 0.1, -2.4 ) }, // MP mint fee
+                relayer: { collateral: toWei(2, 2, 0.1, 0.1, -2.4) }, // MP mint fee
             },
             users: { admin, u1, u2, u3, relayer },
             tokens: { collateral, long, short },
@@ -375,7 +375,7 @@ contract('Mai', async accounts => {
             initialBalances: {
                 u1: { short: toBase(0.1) },
                 u2: { collateral: toWei(100) },
-                relayer: { },
+                relayer: {},
             },
             takerOrder: {
                 trader: u1,
@@ -420,7 +420,7 @@ contract('Mai', async accounts => {
                 u1: { short: toBase(1) },
                 u2: { collateral: toWei(10000) },
                 u3: { long: toBase(1) },
-                relayer: { },
+                relayer: {},
             },
             takerOrder: {
                 trader: u1,
@@ -478,9 +478,9 @@ contract('Mai', async accounts => {
         const testConfig = {
             initialBalances: {
                 u1: { collateral: toWei(10000) },
-                u2: { short: toBase(1)  },
+                u2: { short: toBase(1) },
                 u3: { collateral: toWei(10000) },
-                relayer: { },
+                relayer: {},
             },
             takerOrder: {
                 trader: u1,
@@ -523,7 +523,7 @@ contract('Mai', async accounts => {
                     long: toBase(0.5),
                 },
                 relayer: {
-                    collateral: toWei(20, 0.1, 10, 0.1, 10, 0.1, -12 ) // MP mint fee
+                    collateral: toWei(20, 0.1, 10, 0.1, 10, 0.1, -12) // MP mint fee
                 },
             },
             users: { admin, u1, u2, u3, relayer },
@@ -547,7 +547,7 @@ contract('Mai', async accounts => {
                     long: toBase(0.6),
                     short: toBase(1.8),
                 },
-                relayer: { },
+                relayer: {},
             },
             takerOrder: {
                 trader: u2,
@@ -676,7 +676,7 @@ contract('Mai', async accounts => {
                 relayer: {
                     collateral: toWei(
                         4.8, 11.2, 0.1, 0.1,
-                        7.2, 16.8, 0.1, -9.6 ), // 9.6 = MP mint fee
+                        7.2, 16.8, 0.1, -9.6), // 9.6 = MP mint fee
                 }
             },
             users: { admin, u1, u2, u3, relayer },

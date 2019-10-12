@@ -46,10 +46,10 @@ contract('match', async accounts => {
             trader: config.trader,
             relayer,
             marketContractAddress: mpx._address,
-            version: 2,
+            version: 1,
             side: config.side,
             type: 'limit',
-            expiredAtSeconds: typeof(config.expiredAtSeconds) === 'undefined'? 3500000000: config.expiredAtSeconds,
+            expiredAtSeconds: typeof (config.expiredAtSeconds) === 'undefined' ? 3500000000 : config.expiredAtSeconds,
             asMakerFeeRate: config.makerFeeRate || '0',
             asTakerFeeRate: config.takerFeeRate || '0',
             amount: config.amount,
@@ -102,7 +102,7 @@ contract('match', async accounts => {
     it('getOrderContext', async () => {
         const takerOrder = await buildMpxOrder({
             trader: u1, side: 'sell', type: 'limit', price: toPrice(7540), amount: toBase(0.1),
-            relayer, marketContractAddress: mpx._address, version: 2, expiredAtSeconds: 3500000000,
+            relayer, marketContractAddress: mpx._address, version: 1, expiredAtSeconds: 3500000000,
             makerFeeRate: '0', takerFeeRate: '0', gasTokenAmount: toWei(0.1),
         });
         const context = await call(exchange.methods.getOrderContextPublic(getAddressSet(), takerOrder));
@@ -124,7 +124,7 @@ contract('match', async accounts => {
         assert.equal(await call(short.methods.balanceOf(u1)), toBase(2.5), 'u1.short');
         const takerOrder = await buildMpxOrder({
             trader: u1, side: 'sell', type: 'limit', price: toPrice(7540), amount: toBase(0.1),
-            relayer, marketContractAddress: mpx._address, version: 2, expiredAtSeconds: 3500000000,
+            relayer, marketContractAddress: mpx._address, version: 1, expiredAtSeconds: 3500000000,
             makerFeeRate: '0', takerFeeRate: '0', gasTokenAmount: toWei(0.1),
         });
         const orderContext = await call(exchange.methods.getOrderContextPublic(getAddressSet(), takerOrder));
@@ -154,7 +154,8 @@ contract('match', async accounts => {
             amount: toBase(0.1),
             relayer,
             marketContractAddress: mpx._address,
-            version: 2, expiredAtSeconds: 3500000000,
+            version: 1,
+            expiredAtSeconds: 3500000000,
             makerFeeRate: '0',
             takerFeeRate: '0',
             gasTokenAmount: toWei(0.1)
@@ -190,7 +191,7 @@ contract('match', async accounts => {
             amount: toBase(0.1),
             relayer,
             marketContractAddress: mpx._address,
-            version: 2,
+            version: 1,
             expiredAtSeconds: 0,
             makerFeeRate: '0',
             takerFeeRate: '0',
@@ -222,7 +223,7 @@ contract('match', async accounts => {
             amount: toBase(0.1),
             relayer,
             marketContractAddress: mpx._address,
-            version: 2,
+            version: 1,
             makerFeeRate: '0',
             takerFeeRate: '0',
             gasTokenAmount: toWei(0.1)
@@ -246,12 +247,12 @@ contract('match', async accounts => {
     it('fillMatchResult: buy(long) + buy(short) = mint', async () => {
         const takerOrder = await buildMpxOrder({
             trader: u1, side: 'sell', type: 'limit', price: toPrice(7540), amount: toBase(0.1),
-            relayer, marketContractAddress: mpx._address, version: 2, expiredAtSeconds: 3500000000,
+            relayer, marketContractAddress: mpx._address, version: 1, expiredAtSeconds: 3500000000,
             makerFeeRate: 100, takerFeeRate: 300, gasTokenAmount: toWei(0.1),
         });
         const makerOrder1 = await buildMpxOrder({
             trader: u2, side: 'buy', type: 'limit', price: toPrice(7540), amount: toBase(0.1),
-            relayer, marketContractAddress: mpx._address, version: 2, expiredAtSeconds: 3500000000,
+            relayer, marketContractAddress: mpx._address, version: 1, expiredAtSeconds: 3500000000,
             makerFeeRate: 100, takerFeeRate: 300, gasTokenAmount: toWei(0.2),
         });
         const orderContext = await call(exchange.methods.getOrderContextPublic(getAddressSet(), takerOrder));
@@ -284,12 +285,12 @@ contract('match', async accounts => {
     it('getMatchResult: buy(long) + buy(short) = mint', async () => {
         const takerOrder = await buildMpxOrder({
             trader: u1, side: 'sell', type: 'limit', price: toPrice(7540), amount: toBase(0.1),
-            relayer, marketContractAddress: mpx._address, version: 2, expiredAtSeconds: 3500000000,
+            relayer, marketContractAddress: mpx._address, version: 1, expiredAtSeconds: 3500000000,
             makerFeeRate: 100, takerFeeRate: 300, gasTokenAmount: toWei(0.2),
         });
         const makerOrder1 = await buildMpxOrder({
             trader: u2, side: 'buy', type: 'limit', price: toPrice(7540), amount: toBase(0.1),
-            relayer, marketContractAddress: mpx._address, version: 2, expiredAtSeconds: 3500000000,
+            relayer, marketContractAddress: mpx._address, version: 1, expiredAtSeconds: 3500000000,
             makerFeeRate: 100, takerFeeRate: 300, gasTokenAmount: toWei(0.1),
         });
         const orderContext = await call(exchange.methods.getOrderContextPublic(getAddressSet(), takerOrder));
@@ -331,12 +332,12 @@ contract('match', async accounts => {
         });
         const takerOrder = await buildMpxOrder({
             trader: u2, side: 'buy', type: 'limit', price: toPrice(7540), amount: toBase(0.1),
-            relayer, marketContractAddress: mpx._address, version: 2, expiredAtSeconds: 3500000000,
+            relayer, marketContractAddress: mpx._address, version: 1, expiredAtSeconds: 3500000000,
             makerFeeRate: 100, takerFeeRate: 300, gasTokenAmount: toWei(0.1),
         });
         const makerOrder1 = await buildMpxOrder({
             trader: u1, side: 'sell', type: 'limit', price: toPrice(7540), amount: toBase(0.1),
-            relayer, marketContractAddress: mpx._address, version: 2, expiredAtSeconds: 3500000000,
+            relayer, marketContractAddress: mpx._address, version: 1, expiredAtSeconds: 3500000000,
             makerFeeRate: 100, takerFeeRate: 300, gasTokenAmount: toWei(0.2),
         });
         const orderContext = await call(exchange.methods.getOrderContextPublic(getAddressSet(), takerOrder));
@@ -373,12 +374,12 @@ contract('match', async accounts => {
         });
         const takerOrder = await buildMpxOrder({
             trader: u2, side: 'buy', type: 'limit', price: toPrice(7540), amount: toBase(0.1),
-            relayer, marketContractAddress: mpx._address, version: 2, expiredAtSeconds: 3500000000,
+            relayer, marketContractAddress: mpx._address, version: 1, expiredAtSeconds: 3500000000,
             makerFeeRate: 100, takerFeeRate: 300, gasTokenAmount: toWei(0.2),
         });
         const makerOrder1 = await buildMpxOrder({
             trader: u1, side: 'sell', type: 'limit', price: toPrice(7540), amount: toBase(0.1),
-            relayer, marketContractAddress: mpx._address, version: 2, expiredAtSeconds: 3500000000,
+            relayer, marketContractAddress: mpx._address, version: 1, expiredAtSeconds: 3500000000,
             makerFeeRate: 100, takerFeeRate: 300, gasTokenAmount: toWei(0.1),
         });
         const orderContext = await call(exchange.methods.getOrderContextPublic(getAddressSet(), takerOrder));
@@ -417,7 +418,7 @@ contract('match', async accounts => {
         const ctkFromProxyToTaker = await call(exchange.methods.doRedeemPublic(
             retResult, getAddressSet(), orderContext
         ));
-        assert.equal(ctkFromProxyToTaker, toWei((8500 - 7540) * 0.1, -8000 * 0.1 * 0.00300, -0.2, ), 'u2.ctk'); // taker ctk
+        assert.equal(ctkFromProxyToTaker, toWei((8500 - 7540) * 0.1, -8000 * 0.1 * 0.00300, -0.2), 'u2.ctk'); // taker ctk
         await send(relayer, exchange.methods.doRedeemPublic(
             retResult, getAddressSet(), orderContext
         ));
@@ -432,23 +433,23 @@ contract('match', async accounts => {
         });
         const takerOrder = await buildMpxOrder({
             trader: u1, side: 'buy', type: 'limit', price: toPrice(8000), amount: toBase(1),
-            relayer, marketContractAddress: mpx._address, version: 2, expiredAtSeconds: 3500000000,
+            relayer, marketContractAddress: mpx._address, version: 1, expiredAtSeconds: 3500000000,
             makerFeeRate: 250, takerFeeRate: 250, gasTokenAmount: toWei(0.2),
         });
         const makerOrder1 = await buildMpxOrder({
             trader: u2, side: 'sell', type: 'limit', price: toPrice(7900), amount: toBase(0.5),
-            relayer, marketContractAddress: mpx._address, version: 2, expiredAtSeconds: 3500000000,
+            relayer, marketContractAddress: mpx._address, version: 1, expiredAtSeconds: 3500000000,
             makerFeeRate: 250, takerFeeRate: 250, gasTokenAmount: toWei(0.1),
         });
         const makerOrder2 = await buildMpxOrder({
             trader: u3, side: 'sell', type: 'limit', price: toPrice(7980), amount: toBase(0.5),
-            relayer, marketContractAddress: mpx._address, version: 2, expiredAtSeconds: 3500000000,
+            relayer, marketContractAddress: mpx._address, version: 1, expiredAtSeconds: 3500000000,
             makerFeeRate: 250, takerFeeRate: 250, gasTokenAmount: toWei(0.1),
         });
         const orderContext = await call(exchange.methods.getOrderContextPublic(getAddressSet(), takerOrder));
         const retResults = await exchange.methods.getMatchPlanPublic(
             takerOrder, [makerOrder1, makerOrder2],
-            [ toBase(0.5), toBase(0.5), ], // posFilledAmount
+            [toBase(0.5), toBase(0.5),], // posFilledAmount
             getAddressSet(), orderContext
         ).call();
         assert.equal(retResults.length, 6, 'results.length');

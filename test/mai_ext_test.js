@@ -37,7 +37,7 @@ contract('Mai', async accounts => {
             trader: config.trader,
             relayer,
             marketContractAddress: mpx._address,
-            version: 2,
+            version: 1,
             side: config.side,
             type: 'limit',
             expiredAtSeconds: 3500000000,

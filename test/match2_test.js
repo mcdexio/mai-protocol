@@ -344,7 +344,7 @@ contract('Match2', async accounts => {
             const mintCost = new BigNumber(await call(mpx.methods.COLLATERAL_PER_UNIT()))
                 .times(toMintAmount);
             const mintFee = new BigNumber(await call(mpx.methods.COLLATERAL_TOKEN_FEE_PER_UNIT()))
-            .times(toMintAmount);
+                .times(toMintAmount);
 
 
             const result = {
@@ -412,7 +412,7 @@ contract('Match2', async accounts => {
             const mintCost = new BigNumber(await call(mpx.methods.COLLATERAL_PER_UNIT()))
                 .times(toMintAmount);
             const mintFee = new BigNumber(await call(mpx.methods.COLLATERAL_TOKEN_FEE_PER_UNIT()))
-            .times(toMintAmount);
+                .times(toMintAmount);
 
 
             const result = {
@@ -480,7 +480,7 @@ contract('Match2', async accounts => {
             const mintCost = new BigNumber(await call(mpx.methods.COLLATERAL_PER_UNIT()))
                 .times(toMintAmount);
             const mintFee = new BigNumber(await call(mpx.methods.COLLATERAL_TOKEN_FEE_PER_UNIT()))
-            .times(toMintAmount);
+                .times(toMintAmount);
 
 
             const result = {
@@ -531,7 +531,7 @@ contract('Match2', async accounts => {
             assert.equal(await call(short.methods.balanceOf(proxy._address)), 0);
             assert.equal(await call(long.methods.balanceOf(proxy._address)), 0);
         });
-        
+
         it('should fail to mint on low fee rate', async () => {
             const initalBalance = new BigNumber(toWei(1200));
             await send(admin, collateral.methods.mint(u1, initalBalance.toFixed()));
@@ -548,7 +548,7 @@ contract('Match2', async accounts => {
             const mintCost = new BigNumber(await call(mpx.methods.COLLATERAL_PER_UNIT()))
                 .times(toMintAmount);
             const mintFee = new BigNumber(await call(mpx.methods.COLLATERAL_TOKEN_FEE_PER_UNIT()))
-            .times(toMintAmount);
+                .times(toMintAmount);
 
             const result = {
                 maker: u1,
@@ -885,12 +885,12 @@ contract('Match2', async accounts => {
     });
 
     contract('validatePricePublic', async accounts => {
-        it('should success', async() => {
+        it('should success', async () => {
             const makerOrder = await buildOrder({
                 trader: u1,
                 relayer,
                 marketContractAddress: mpx._address,
-                version: 2,
+                version: 1,
                 side: "buy",
                 type: 'limit',
                 expiredAtSeconds: 3500000000,
@@ -904,7 +904,7 @@ contract('Match2', async accounts => {
                 trader: u2,
                 relayer,
                 marketContractAddress: mpx._address,
-                version: 2,
+                version: 1,
                 side: 'sell',
                 type: 'limit',
                 expiredAtSeconds: 3500000000,
