@@ -42,7 +42,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     uint256 public constant FEE_RATE_BASE = 100000;
 
     /* Supported version */
-    uint256 public constant SUPPORTED_ORDER_VERSION = 2;
+    uint256 public constant SUPPORTED_ORDER_VERSION = 1;
 
     /**
      * Address of the proxy responsible for asset transfer.
