@@ -218,7 +218,7 @@ contract('Mai', async accounts => {
             expectedBalances: {
                 u1: { collateral: toWei(10000, -70, -2, -0.1), short: toBase(0.1), },
                 u2: { collateral: toWei(10000, -30, -2, -0.1), long: toBase(0.1), },
-                relayer: { collateral: toWei(2, 2, 0.1, 0.1, -2.4 /* MP mint fee */) },
+                relayer: { collateral: toWei(2, 2, 0.1, 0.1, -2.4) },
             },
             users: { admin, u1, u2, u3, relayer },
             tokens: { collateral, long, short },

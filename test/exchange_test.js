@@ -29,6 +29,27 @@ contract('CancelOrder', accounts => {
         assert.equal(true, cancelled);
     });
 
+    it('should cancel order by relayer', async () => {
+        const order = {
+            trader: accounts[0],
+            relayer: accounts[1],
+            marketContractAddress: '0x0000000000000000000000000000000000000000',
+            amount: 1,
+            price: 1,
+            data: generateOrderData(1, true, false, 0, 1, 1, 0, 1),
+            gasTokenAmount: 0
+        };
+
+        const hash = getOrderHash(order);
+        let cancelled = await exchange.methods.cancelled(hash).call();
+        assert.equal(false, cancelled);
+
+        await exchange.methods.cancelOrder(order).send({ from: order.relayer });
+        cancelled = await exchange.methods.cancelled(hash).call();
+        assert.equal(true, cancelled);
+    });
+
+
     it("should abort when another try to cancel other's order", async () => {
         const order = {
             trader: accounts[0],

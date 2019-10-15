@@ -596,7 +596,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
      * @param order The order to be cancelled.
      */
     function cancelOrder(Order memory order) public {
-        require(order.trader == msg.sender, INVALID_TRADER);
+        require(msg.sender == order.trader || msg.sender == order.relayer, INVALID_TRADER);
 
         bytes32 orderHash = getOrderHash(order);
         cancelled[orderHash] = true;
