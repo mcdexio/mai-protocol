@@ -183,6 +183,10 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             orderContext
         );
         settleResults(results, takerOrderParam, orderAddressSet, orderContext);
+
+        if (isMarketOrder(takerOrderParam.data)) {
+            cancelOrder(getOrderFromOrderParam(takerOrderParam, orderAddressSet));
+        }
     }
 
     /**
@@ -630,8 +634,6 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         orderInfo.orderHash = getOrderHash(order);
         orderInfo.filledAmount = filled[orderInfo.orderHash];
         uint8 status = uint8(OrderStatus.FILLABLE);
-
-        // TODO: isMarketBuy(order.data) is not implemented
 
         if (orderInfo.filledAmount >= order.amount) {
             status = uint8(OrderStatus.FULLY_FILLED);
