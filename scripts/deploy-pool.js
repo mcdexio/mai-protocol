@@ -64,7 +64,7 @@ module.exports = async () => {
             const pool = await MintingPool.at(MintingPoolAddress);
             await pool.addAddress(proxyAddress);
             for (let i = 0; i < maketContracts.length; i++) {
-                await pool.approve(maketContracts[i], infinity);
+                await pool.approveCollateralPool(maketContracts[i], infinity);
                 console.log('MintingPool approved market contract(', maketContracts[i], ')');
 
                 const mpContract = await IMarketContract.at(maketContracts[i]);
