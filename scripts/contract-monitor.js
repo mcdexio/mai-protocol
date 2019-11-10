@@ -20,13 +20,13 @@ const getWeb3 = () => {
     return myWeb3;
 };
 
-const marketTokenAddress = "0x4a37c836290A985935c2e38165Afe4ADb1EC2a02";
 const proxyAddress = '0x7c27F30a7f51932cdCf7Ac8593EEb7571141F220';
+const marketContractAddress = "0x2967424E7128D459a22ba13D34bB966f547BdBE8";
 
 module.exports = async () => {
     const web3 = new Web3(provider);
     try {
-        const mpContract = await IMarketContract.at(marketTokenAddress);
+        const mpContract = await IMarketContract.at(marketContractAddress);
         const mpPoolAddress = await mpContract.COLLATERAL_POOL_ADDRESS();
         console.log("Market Collateral Pool deployed at", mpPoolAddress);
 
