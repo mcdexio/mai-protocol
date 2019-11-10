@@ -17,7 +17,7 @@ module.exports = async () => {
         await proxy.approveCollateralPool(contractAddresses.marketContract, mpPoolAddress, infinity);
         console.log("Approved  [", contractAddresses.proxy, "->", mpPoolAddress, "]");
 
-        console.log("Approving [ Replayer -> Proxy ] ...");
+        console.log("Approving [ Relayer -> Proxy ] ...");
         const collateral = await IERC20.at(contractAddresses.collateral);
         await collateral.approve(contractAddresses.proxy, infinity, { from: contractAddresses.relayerAccount });
         console.log("Approved  [", contractAddresses.relayerAccount, "->", contractAddresses.proxy, "]");
