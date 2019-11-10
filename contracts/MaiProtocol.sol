@@ -649,8 +649,10 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             INVALID_ORDER_SIGNATURE
         );
 
-        orderInfo.margins[0] = calculateLongMargin(orderContext, orderParam);
-        orderInfo.margins[1] = calculateShortMargin(orderContext, orderParam);
+        if (!isMarketOrder(orderParam.data)) {
+            orderInfo.margins[0] = calculateLongMargin(orderContext, orderParam);
+            orderInfo.margins[1] = calculateShortMargin(orderContext, orderParam);
+        }
         orderInfo.balances[0] = getERC20Balance(orderContext.posAddresses[0], orderParam.trader);
         orderInfo.balances[1] = getERC20Balance(orderContext.posAddresses[1], orderParam.trader);
 

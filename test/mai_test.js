@@ -397,6 +397,46 @@ contract('Mai', async accounts => {
         await matchTest(testConfig);
     });
 
+    it('buy(long) + buy(short) = mint, market', async () => {
+        const testConfig = {
+            initialBalances: {
+                u1: { collateral: toWei(10000) },
+                u2: { collateral: toWei(10000) },
+                relayer: {},
+            },
+            takerOrder: {
+                trader: u2,
+                side: "sell",
+                amount: toBase(0.1),
+                price: toPrice(0),
+                type: "market",
+                takerFeeRate: 250,
+            },
+            makerOrders: [
+                {
+                    trader: u1,
+                    side: "buy",
+                    amount: toBase(1.0),
+                    price: toPrice(7800),
+                    makerFeeRate: 250,
+                }
+            ],
+            filledAmounts: [
+                toBase(0.1)
+            ],
+            expectedBalances: {
+                u1: { collateral: toWei(10000, -30, -2, -0.1), long: toBase(0.1), },
+                u2: { collateral: toWei(10000, -70, -2, -0.1), short: toBase(0.1), },
+                relayer: { collateral: toWei(2, 2, 0.1, 0.1, -2.4) },
+            },
+            users: { admin, u1, u2, u3, relayer },
+            tokens: { collateral, long, short },
+            admin: admin,
+            gasLimit: 8000000,
+        };
+        await matchTest(testConfig);
+    });
+
     it('sell(long) + sell(short) = redeem', async () => {
         const testConfig = {
             initialBalances: {
