@@ -37,6 +37,7 @@ contract('Mai', async accounts => {
         pool = mpxContract.pool;
         mkt = mpxContract.mkt;
 
+
         await pool.methods.addAddress(proxy._address)
             .send({ from: admin, gasLimit: maxGasLimit });
         await pool.methods.approveCollateralPool(mpx._address, infinity)
@@ -45,6 +46,7 @@ contract('Mai', async accounts => {
             .send({ from: admin, gasLimit: maxGasLimit });
         await proxy.methods.approveCollateralPool(mpx._address, pool._address, infinity)
             .send({ from: admin, gasLimit: maxGasLimit });
+
     });
 
     const buildMpxOrder = async (config) => {
@@ -54,7 +56,7 @@ contract('Mai', async accounts => {
             marketContractAddress: mpx._address,
             version: 1,
             side: config.side,
-            type: 'limit',
+            type: config.type || 'limit',
             expiredAtSeconds: 3500000000,
             asMakerFeeRate: config.makerFeeRate || '0',
             asTakerFeeRate: config.takerFeeRate || '0',
@@ -317,6 +319,62 @@ contract('Mai', async accounts => {
                     long: toBase(0.1),
                 },
                 relayer: { collateral: toWei(2, 2, 0.1, 0.1) },
+            },
+            users: { admin, u1, u2, u3, relayer },
+            tokens: { collateral, long, short },
+            admin: admin,
+            gasLimit: 8000000,
+        };
+        await matchTest(testConfig);
+    });
+
+    it('buy(long) + buy(short) = sell, market', async () => {
+        const testConfig = {
+            initialBalances: {
+                u1: { collateral: toWei(10000), short: toBase(100) },
+                u2: { collateral: toWei(10000) },
+                relayer: {},
+            },
+            takerOrder: {
+                trader: u2,
+                side: "sell",
+                amount: toBase(1.0),
+                price: toPrice(0),
+                type: "market",
+                takerFeeRate: 250,
+            },
+            makerOrders: [
+                {
+                    trader: u1,
+                    side: "buy",
+                    amount: toBase(0.1),
+                    price: toPrice(7800),
+                    makerFeeRate: 250,
+                },
+                {
+                    trader: u1,
+                    side: "buy",
+                    amount: toBase(0.1),
+                    price: toPrice(7700),
+                    makerFeeRate: 250,
+                },
+                {
+                    trader: u1,
+                    side: "buy",
+                    amount: toBase(0.1),
+                    price: toPrice(7600),
+                    makerFeeRate: 250,
+                }
+            ],
+            filledAmounts: [
+                toBase(0.1),
+                toBase(0.1),
+                toBase(0.1),
+            ],
+            expectedBalances: {
+                u1: { collateral: toWei(10000, 70, 80, 90, -6, -0.3), short: toBase(100, -0.3), },
+                u2: { collateral: toWei(10000, -70, -80, -90, -6, -0.1), short: toBase(0.3), },
+                relayer: { collateral: toWei(6, 6, 0.3, 0.1) },
             },
             users: { admin, u1, u2, u3, relayer },
             tokens: { collateral, long, short },

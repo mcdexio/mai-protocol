@@ -259,7 +259,6 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
                 takerOrderParam.trader != makerOrderParams[i].trader,
                 MAKER_CAN_NOT_BE_SAME_WITH_TAKER
             );
-
             OrderInfo memory makerOrderInfo = getOrderInfo(
                 makerOrderParams[i],
                 orderAddressSet,
@@ -270,7 +269,6 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
                 makerOrderParams[i],
                 orderContext
             );
-
             uint256 toFillAmount = posFilledAmounts[i];
             for (uint256 j = 0; j < MAX_MATCHES && toFillAmount > 0; j++) {
                 MatchResult memory result;
@@ -391,6 +389,9 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         internal
         view
     {
+        if (isMarketOrder(takerOrderParam.data)) {
+            return;
+        }
         if (isSell(takerOrderParam.data)) {
             require(takerOrderParam.price <= makerOrderParam.price, INVALID_MATCH);
         } else {
