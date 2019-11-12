@@ -17,14 +17,4 @@ module.exports = async function (deployer, network, accounts) {
     console.log('   > MaiProtocol:  ', MaiProtocol.address)
     console.log('   > Proxy      :  ', Proxy.address)
     console.log('   -------------------------------------------------------------')
-
-    /*
-    return deployer.deploy(Proxy).then((proxyInstance) => {
-        return deployer.deploy(MaiProtocol, Proxy.address).then(() => {
-            return proxyInstance.addAddress(MaiProtocol.address).then(() => {
-                console.log("  ", MaiProtocol.address, "added to whitelist of Proxy");
-            });
-        });
-    });
-    */
 };
