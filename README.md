@@ -23,6 +23,72 @@ Mai 1.0 contains a contract called `MaiProtocol.sol` with the following attribut
 * Allows asymmetrical maker/taker fee structure, rebates, discounts
 * Highly optimized gas usage
 
+## Interfaces
+
+Mai Protocol:
+```
+structs:
+  OrderParam                   parameters for building a taker/maker order
+    - trader                   address of trader
+    - amount                   the amount of position to buy/sell, decimals = 5
+    - price                    the price of position, decimals = 10
+    - gasTokenAmount           the gas fee for order matching, in collateral token. 
+    - data                     a 32 bytes long data containing order details
+        - version              mai protocol version, should match mai protocol contract on chain
+        - side                 side of order, should be 0(buy) or 1(sell)
+        - isMarketOrder        type of order, should be 0(limit order) or 1(market order)
+        - expiredAt            order expiration time in seconds
+        - asMakerFeeRate       trading fee rate as a maker (rate = asMakerFeeRate / 100,000)
+        - asTakerFeeRate       trading fee rate as a taker (rate = asTakerFeeRate / 100,000)
+        - makerRebateRate      reserved
+        - salt                 a random nonce
+        - isMakerOnly          to indicate the order should only be a maker
+	
+  OrderAddressSet              containing addresses common across each order
+    - marketContractAddress    address of market protocol contract
+    - relayer                  user acturally sending matching transaction and collecting trading fees during matching.
+	
+  Order                        containing necessary information of an order, built by OrderParam and OrderAddressSet
+
+actions:
+  matchMarketContractOrders    match orders from taker and makers to mint/redeem/exchange tokens published by Market Protocol contracts.
+    - takerOrderParam          taker of the matching
+    - makerOrderParams         makers of the matching, could be one or more
+    - posFilledAmounts         an array representing how much positions should match for each take-maker pair. should have the same length with makerOrderParams
+    - orderAddressSet          addresses sharing among taker and makers
+
+  cancelOrder                  cancel an order, the canceled order can no longer match or be matched.
+```
+
+Proxy:
+```
+actions:
+  setCollateralPoolAddress  owner        set collateral pool for proxy, see xxx for details of a collateral pool
+
+  approveCollateralPool     owner        approvel collateral pool to pull collateral/short/long token from proxy
+
+  withdrawCollateral        owner        withdraw collateral tokens from proxy, the actual address of token is specified by 'COLLATRAL_TOKEN_ADDRESS' field of given market protocol contract
+
+  transfer                  whitelisted  transfer erc20 token from pool to another
+  transferFrom              whitelisted  transfer erc20 token from one to another
+  mintPositionTokens        whitelisted  mint position tokens from collateral pool
+  redeemPositionTokens      whitelisted  redeem position tokens from collateral pool
+```
+
+MintingPool:
+```
+actions:
+  withdrawCollateral            owner        withdraw collateral tokens from proxy, the actual category of token is specified by COLLATRAL_TOKEN_ADDRESS of given market protocol contract
+
+  withdrawMarketToken           owner        withdraw market tokens from proxy, the actual address of token is specified by 'mktToken' field of given market protocol collateral pool
+
+  internalMintPositionTokens    owner        converting collateral in pool to position tokens for further minting requests
+  internalRedeemPositionTokens  owner        converting position tokens in pool to collateral tokens for further redeeming requests
+
+  mintPositionTokens            whitelisted  mint position tokens from collateral pool, then send minted tokens to caller
+  redeemPositionTokens          whitelisted  redeem position tokens from collateral pool, then send redeemed tokens to caller
+```
+
 ## Installation
 
 ```bash
