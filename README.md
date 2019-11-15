@@ -110,14 +110,6 @@ npm run coverage
 
 Mai is inspired by the [0x project](https://github.com/0xProject) and [Hydro](https://github.com/HydroProtocol)
 
-## Contributing
-
-1. Fork it (<https://github.com/mcdexio/mai-protocol/fork>)
-2. Create your feature branch (`git checkout -b feature/fooBar`)
-3. Commit your changes (`git commit -am 'Add some fooBar'`)
-4. Push to the branch (`git push origin feature/fooBar`)
-5. Create a new Pull Request
-
 ## License
 
 This project is licensed under the Apache-2.0 License - see the [LICENSE.txt](LICENSE.txt) file for details
