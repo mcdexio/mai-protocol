@@ -11,7 +11,7 @@ See the [document](https://github.com/mcdexio/documents/blob/master/en/mai.md) f
 
 ## Features
 
-Mai Protocol 1.0 smart contract has the following attributes:
+Mai Protocol smart contract v1.0 has the following attributes:
 
 * Trading Market Protocol contracts
   * Encapsulates the minting, exchange and redeeming operations
