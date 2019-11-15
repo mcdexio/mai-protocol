@@ -15,13 +15,11 @@ const settings = {
 
 module.exports = async () => {
     try {
-	// const pool = await MintingPool.at(settings.mintingPoolAddress);
-	// const proxy = await Proxy.at(settings.proxyAddress);
 	const proxy = await Proxy.at(settings.proxyAddress);
-	const pool = await MintingPool.deployed(); 
+	const pool = await MintingPool.at(settings.mintingPoolAddress)
 
         for (let i = 0; i < settings.maketContracts.length; i++) {
-	    const mpxAddress = settings.maketContracts[i];
+            const mpxAddress = settings.maketContracts[i];
             await pool.approveCollateralPool(mpxAddress, infinity);
             console.log('MintingPool approved market contract(', mpxAddress, ')');
             await proxy.approveCollateralPool(mpxAddress, pool.address, infinity);
