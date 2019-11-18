@@ -234,7 +234,7 @@ contract('match', async accounts => {
                 takerOrder,
                 getAddressSet()
             ));
-            await send(u1, exchange.methods.cancelOrder(order));
+            await send(relayer, exchange.methods.cancelOrder(order));
             await call(exchange.methods.getOrderInfoPublic(
                 takerOrder, getAddressSet(), orderContext
             ));

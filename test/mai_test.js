@@ -509,8 +509,6 @@ contract('Mai', async accounts => {
         await matchTest(testConfig);
     });
 
-    return
-
     it('sell(long) + sell(short) = redeem', async () => {
         const testConfig = {
             initialBalances: {
@@ -1435,7 +1433,6 @@ contract('Mai', async accounts => {
         const takerOrderHash = getOrderHash(takerOrder);
 
         const isTakerOrderCancelled = await exchange.methods.cancelled(takerOrderHash).call();
-        console.log("DEBUG", isTakerOrderCancelled);
         assert.ok(isTakerOrderCancelled);
     });
 });
