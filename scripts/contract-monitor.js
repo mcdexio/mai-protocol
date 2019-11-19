@@ -20,8 +20,8 @@ const getWeb3 = () => {
     return myWeb3;
 };
 
-const proxyAddress = '0x7c27F30a7f51932cdCf7Ac8593EEb7571141F220';
 const marketContractAddress = "0x2967424E7128D459a22ba13D34bB966f547BdBE8";
+const proxyAddress = '0x60490D6626cf8c8A87DF2913A3E5B31727018551';
 
 module.exports = async () => {
     const web3 = new Web3(provider);

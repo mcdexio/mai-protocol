@@ -27,10 +27,10 @@ const newContract = async (contract, ...args) => {
 };
 
 let maketContracts = [
-    '0x4a37c836290A985935c2e38165Afe4ADb1EC2a02'
+    '0x2967424E7128D459a22ba13D34bB966f547BdBE8'
 ];
-let proxyAddress = '0xAA38b84E78Cbb0C644998F0d452fb80E15b861fF';
-let marketTokenAddress = '0x1AA25040Dbf401B3FDF67DceC5Bb2Fe2E531A55b';
+let proxyAddress = '0xF98ef0358E278Bcb042a531A173793ACf2cdaF82';
+let marketTokenAddress = '0x5C0286beF1434b07202a5Ae3De38e66130d5280d';
 let MintingPoolAddress = null;
 
 module.exports = async () => {

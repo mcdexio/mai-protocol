@@ -6,11 +6,11 @@ const IMarketContract = artifacts.require('interfaces/IMarketContract.sol');
 BigNumber.config({ EXPONENTIAL_AT: 1000 });
 const infinity = '999999999999999999999999999999999999999999';
 const settings = {
-    mintingPoolAddress: '0x2ff32DD952136D9Fd6a5dc4d553861b81907f618',
+    mintingPoolAddress: '0x1AA25040Dbf401B3FDF67DceC5Bb2Fe2E531A55b',
     maketContracts: [
-        '0xBc82350A3ca9d18454d8910fcF1a962Ad334C057'
+        '0x2967424E7128D459a22ba13D34bB966f547BdBE8',
     ],
-    proxyAddress: '0xbCB3ee6D9509Ec15939497658e18567088A11990'
+    proxyAddress: '0x01a0D4E74Ac48BF574F5aB89680F5E55d3Fb058C'
 }
 
 module.exports = async () => {
