@@ -16,6 +16,9 @@ module.exports = {
             network_id: 1,
             gasPrice: 10000000000,
             gas: 4000000
+            gasPrice: 26000000000,
+            gas: 8000000,
+            confirmations: 2
         },
         ropsten: {
             provider: () => new PrivateKeyProvider(process.env.PK, 'https://ropsten.infura.io'),
