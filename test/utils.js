@@ -84,27 +84,14 @@ const newContractAt = (contract, address) => {
     return instance;
 };
 
-const setHotAmount = async (hotContract, user, amount) => {
-    const balance = await hotContract.methods.balanceOf(user).call();
-
-    const diff = new BigNumber(amount).minus(balance);
-
-    if (diff.gt(0)) {
-        await hotContract.methods.transfer(user, diff.toString()).send({ from: web3.eth.accounts[0] });
-    } else if (diff.lt(0)) {
-        await hotContract.methods.transfer(web3.eth.accounts[0], diff.abs().toString()).send({ from: user });
-    }
-};
-
 const getContracts = async () => {
     const proxy = await newContract(Proxy);
-    // console.log('Proxy address', web3.toChecksumAddress(proxy._address));
+    console.log('[test]Proxy deployed at', proxy._address);
 
     const exchange = await newContract(MaiProtocol, proxy._address);
+    console.log('[test]MaiProtocol deployed at', exchange._address);
 
-    // console.log('Dxchange address', web3.toChecksumAddress(exchange._address));
     const accounts = await web3.eth.getAccounts();
-
     await proxy.methods.addAddress(exchange._address).send({ from: accounts[0] });
 
     return {
@@ -115,13 +102,12 @@ const getContracts = async () => {
 
 const getTestContracts = async () => {
     const proxy = await newContract(Proxy);
-    // console.log('Proxy address', web3.toChecksumAddress(proxy._address));
+    console.log('[test]Proxy deployed at', proxy._address);
 
     const exchange = await newContract(TestMaiProtocol, proxy._address);
+    console.log('[test]TestMaiProtocol deployed at', exchange._address);
 
-    // console.log('Dxchange address', web3.toChecksumAddress(exchange._address));
     const accounts = await web3.eth.getAccounts();
-
     await proxy.methods.addAddress(exchange._address).send({ from: accounts[0] });
 
     return {
@@ -135,6 +121,7 @@ const getMarketContract = async (configs) => {
     const long = await newContract(TestToken, "Long Position Token", "lBTC", 5);
     const short = await newContract(TestToken, "Short Position Token", "sBTC", 5);
     const mkt = await newContract(TestToken, "Market Token", "MTK", 18);
+
     const mpx = await newContract(
         TestMarketContract,
         collateral._address,
@@ -146,11 +133,12 @@ const getMarketContract = async (configs) => {
         configs.multiplier,
         configs.feeRate
     );
+    console.log('[test]TestMarketContract deployed at', mpx._address)
 
     const pool = await newContract(MintingPool, mkt._address);
+    console.log('[test]MintingPool deployed at', pool._address)
 
     const accounts = await web3.eth.getAccounts();
-
     await Promise.all([
         collateral.methods.setWhitelist(mpx._address, true).send({ from: accounts[0] }),
         long.methods.setWhitelist(mpx._address, true).send({ from: accounts[0] }),
@@ -214,9 +202,9 @@ function increaseEvmTime(duration) {
     const id = Date.now();
     return new Promise((resolve, reject) => {
         web3.currentProvider.send({
-            jsonrpc: '2.0', 
-            method: 'evm_increaseTime', 
-            params: [duration], 
+            jsonrpc: '2.0',
+            method: 'evm_increaseTime',
+            params: [duration],
             id: id,
         }, (err, resp) => {
             if (err) {
@@ -224,9 +212,9 @@ function increaseEvmTime(duration) {
                 return;
             }
             web3.currentProvider.send({
-                jsonrpc: '2.0', 
-                method: 'evm_mine', 
-                params: [], 
+                jsonrpc: '2.0',
+                method: 'evm_mine',
+                params: [],
                 id: id + 1,
             }, (err, resp) => {
                 if (err) {
@@ -246,7 +234,6 @@ module.exports = {
     getContracts,
     getTestContracts,
     clone,
-    setHotAmount,
     getMarketContract,
     getOrderSignature,
     buildOrder,
