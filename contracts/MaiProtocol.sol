@@ -183,10 +183,6 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             orderContext
         );
         settleResults(results, takerOrderParam, orderAddressSet, orderContext);
-
-        if (isMarketOrder(takerOrderParam.data)) {
-            cancelOrder(getOrderFromOrderParam(takerOrderParam, orderAddressSet));
-        }
     }
 
     /**
