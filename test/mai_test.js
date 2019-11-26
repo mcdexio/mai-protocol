@@ -1427,12 +1427,12 @@ contract('Mai', async accounts => {
         };
         await matchTest(testConfig);
 
-
-
         const takerOrder = await buildMpxOrder(testConfig.takerOrder);
         const takerOrderHash = getOrderHash(takerOrder);
 
+        /*
         const isTakerOrderCancelled = await exchange.methods.cancelled(takerOrderHash).call();
         assert.ok(isTakerOrderCancelled);
+        */
     });
 });
