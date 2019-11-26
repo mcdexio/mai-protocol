@@ -40,7 +40,6 @@ contract LibExchangeErrors {
     string constant TRANSFER_FAILED = "TRANSFER_FAILED";
     string constant MINT_POSITION_TOKENS_FAILED = "MINT_FAILED";
     string constant REDEEM_POSITION_TOKENS_FAILED = "REDEEM_FAILED";
-    string constant MP_EXPIRED = "MP_EXPIRED";
     string constant UNEXPECTED_MATCH = "UNEXPECTED_MATCH";
     string constant INSUFFICIENT_FEE = "INSUFFICIENT_FEE";
     string constant INVALID_MARKET_CONTRACT = "INVALID_MARKET_CONTRACT";

@@ -278,7 +278,7 @@ contract('Mai', async accounts => {
     });
 
     describe('expired market contract', async () => {
-        it('error after settle + delay', async () => {
+        it('can not mint after settlement', async () => {
             await mpx.methods.arbitrateSettlement(toPrice('8000')).send({ from: admin });
             await increaseEvmTime(1 * 86400 + 1);
             assert.ok(await mpx.methods.isPostSettlementDelay().call(), "now it is after settlement delay");
@@ -286,14 +286,14 @@ contract('Mai', async accounts => {
             try {
                 const testConfig = {
                     initialBalances: {
-                        u1: { long: toBase(1) },
-                        u2: { short: toBase(1) },
+                        u1: { collateral: toWei(10000) },
+                        u2: { collateral: toWei(10000) },
                         relayer: {},
                     },
                     takerOrder: {
                         trader: u2,
                         side: "buy",
-                        amount: toBase(1),
+                        amount: toBase(0.1),
                         price: toPrice(7900),
                         takerFeeRate: 250,
                     },
@@ -301,14 +301,19 @@ contract('Mai', async accounts => {
                         {
                             trader: u1,
                             side: "sell",
-                            amount: toBase(1),
-                            price: toPrice(7900),
+                            amount: toBase(0.1),
+                            price: toPrice(7800),
                             makerFeeRate: 250,
                         }
                     ],
                     filledAmounts: [
-                        toBase(1)
+                        toBase(0.1)
                     ],
+                    expectedBalances: {
+                        u1: { short: toBase(0.1), },
+                        u2: { long: toBase(0.1), },
+                        relayer: { collateral: toWei(2, 2, 0.1, 0.1, -2.4) },
+                    },
                     users: { admin, u1, u2, u3, relayer },
                     tokens: { collateral, long, short },
                     admin: admin,
@@ -319,21 +324,22 @@ contract('Mai', async accounts => {
                 bad1 = e;
             }
             assert.notEqual(bad1, null, "should revert")
-            assert.ok(bad1.message.includes('MP_EXPIRED'), "should throw MP_EXPIRED")
+            assert.ok(bad1.message.includes('MINT_FAILED'), "should throw MINT_FAILED")
         });
 
-        it('can mint after settlement', async () => {
+        it('can redeem after settlement', async () => {
             await mpx.methods.arbitrateSettlement(toPrice('8000')).send({ from: admin });
+
             const testConfig = {
                 initialBalances: {
-                    u1: { collateral: toWei(10000) },
-                    u2: { collateral: toWei(10000) },
+                    u1: { long: toBase(1) },
+                    u2: { short: toBase(1) },
                     relayer: {},
                 },
                 takerOrder: {
                     trader: u2,
                     side: "buy",
-                    amount: toBase(0.1),
+                    amount: toBase(1),
                     price: toPrice(7900),
                     takerFeeRate: 250,
                 },
@@ -341,13 +347,13 @@ contract('Mai', async accounts => {
                     {
                         trader: u1,
                         side: "sell",
-                        amount: toBase(0.1),
-                        price: toPrice(7800),
+                        amount: toBase(1),
+                        price: toPrice(7900),
                         makerFeeRate: 250,
                     }
                 ],
                 filledAmounts: [
-                    toBase(0.1)
+                    toBase(1)
                 ],
                 users: { admin, u1, u2, u3, relayer },
                 tokens: { collateral, long, short },

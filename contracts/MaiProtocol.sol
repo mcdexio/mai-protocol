@@ -203,8 +203,6 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         returns (OrderContext memory orderContext)
     {
         orderContext.marketContract = IMarketContract(orderAddressSet.marketContractAddress);
-
-        require (!orderContext.marketContract.isPostSettlementDelay(), MP_EXPIRED);
         orderContext.marketContractPool = IMarketContractPool(
             orderContext.marketContract.COLLATERAL_POOL_ADDRESS()
         );

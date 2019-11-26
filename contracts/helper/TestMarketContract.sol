@@ -2,6 +2,7 @@ pragma solidity ^0.5.2;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "../interfaces/IMarketContract.sol";
 
 contract IMintable {
     function mint(address _to, uint _value) external;
@@ -92,12 +93,15 @@ contract TestMarketContract {
     }
 
     function mintPositionTokens(
-        address,
+        address marketContractAddress,
         uint qtyToMint,
         bool isAttemptToPayInMKT
     )
         external
     {
+        IMarketContract marketContract = IMarketContract(marketContractAddress);
+        require(!marketContract.isSettled(), "Contract is already settled");
+
         IERC20 collateral = IERC20(COLLATERAL_TOKEN_ADDRESS);
         uint collateralRequired = COLLATERAL_PER_UNIT.mul(qtyToMint);
         if (isAttemptToPayInMKT) {
