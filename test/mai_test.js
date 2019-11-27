@@ -30,6 +30,9 @@ contract('Mai', async accounts => {
         collateral = mpxContract.collateral;
         long = mpxContract.long;
         short = mpxContract.short;
+
+        await proxy.methods.approveCollateralPool(mpx._address, mpx._address, infinity)
+            .send({ from: admin, gasLimit: 8000000 });
     });
 
     const buildMpxOrder = async (config) => {
@@ -153,7 +156,7 @@ contract('Mai', async accounts => {
         }
 
         // prepare
-        await send(admin, proxy.methods.approveCollateralPool(mpx._address, mpx._address, infinity));
+        // await send(admin, proxy.methods.approveCollateralPool(mpx._address, mpx._address, infinity));
         if (beforeMatching !== undefined) {
             beforeMatching();
         }

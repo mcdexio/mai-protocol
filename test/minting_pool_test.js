@@ -3,6 +3,8 @@ const BigNumber = require('bignumber.js');
 const { getContracts, getMarketContract } = require('./utils');
 const { toBase, fromBase, toWei, fromWei, infinity } = require('./utils');
 
+const maxGasLimit = 8000000;
+
 contract('Pool', async accounts => {
     let mpx, collateral, long, short, mkt, pool;
 
@@ -12,6 +14,8 @@ contract('Pool', async accounts => {
     const u1 = accounts[4];
     const u2 = accounts[5];
     const u3 = accounts[6];
+
+
 
     beforeEach(async () => {
         const contracts = await getContracts();
@@ -45,7 +49,8 @@ contract('Pool', async accounts => {
 
     it('mint using collateral', async () => {
         await pool.methods.addAddress(u1).send({ from: admin });
-        await pool.methods.approveCollateralPool(mpx._address, infinity).send({ from: admin });
+        await pool.methods.approveCollateralPool(mpx._address, infinity)
+            .send({ from: admin, gasLimit: maxGasLimit });
 
         {
             assert.equal(await long.methods.balanceOf(pool._address).call(), 0);
@@ -68,9 +73,11 @@ contract('Pool', async accounts => {
         }
     });
 
+
     it('mint using mtk', async () => {
         await pool.methods.addAddress(u1).send({ from: admin });
-        await pool.methods.approveCollateralPool(mpx._address, infinity).send({ from: admin });
+        await pool.methods.approveCollateralPool(mpx._address, infinity)
+            .send({ from: admin, gasLimit: maxGasLimit });
 
         {
             assert.equal(await long.methods.balanceOf(pool._address).call(), 0);
@@ -99,7 +106,8 @@ contract('Pool', async accounts => {
 
     it('mint using mtk but no enough mkt', async () => {
         await pool.methods.addAddress(u1).send({ from: admin });
-        await pool.methods.approveCollateralPool(mpx._address, infinity).send({ from: admin });
+        await pool.methods.approveCollateralPool(mpx._address, infinity)
+            .send({ from: admin, gasLimit: maxGasLimit });
 
         {
             assert.equal(await long.methods.balanceOf(pool._address).call(), 0);
@@ -126,7 +134,8 @@ contract('Pool', async accounts => {
 
     it('mint with enough poisition token in pool', async () => {
         await pool.methods.addAddress(u1).send({ from: admin });
-        await pool.methods.approveCollateralPool(mpx._address, infinity).send({ from: admin });
+        await pool.methods.approveCollateralPool(mpx._address, infinity)
+            .send({ from: admin, gasLimit: maxGasLimit });
 
         {
             assert.equal(await long.methods.balanceOf(pool._address).call(), 0);
@@ -160,7 +169,8 @@ contract('Pool', async accounts => {
 
     it('redeem', async () => {
         await pool.methods.addAddress(u1).send({ from: admin });
-        await pool.methods.approveCollateralPool(mpx._address, infinity).send({ from: admin });
+        await pool.methods.approveCollateralPool(mpx._address, infinity)
+            .send({ from: admin, gasLimit: maxGasLimit });
         {
             assert.equal(await long.methods.balanceOf(pool._address).call(), 0);
             assert.equal(await short.methods.balanceOf(pool._address).call(), 0);
@@ -185,7 +195,8 @@ contract('Pool', async accounts => {
 
     it('redeem with enough collateral token in pool', async () => {
         await pool.methods.addAddress(u1).send({ from: admin });
-        await pool.methods.approveCollateralPool(mpx._address, infinity).send({ from: admin });
+        await pool.methods.approveCollateralPool(mpx._address, infinity)
+            .send({ from: admin, gasLimit: maxGasLimit });
 
         await long.methods.transfer(u1, toBase(1)).send({ from: admin });
         await long.methods.approve(pool._address, infinity).send({ from: u1 });
@@ -218,7 +229,8 @@ contract('Pool', async accounts => {
     });
 
     it('convert pos -> ctk', async () => {
-        await pool.methods.approveCollateralPool(mpx._address, infinity).send({ from: admin });
+        await pool.methods.approveCollateralPool(mpx._address, infinity)
+            .send({ from: admin, gasLimit: maxGasLimit });
         {
             assert.equal(await long.methods.balanceOf(pool._address).call(), 0);
             assert.equal(await short.methods.balanceOf(pool._address).call(), 0);
@@ -243,7 +255,8 @@ contract('Pool', async accounts => {
     });
 
     it('convert ctk -> pos', async () => {
-        await pool.methods.approveCollateralPool(mpx._address, infinity).send({ from: admin });
+        await pool.methods.approveCollateralPool(mpx._address, infinity)
+            .send({ from: admin, gasLimit: maxGasLimit });
         await collateral.methods.transfer(pool._address, toWei(1024)).send({ from: admin });
         await collateral.methods.approve(pool._address, infinity).send({ from: admin });
         {
@@ -264,7 +277,8 @@ contract('Pool', async accounts => {
     });
 
     it('convert ctk -> pos with mkt', async () => {
-        await pool.methods.approveCollateralPool(mpx._address, infinity).send({ from: admin });
+        await pool.methods.approveCollateralPool(mpx._address, infinity)
+            .send({ from: admin, gasLimit: maxGasLimit });
         await collateral.methods.transfer(pool._address, toWei(1000)).send({ from: admin });
         await collateral.methods.approve(pool._address, infinity).send({ from: admin });
         await mkt.methods.transfer(pool._address, toWei(12)).send({ from: admin });
@@ -296,7 +310,7 @@ contract('Pool', async accounts => {
 
 
         await collateral.methods.transfer(pool._address, balanceToWithdraw.toFixed())
-            .send({ from: u1});
+            .send({ from: u1 });
 
         await pool.methods.withdrawCollateral(mpx._address, balanceToWithdraw.toFixed())
             .send({ from: admin, gasLimit: 8000000 });
@@ -318,7 +332,7 @@ contract('Pool', async accounts => {
 
 
         await mkt.methods.transfer(pool._address, balanceToWithdraw.toFixed())
-            .send({ from: u1});
+            .send({ from: u1 });
 
         await pool.methods.withdrawMarketToken(mpx._address, balanceToWithdraw.toFixed())
             .send({ from: admin, gasLimit: 8000000 });
@@ -338,7 +352,7 @@ contract('Pool', async accounts => {
         await collateral.methods.transfer(u1, balanceToWithdraw.toFixed()).send({ from: admin });
 
         await collateral.methods.transfer(pool._address, balanceToWithdraw.toFixed())
-            .send({ from: u1});
+            .send({ from: u1 });
         try {
             await pool.methods.withdrawCollateral(mpx._address, balanceToWithdraw.toFixed())
                 .send({ from: u1, gasLimit: 8000000 });
@@ -356,7 +370,7 @@ contract('Pool', async accounts => {
 
 
         await collateral.methods.transfer(pool._address, balanceToWithdraw.toFixed())
-            .send({ from: u1});
+            .send({ from: u1 });
         try {
             await pool.methods.withdrawCollateral(mpx._address, balanceToWithdraw.times(1.1).toFixed())
                 .send({ from: admin, gasLimit: 8000000 });
@@ -374,7 +388,7 @@ contract('Pool', async accounts => {
 
 
         await mkt.methods.transfer(pool._address, balanceToWithdraw.toFixed())
-            .send({ from: u1});
+            .send({ from: u1 });
 
         await pool.methods.withdrawMarketToken(mpx._address, balanceToWithdraw.toFixed())
             .send({ from: admin, gasLimit: 8000000 });
@@ -394,7 +408,7 @@ contract('Pool', async accounts => {
         await mkt.methods.transfer(u1, balanceToWithdraw.toFixed()).send({ from: admin });
 
         await mkt.methods.transfer(pool._address, balanceToWithdraw.toFixed())
-            .send({ from: u1});
+            .send({ from: u1 });
         try {
             await pool.methods.withdrawMarketToken(mpx._address, balanceToWithdraw.toFixed())
                 .send({ from: u1, gasLimit: 8000000 });
@@ -412,7 +426,7 @@ contract('Pool', async accounts => {
 
 
         await mkt.methods.transfer(pool._address, balanceToWithdraw.toFixed())
-            .send({ from: u1});
+            .send({ from: u1 });
         try {
             await pool.methods.withdrawMarketToken(mpx._address, balanceToWithdraw.times(1.1).toFixed())
                 .send({ from: admin, gasLimit: 8000000 });

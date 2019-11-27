@@ -381,7 +381,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         OrderContext memory orderContext
     )
         internal
-        view
+        pure
     {
         if (isMarketOrder(takerOrderParam.data)) {
             return;

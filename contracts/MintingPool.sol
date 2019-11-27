@@ -241,13 +241,14 @@ contract MintingPool is LibOwnable, LibWhitelist {
         IMarketContractPool marketContractPool = IMarketContractPool(
             marketContract.COLLATERAL_POOL_ADDRESS()
         );
+        // to make token that compiled with old version solidity compatible
         // approve collateral, usually dai
-        IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS()).approve(
+        IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS()).safeApprove(
             marketContract.COLLATERAL_POOL_ADDRESS(),
             amount
         );
         // approve mkt, for lower mint fee
-        IERC20(marketContractPool.mktToken()).approve(
+        IERC20(marketContractPool.mktToken()).safeApprove(
             marketContract.COLLATERAL_POOL_ADDRESS(),
             amount
         );

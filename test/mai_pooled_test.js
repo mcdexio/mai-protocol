@@ -6,7 +6,6 @@ const { toPrice, fromPrice, toBase, fromBase, toWei, fromWei, infinity } = requi
 
 const maxGasLimit = 8000000;
 
-
 contract('Mai', async accounts => {
     let exchange, proxy, pool;
     let mpx, collateral, long, short, mkt;
@@ -172,7 +171,7 @@ contract('Mai', async accounts => {
         }
 
         // prepare
-        await send(admin, proxy.methods.approveCollateralPool(mpx._address, mpx._address, infinity));
+        // await send(admin, proxy.methods.approveCollateralPool(mpx._address, mpx._address, infinity));
         if (beforeMatching !== undefined) {
             beforeMatching();
         }
