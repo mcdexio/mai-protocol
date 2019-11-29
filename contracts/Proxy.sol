@@ -52,9 +52,18 @@ contract Proxy is LibOwnable, LibWhitelist {
     {
         IMarketContract marketContract = IMarketContract(contractAddress);
         // to make token that compiled with old version solidity compatible
-        IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS()).safeApprove(spender, amount);
-        IERC20(marketContract.LONG_POSITION_TOKEN()).safeApprove(spender, amount);
-        IERC20(marketContract.SHORT_POSITION_TOKEN()).safeApprove(spender, amount);
+        IERC20 collateralToken = IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS());
+        if (collateralToken.allowance(address(this), spender) == 0 || amount == 0) {
+            collateralToken.safeApprove(spender, amount);
+        }
+        IERC20 longPositionToken = IERC20(marketContract.LONG_POSITION_TOKEN());
+        if (longPositionToken.allowance(address(this), spender) == 0 || amount == 0) {
+            longPositionToken.safeApprove(spender, amount);
+        }
+        IERC20 shortPositionToken = IERC20(marketContract.SHORT_POSITION_TOKEN());
+        if (shortPositionToken.allowance(address(this), spender) == 0 || amount == 0) {
+            shortPositionToken.safeApprove(spender, amount);
+        }
     }
 
     function withdrawCollateral(address contractAddress, uint256 amount)
