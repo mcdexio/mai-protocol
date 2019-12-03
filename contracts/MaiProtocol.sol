@@ -908,21 +908,44 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         );
         // proxy -> mpx
         redeemPositionTokens(orderAddressSet.marketContractAddress, result.posFilledAmount);
+        // total collateral
         // proxy -> maker
-        transfer(
-            orderContext.ctkAddress,
-            result.maker,
-            result.ctkFilledAmount
-                .sub(result.makerFee)
-                .sub(result.makerGasFee)
-        );
-        uint256 collateralToReturn = result.posFilledAmount
-            .mul(orderContext.marketContract.COLLATERAL_PER_UNIT());
+        if (result.ctkFilledAmount >= result.makerFee.add(result.makerGasFee)) {
+            transfer(
+                orderContext.ctkAddress,
+                result.maker,
+                result.ctkFilledAmount
+                    .sub(result.makerFee)
+                    .sub(result.makerGasFee)
+            );
+        } else {
+            transferFrom(
+                orderContext.ctkAddress,
+                result.maker,
+                proxyAddress,
+                result.makerFee
+                    .add(result.makerGasFee)
+                    .sub(result.ctkFilledAmount)
+            );
+        }
+        uint256 collateralToTaker = result.posFilledAmount
+            .mul(orderContext.marketContract.COLLATERAL_PER_UNIT())
+            .sub(result.ctkFilledAmount);
         // proxy -> taker
-        return collateralToReturn
-            .sub(result.ctkFilledAmount)
-            .sub(result.takerFee)
-            .sub(result.takerGasFee);
+        if (collateralToTaker >= result.takerFee.add(result.takerGasFee)) {
+            return collateralToTaker
+                .sub(result.takerFee)
+                .sub(result.takerGasFee);
+        }
+        transferFrom(
+            orderContext.ctkAddress,
+            result.taker,
+            proxyAddress,
+            result.takerFee
+                .add(result.takerGasFee)
+                .sub(collateralToTaker)
+        );
+        return 0;
     }
 
     /**
