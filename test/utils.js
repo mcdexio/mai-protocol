@@ -86,10 +86,10 @@ const newContractAt = (contract, address) => {
 
 const getContracts = async () => {
     const proxy = await newContract(Proxy);
-    console.log('[test]Proxy deployed at', proxy._address);
+    // console.log('[test]Proxy deployed at', proxy._address);
 
     const exchange = await newContract(MaiProtocol, proxy._address);
-    console.log('[test]MaiProtocol deployed at', exchange._address);
+    // console.log('[test]MaiProtocol deployed at', exchange._address);
 
     const accounts = await web3.eth.getAccounts();
     await proxy.methods.addAddress(exchange._address).send({ from: accounts[0] });
@@ -102,10 +102,10 @@ const getContracts = async () => {
 
 const getTestContracts = async () => {
     const proxy = await newContract(Proxy);
-    console.log('[test]Proxy deployed at', proxy._address);
+    // console.log('[test]Proxy deployed at', proxy._address);
 
     const exchange = await newContract(TestMaiProtocol, proxy._address);
-    console.log('[test]TestMaiProtocol deployed at', exchange._address);
+    // console.log('[test]TestMaiProtocol deployed at', exchange._address);
 
     const accounts = await web3.eth.getAccounts();
     await proxy.methods.addAddress(exchange._address).send({ from: accounts[0] });
@@ -133,10 +133,10 @@ const getMarketContract = async (configs) => {
         configs.multiplier,
         configs.feeRate
     );
-    console.log('[test]TestMarketContract deployed at', mpx._address)
+    // console.log('[test]TestMarketContract deployed at', mpx._address)
 
     const pool = await newContract(MintingPool, mkt._address);
-    console.log('[test]MintingPool deployed at', pool._address)
+    // console.log('[test]MintingPool deployed at', pool._address)
 
     const accounts = await web3.eth.getAccounts();
     await Promise.all([
