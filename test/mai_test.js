@@ -1299,7 +1299,7 @@ contract('Mai', async accounts => {
         await matchTest(testConfig);
     });
 
-    it('buy(long) with cap price, fail to pay fee', async () => {
+    it('buy(long) with cap price', async () => {
         const testConfig = {
             initialBalances: {
                 u1: { collateral: toWei(1000) },
@@ -1309,7 +1309,7 @@ contract('Mai', async accounts => {
                 trader: u2,
                 side: "sell",
                 amount: toBase(0.1),
-                price: toPrice(7501.9),
+                price: toPrice(7500),
                 takerFeeRate: 250,
             },
             makerOrders: [
@@ -1317,7 +1317,7 @@ contract('Mai', async accounts => {
                     trader: u1,
                     side: "buy",
                     amount: toBase(0.1),
-                    price: toPrice(7501.9),
+                    price: toPrice(7500),
                     makerFeeRate: 250,
                 }
             ],
@@ -1326,12 +1326,12 @@ contract('Mai', async accounts => {
             ],
             expectedBalances: {
                 u1: {
-                    collateral: toWei(50, -2, -0.1),
-                    long: 0,
+                    collateral: toWei(1000, -2, -0.1),
+                    long: toBase(0.1),
                 },
                 u2: {
-                    collateral: toWei(100, -50, -2, -0.1),
-                    long: toBase(0.1),
+                    collateral: toWei(1000, -2, -0.1),
+                    long: toBase(0.9),
                 },
                 relayer: { collateral: toWei(2, 2, 0.1, 0.1) },
             },
@@ -1340,15 +1340,10 @@ contract('Mai', async accounts => {
             admin: admin,
             gasLimit: 8000000,
         };
-        try {
-            await matchTest(testConfig);
-            throw null;
-        } catch (error) {
-            assert.ok(error.message.includes("LOW_MARGIN"));
-        }
+        await matchTest(testConfig);
     });
 
-    it('buy(long) with cap price', async () => {
+    it('buy(long) with cap price2', async () => {
         const testConfig = {
             initialBalances: {
                 u1: { collateral: toWei(1000) },
@@ -1375,12 +1370,12 @@ contract('Mai', async accounts => {
             ],
             expectedBalances: {
                 u1: {
-                    collateral: toWei(50, -2, -0.1),
-                    long: 0,
+                    collateral: toWei(1000, -0.2, -2, -0.1),
+                    long: toBase(0.1),
                 },
                 u2: {
-                    collateral: toWei(100, -50, -2, -0.1),
-                    long: toBase(0.1),
+                    collateral: toWei(1000, 0.2, -2, -0.1),
+                    long: toBase(0.9),
                 },
                 relayer: { collateral: toWei(2, 2, 0.1, 0.1) },
             },
@@ -1389,12 +1384,7 @@ contract('Mai', async accounts => {
             admin: admin,
             gasLimit: 8000000,
         };
-        try {
-            await matchTest(testConfig);
-            throw null;
-        } catch (error) {
-            assert.ok(error.message.includes("LOW_MARGIN"));
-        }
+        await matchTest(testConfig);
     });
 
     it('market: buy(long) + buy(short) = cancel after minting', async () => {

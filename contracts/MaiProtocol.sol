@@ -843,11 +843,22 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
                 .add(result.makerFee)
                 .add(result.makerGasFee)
         );
-        require(result.ctkFilledAmount >= result.takerFee.add(result.takerGasFee), LOW_MARGIN);
-        // relayer to taker
-        return result.ctkFilledAmount
-            .sub(result.takerFee)
-            .sub(result.takerGasFee);
+        if (result.ctkFilledAmount >= result.takerFee.add(result.takerGasFee)) {
+            // relayer to taker
+            return result.ctkFilledAmount
+                .sub(result.takerFee)
+                .sub(result.takerGasFee);
+        }
+        // taker to relayer
+        transferFrom(
+            orderContext.ctkAddress,
+            result.taker,
+            orderAddressSet.relayer,
+            result.takerFee
+                .add(result.takerGasFee)
+                .sub(result.ctkFilledAmount)
+        );
+        return 0;
     }
 
     function oppositeSide(uint256 side) internal pure returns (uint256) {
@@ -935,16 +946,27 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             result.taker,
             result.posFilledAmount
         );
-        require(result.ctkFilledAmount >= result.makerFee.add(result.makerGasFee), LOW_MARGIN);
-        // taker -> maker
-        transferFrom(
-            orderContext.ctkAddress,
-            result.taker,
-            result.maker,
-            result.ctkFilledAmount
-                .sub(result.makerFee)
-                .sub(result.makerGasFee)
-        );
+        if (result.ctkFilledAmount > result.makerFee.add(result.makerGasFee)) {
+            // taker -> maker
+            transferFrom(
+                orderContext.ctkAddress,
+                result.taker,
+                result.maker,
+                result.ctkFilledAmount
+                    .sub(result.makerFee)
+                    .sub(result.makerGasFee)
+            );
+        } else if (result.ctkFilledAmount < result.makerFee.add(result.makerGasFee)) {
+            // maker -> taker
+            transferFrom(
+                orderContext.ctkAddress,
+                result.maker,
+                result.taker,
+                result.makerFee
+                    .add(result.makerGasFee)
+                    .sub(result.ctkFilledAmount)
+            );
+        }
         // taker -> relayer
         return result.takerFee
             .add(result.takerGasFee)
