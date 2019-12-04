@@ -843,21 +843,19 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
                 .add(result.makerFee)
                 .add(result.makerGasFee)
         );
-        if (result.ctkFilledAmount >= result.takerFee.add(result.takerGasFee)) {
+        uint256 takerTotalFee = result.takerFee.add(result.takerGasFee);
+        if (result.ctkFilledAmount > takerTotalFee) {
             // relayer to taker
-            return result.ctkFilledAmount
-                .sub(result.takerFee)
-                .sub(result.takerGasFee);
+            return result.ctkFilledAmount.sub(takerTotalFee);
+        } else if (result.ctkFilledAmount < takerTotalFee) {
+            // taker to relayer
+            transferFrom(
+                orderContext.ctkAddress,
+                result.taker,
+                orderAddressSet.relayer,
+                takerTotalFee.sub(result.ctkFilledAmount)
+            );
         }
-        // taker to relayer
-        transferFrom(
-            orderContext.ctkAddress,
-            result.taker,
-            orderAddressSet.relayer,
-            result.takerFee
-                .add(result.takerGasFee)
-                .sub(result.ctkFilledAmount)
-        );
         return 0;
     }
 
@@ -908,43 +906,39 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         );
         // proxy -> mpx
         redeemPositionTokens(orderAddressSet.marketContractAddress, result.posFilledAmount);
-        // total collateral
+
+        uint256 makerTotalFee = result.makerFee.add(result.makerGasFee);
+        uint256 takerTotalFee = result.takerFee.add(result.takerGasFee);
         // proxy -> maker
-        if (result.ctkFilledAmount >= result.makerFee.add(result.makerGasFee)) {
+        if (result.ctkFilledAmount > makerTotalFee) {
             transfer(
                 orderContext.ctkAddress,
                 result.maker,
-                result.ctkFilledAmount
-                    .sub(result.makerFee)
-                    .sub(result.makerGasFee)
+                result.ctkFilledAmount.sub(makerTotalFee)
             );
-        } else {
+        } else if (result.ctkFilledAmount < makerTotalFee) {
             transferFrom(
                 orderContext.ctkAddress,
                 result.maker,
                 proxyAddress,
-                result.makerFee
-                    .add(result.makerGasFee)
-                    .sub(result.ctkFilledAmount)
+                makerTotalFee.sub(result.ctkFilledAmount)
             );
         }
         uint256 collateralToTaker = result.posFilledAmount
             .mul(orderContext.marketContract.COLLATERAL_PER_UNIT())
             .sub(result.ctkFilledAmount);
+
         // proxy -> taker
-        if (collateralToTaker >= result.takerFee.add(result.takerGasFee)) {
-            return collateralToTaker
-                .sub(result.takerFee)
-                .sub(result.takerGasFee);
+        if (collateralToTaker > takerTotalFee) {
+            return collateralToTaker.sub(takerTotalFee);
+        } else if (collateralToTaker < takerTotalFee) {
+            transferFrom(
+                orderContext.ctkAddress,
+                result.taker,
+                proxyAddress,
+                takerTotalFee.sub(collateralToTaker)
+            );
         }
-        transferFrom(
-            orderContext.ctkAddress,
-            result.taker,
-            proxyAddress,
-            result.takerFee
-                .add(result.takerGasFee)
-                .sub(collateralToTaker)
-        );
         return 0;
     }
 
@@ -969,32 +963,26 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             result.taker,
             result.posFilledAmount
         );
-        if (result.ctkFilledAmount > result.makerFee.add(result.makerGasFee)) {
+        uint256 makerTotalFee = result.makerFee.add(result.makerGasFee);
+        if (result.ctkFilledAmount > makerTotalFee) {
             // taker -> maker
             transferFrom(
                 orderContext.ctkAddress,
                 result.taker,
                 result.maker,
-                result.ctkFilledAmount
-                    .sub(result.makerFee)
-                    .sub(result.makerGasFee)
+                result.ctkFilledAmount.sub(makerTotalFee)
             );
-        } else if (result.ctkFilledAmount < result.makerFee.add(result.makerGasFee)) {
+        } else if (result.ctkFilledAmount < makerTotalFee) {
             // maker -> taker
             transferFrom(
                 orderContext.ctkAddress,
                 result.maker,
                 result.taker,
-                result.makerFee
-                    .add(result.makerGasFee)
-                    .sub(result.ctkFilledAmount)
+                makerTotalFee.sub(result.ctkFilledAmount)
             );
         }
         // taker -> relayer
-        return result.takerFee
-            .add(result.takerGasFee)
-            .add(result.makerFee)
-            .add(result.makerGasFee);
+        return result.takerFee.add(result.takerGasFee).add(makerTotalFee);
     }
 
     /**
