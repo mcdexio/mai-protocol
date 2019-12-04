@@ -5,8 +5,10 @@ const BigNumber = require('bignumber.js');
 const { getContracts, getMarketContract, buildOrder, increaseEvmTime } = require('./utils');
 const { toPrice, fromPrice, toBase, fromBase, toWei, fromWei, infinity } = require('./utils');
 
+const gasLimit = 8000000;
+
 contract('EstimateGas', async accounts => {
-    let exchange, proxy;
+    let exchange;
     let mpx, collateral, long, short;
 
     const relayer = accounts[9];
@@ -21,7 +23,6 @@ contract('EstimateGas', async accounts => {
     beforeEach(async () => {
         const contracts = await getContracts();
         exchange = contracts.exchange;
-        proxy = contracts.proxy;
 
         const mpxContract = await getMarketContract({
             cap: toPrice(8500),
@@ -33,6 +34,9 @@ contract('EstimateGas', async accounts => {
         collateral = mpxContract.collateral;
         long = mpxContract.long;
         short = mpxContract.short;
+
+        await exchange.methods.approveERC20(collateral._address, mpx._address, infinity)
+            .send({ from: admin, gasLimit: gasLimit });
     });
 
     const buildMpxOrder = async (config) => {
@@ -99,7 +103,7 @@ contract('EstimateGas', async accounts => {
                     if (amount > 0) {
                         await send(admin, token.methods.mint(user, amount));
                     }
-                    await send(user, token.methods.approve(proxy._address, infinity));
+                    await send(user, token.methods.approve(exchange._address, infinity));
                 }
             }
         }
@@ -112,8 +116,6 @@ contract('EstimateGas', async accounts => {
             makerOrders.push(makerOrder);
         }
 
-        // prepare
-        await send(admin, proxy.methods.approveCollateralPool(mpx._address, mpx._address, infinity));
         if (beforeMatching !== undefined) {
             beforeMatching();
         }

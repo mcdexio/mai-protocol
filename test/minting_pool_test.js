@@ -20,8 +20,6 @@ contract('Pool', async accounts => {
     beforeEach(async () => {
         const contracts = await getContracts();
         exchange = contracts.exchange;
-        proxy = contracts.proxy;
-
         const mpxContracs = await getMarketContract({
             cap: 8500e10,
             floor: 7500e10,

@@ -1,11 +1,10 @@
-const Proxy = artifacts.require("Proxy.sol");
 const MaiProtocol = artifacts.require("MaiProtocol.sol");
 
 module.exports = async function (deployer, network, accounts) {
-    // proxy
-    await deployer.deploy(Proxy);
+    // MaiProtocol
+    await deployer.deploy(MaiProtocol);
 
-    console.log('   ------------------------------------------------------------')
-    console.log('   > Proxy      :  ', Proxy.address)
+    console.log('  「 deploy mai protocol 」--------------------------------------')
+    console.log('   > MaiProtocol:  ', MaiProtocol.address)
     console.log('   -------------------------------------------------------------')
 };

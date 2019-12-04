@@ -42,42 +42,37 @@ contract MintingPool is LibOwnable, LibWhitelist {
     event Mint(address indexed contractAddress, address indexed to, uint256 value);
     event Redeem(address indexed contractAddress, address indexed to, uint256 value);
     event Withdraw(address indexed tokenAddress, address indexed to, uint256 amount);
+    event Approval(address indexed tokenAddress, address indexed spender, uint256 amount);
 
-    /// @dev Withdraw collaterals left in the pool, owner only.
-    /// @param marketContractAddress Address of market contract.
+    /// @dev Withdraw erc20 token from pool, owner only.
+    /// @param token Address of erc20 token.
     /// @param amount Amount of collater to withdraw.
-    function withdrawCollateral(
-        address marketContractAddress,
-        uint256 amount
-    )
+    function withdrawERC20(address token, uint256 amount)
         external
         onlyOwner
     {
         require(amount > 0, "INVALID_AMOUNT");
 
-        IMarketContract marketContract = IMarketContract(marketContractAddress);
-        IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS()).safeTransfer(msg.sender, amount);
+        IERC20(token).safeTransfer(msg.sender, amount);
 
-        emit Withdraw(marketContract.COLLATERAL_TOKEN_ADDRESS(), msg.sender, amount);
+        emit Withdraw(token, msg.sender, amount);
     }
 
-    /// @dev Withdraw market tokens (MKT) left in the pool, owner only.
-    /// @param marketContractAddress Address of market contract.
-    /// @param amount Amount of collater to withdraw.
-    function withdrawMarketToken(address marketContractAddress, uint256 amount)
-        external
+
+    /// @dev Approve erc20 token, mainly allow market contract transfer these tokens.
+    /// Function `mintPositionTokens` requires collateral/mkt allowance to work properly.
+    /// @param token Address of erc20 token.
+    /// @param spender Spender of erc20 token, allowed to transfer up to amount erc20 token from pool.
+    /// @param amount Amount to approve for speicified market contarct.
+    function approveERC20(address token, address spender, uint256 amount)
+        public
         onlyOwner
     {
-        require(amount > 0, "INVALID_AMOUNT");
+        IERC20(token).safeApprove(spender, amount);
 
-        IMarketContract marketContract = IMarketContract(marketContractAddress);
-        IMarketContractPool marketContractPool = IMarketContractPool(
-            marketContract.COLLATERAL_POOL_ADDRESS()
-        );
-        IERC20(marketContractPool.mktToken()).safeTransfer(msg.sender, amount);
-
-        emit Withdraw(marketContractPool.mktToken(), msg.sender, amount);
+        emit Approval(token, msg.sender, amount);
     }
+
 
     /// @dev Mint position tokens with collateral within contract for further exchange.
     /// Called by administrator periodly to adjust the ratio of collateral to position tokens.
@@ -227,32 +222,6 @@ contract MintingPool is LibOwnable, LibWhitelist {
         );
 
         emit Redeem(marketContractAddress, msg.sender, qtyToRedeem);
-    }
-
-    /// @dev Approve collateral and mkt to allow market contract transfer these tokens.
-    /// Function `mintPositionTokens` requires collateral/mkt allowance to work properly.
-    /// @param marketContractAddress Address of market contract.
-    /// @param amount Amount to approve for speicified market contarct.
-    function approveCollateralPool(address marketContractAddress, uint256 amount)
-        public
-        onlyOwner
-    {
-        IMarketContract marketContract = IMarketContract(marketContractAddress);
-        IMarketContractPool marketContractPool = IMarketContractPool(
-            marketContract.COLLATERAL_POOL_ADDRESS()
-        );
-        address spender = marketContract.COLLATERAL_POOL_ADDRESS();
-        // to make token that compiled with old version solidity compatible
-        // approve collateral, usually dai
-        IERC20 collateralToken = IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS());
-        if (collateralToken.allowance(address(this), spender) == 0 || amount == 0) {
-            collateralToken.safeApprove(spender, amount);
-        }
-        // approve mkt, for lower mint fee
-        IERC20 marketToken = IERC20(marketContractPool.mktToken());
-        if (marketToken.allowance(address(this), spender) == 0 || amount == 0) {
-            marketToken.safeApprove(spender, amount);
-        }
     }
 
     /// @dev Helper function to detect balance of the pool for given token is greater than
