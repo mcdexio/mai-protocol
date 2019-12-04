@@ -22,11 +22,6 @@ pragma experimental ABIEncoderV2; // to enable structure-type parameter
 import "../MaiProtocol.sol";
 
 contract TestMaiProtocol is MaiProtocol {
-    constructor(address _proxyAddress)
-        public
-        MaiProtocol(_proxyAddress)
-    {
-    }
 
     function setFilled(
         OrderParam memory orderParam,
@@ -108,13 +103,12 @@ contract TestMaiProtocol is MaiProtocol {
 
     function validatePricePublic(
         OrderParam memory takerOrderParam,
-        OrderParam memory makerOrderParam,
-        OrderContext memory orderContext
+        OrderParam memory makerOrderParam
     )
         public
-        view
+        pure
     {
-        validatePrice(takerOrderParam, makerOrderParam, orderContext);
+        validatePrice(takerOrderParam, makerOrderParam);
     }
 
     function getMatchResultPublic(
@@ -194,23 +188,14 @@ contract TestMaiProtocol is MaiProtocol {
         return getOrderFromOrderParam(orderParam, orderAddressSet);
     }
 
-    function calculateTotalFeePublic(MatchResult memory result)
-        public
-        pure
-        returns (uint256)
-    {
-        return calculateTotalFee(result);
-    }
-
     function settleResultsPublic(
         MatchResult[] memory results,
-        OrderParam memory takerOrderParam,
         OrderAddressSet memory orderAddressSet,
         OrderContext memory orderContext
     )
         public
     {
-        return settleResults(results, takerOrderParam, orderAddressSet, orderContext);
+        return settleResults(results, orderAddressSet, orderContext);
     }
 
     function doSellPublic(
@@ -219,9 +204,8 @@ contract TestMaiProtocol is MaiProtocol {
         OrderContext memory orderContext
     )
         public
-        returns (uint256)
     {
-        return doSell(result, orderAddressSet, orderContext);
+        doSell(result, orderAddressSet, orderContext);
     }
 
     function doRedeemPublic(
@@ -230,9 +214,8 @@ contract TestMaiProtocol is MaiProtocol {
         OrderContext memory orderContext
     )
         public
-        returns (uint256)
     {
-        return doRedeem(result, orderAddressSet, orderContext);
+        doRedeem(result, orderAddressSet, orderContext);
     }
 
     function doBuyPublic(
@@ -241,9 +224,8 @@ contract TestMaiProtocol is MaiProtocol {
         OrderContext memory orderContext
     )
         public
-        returns (uint256)
     {
-        return doBuy(result, orderAddressSet, orderContext);
+        doBuy(result, orderAddressSet, orderContext);
     }
 
     function doMintPublic(
@@ -252,32 +234,19 @@ contract TestMaiProtocol is MaiProtocol {
         OrderContext memory orderContext
     )
         public
-        returns (uint256)
     {
-        return doMint(result, orderAddressSet, orderContext);
+        doMint(result, orderAddressSet, orderContext);
     }
 
-    function transferPublic(address token, address to, uint256 value)
+    function mintPositionTokensPublic(OrderContext memory orderContext, uint256 value)
         public
     {
-        transfer(token, to, value);
+        mintPositionTokens(orderContext, value);
     }
 
-    function transferFromPublic(address token, address from, address to, uint256 value)
+    function redeemPositionTokensPublic(OrderContext memory orderContext, uint256 value)
         public
     {
-        transferFrom(token, from, to, value);
-    }
-
-    function mintPositionTokensPublic(address contractAddress, uint256 value)
-        public
-    {
-        mintPositionTokens(contractAddress, value);
-    }
-
-    function redeemPositionTokensPublic(address contractAddress, uint256 value)
-        public
-    {
-        redeemPositionTokens(contractAddress, value);
+        redeemPositionTokens(orderContext, value);
     }
 }

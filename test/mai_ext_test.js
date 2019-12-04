@@ -4,8 +4,8 @@ const { getWeb3, getContracts, getMarketContract, buildOrder } = require('./util
 const { generateOrderData, isValidSignature, getOrderHash } = require('../sdk/sdk');
 const { toPrice, fromPrice, toBase, fromBase, toWei, fromWei, infinity } = require('./utils');
 
-contract('Mai', async accounts => {
-    let exchange, proxy;
+contract('MaiExt', async accounts => {
+    let exchange;
     let mpx, collateral, long, short;
 
     const relayer = accounts[9];
@@ -18,7 +18,6 @@ contract('Mai', async accounts => {
     beforeEach(async () => {
         const contracts = await getContracts();
         exchange = contracts.exchange;
-        proxy = contracts.proxy;
 
         const mpxContract = await getMarketContract({
             cap: toPrice(8500),
@@ -141,7 +140,7 @@ contract('Mai', async accounts => {
                     if (amount > 0) {
                         await send(admin, token.methods.mint(user, amount));
                     }
-                    await send(user, token.methods.approve(proxy._address, infinity));
+                    await send(user, token.methods.approve(exchange._address, infinity));
                 }
             }
         }
@@ -155,7 +154,10 @@ contract('Mai', async accounts => {
         }
 
         // prepare
-        await send(admin, proxy.methods.approveCollateralPool(mpx._address, mpx._address, infinity));
+        send(admin, exchange.methods.approveERC20(collateral._address, mpx._address, infinity));
+        send(admin, exchange.methods.approveERC20(long._address, mpx._address, infinity));
+        send(admin, exchange.methods.approveERC20(short._address, mpx._address, infinity));
+
         if (beforeMatching !== undefined) {
             beforeMatching();
         }

@@ -4,8 +4,10 @@ const { getContracts, getMarketContract, buildOrder, increaseEvmTime } = require
 const { getOrderHash } = require('../sdk/sdk');
 const { toPrice, fromPrice, toBase, fromBase, toWei, fromWei, infinity } = require('./utils');
 
+const gasLimit = 8000000
+
 contract('Mai', async accounts => {
-    let exchange, proxy;
+    let exchange;
     let mpx, collateral, long, short;
 
     const relayer = accounts[9];
@@ -18,7 +20,6 @@ contract('Mai', async accounts => {
     beforeEach(async () => {
         const contracts = await getContracts();
         exchange = contracts.exchange;
-        proxy = contracts.proxy;
 
         const mpxContract = await getMarketContract({
             cap: toPrice(8500),
@@ -31,8 +32,8 @@ contract('Mai', async accounts => {
         long = mpxContract.long;
         short = mpxContract.short;
 
-        await proxy.methods.approveCollateralPool(mpx._address, mpx._address, infinity)
-            .send({ from: admin, gasLimit: 8000000 });
+        await exchange.methods.approveERC20(collateral._address, mpx._address, infinity)
+            .send({ from: admin, gasLimit: gasLimit });
     });
 
     const buildMpxOrder = async (config) => {
@@ -142,7 +143,7 @@ contract('Mai', async accounts => {
                     if (amount > 0) {
                         await send(admin, token.methods.mint(user, amount));
                     }
-                    await send(user, token.methods.approve(proxy._address, infinity));
+                    await send(user, token.methods.approve(exchange._address, infinity));
                 }
             }
         }
@@ -156,7 +157,6 @@ contract('Mai', async accounts => {
         }
 
         // prepare
-        // await send(admin, proxy.methods.approveCollateralPool(mpx._address, mpx._address, infinity));
         if (beforeMatching !== undefined) {
             beforeMatching();
         }
@@ -327,7 +327,7 @@ contract('Mai', async accounts => {
                 bad1 = e;
             }
             assert.notEqual(bad1, null, "should revert")
-            assert.ok(bad1.message.includes('MINT_FAILED'), "should throw MINT_FAILED")
+            assert.ok(bad1.message.includes('already settled'), "should fail to mint due to contract expired");
         });
 
         it('can redeem after settlement', async () => {

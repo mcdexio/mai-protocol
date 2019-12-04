@@ -4,8 +4,8 @@ const { getWeb3, getTestContracts, getMarketContract, buildOrder } = require('./
 const { generateOrderData, isValidSignature, getOrderHash } = require('../sdk/sdk');
 const { toPrice, fromPrice, toBase, fromBase, toWei, fromWei, infinity } = require('./utils');
 
-contract('match', async accounts => {
-    let exchange, proxy;
+contract('Match', async accounts => {
+    let exchange;
     let mpx, ctk, long, short;
 
     const relayer = accounts[9];
@@ -18,7 +18,6 @@ contract('match', async accounts => {
     beforeEach(async () => {
         const contracts = await getTestContracts();
         exchange = contracts.exchange;
-        proxy = contracts.proxy;
 
         const mpxContract = await getMarketContract({
             cap: toPrice(8500),
@@ -73,7 +72,7 @@ contract('match', async accounts => {
                 if (amount > 0) {
                     await send(admin, token.methods.mint(user, amount));
                 }
-                await send(user, token.methods.approve(proxy._address, infinity));
+                await send(user, token.methods.approve(exchange._address, infinity));
             }
         }
     };

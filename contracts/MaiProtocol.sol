@@ -26,15 +26,17 @@ import "./lib/LibMath.sol";
 import "./lib/LibSignature.sol";
 import "./lib/LibRelayer.sol";
 import "./lib/LibExchangeErrors.sol";
-import "./interfaces/IMarketContractPool.sol";
 import "./interfaces/IMarketContract.sol";
+import "./interfaces/IMarketContractPool.sol";
 import "./interfaces/IMarketContractRegistry.sol";
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwnable {
     using SafeMath for uint256;
+    using SafeERC20 for IERC20;
 
     uint256 public constant MAX_MATCHES = 3;
     uint256 public constant LONG = 0;
@@ -45,14 +47,14 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     uint256 public constant SUPPORTED_ORDER_VERSION = 1;
 
     /**
-     * Address of the proxy responsible for asset transfer.
-     */
-    address public proxyAddress;
-
-    /**
      * Address of the market contract registry for whitelist check;
      */
     address public marketRegistryAddress;
+
+    /**
+     * Address of the minting pool contract, which is designed to saving fees from minting calls.
+     */
+    address public mintingPoolAddress;
 
     /**
      * Mapping of orderHash => amount
@@ -65,8 +67,6 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
      * Mapping of orderHash => whether order has been cancelled.
      */
     mapping (bytes32 => bool) public cancelled;
-
-    event Cancel(bytes32 indexed orderHash);
 
     /**
      * When orders are being matched, they will always contain the exact same base token,
@@ -105,8 +105,8 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     struct OrderContext {
         IMarketContract marketContract;         // market contract
         IMarketContractPool marketContractPool; // market contract pool
-        address ctkAddress;                     // collateral token
-        address[2] posAddresses;                // [0] = long position, [1] = short position
+        IERC20 collateral;                     // collateral token
+        IERC20[2] positions;                // [0] = long position, [1] = short position
         uint256 takerSide;                      // 0 = buy/long, 1 = sell/short
     }
 
@@ -122,14 +122,14 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         FillAction fillAction;
     }
 
+
     event Match(
         OrderAddressSet addressSet,
         MatchResult result
     );
-
-    constructor(address _proxyAddress) public {
-        proxyAddress = _proxyAddress;
-    }
+    event Cancel(bytes32 indexed orderHash);
+    event Withdraw(address indexed tokenAddress, address indexed to, uint256 amount);
+    event Approval(address indexed tokenAddress, address indexed spender, uint256 amount);
 
     /**
      * Set market registry address, enable market contract addresss check.
@@ -143,6 +143,33 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     {
         marketRegistryAddress = _marketRegistryAddress;
     }
+
+
+    function setMintingPool(address _mintingPoolAddress)
+        external
+        onlyOwner
+    {
+        mintingPoolAddress = _mintingPoolAddress;
+    }
+
+    function approveERC20(address token, address spender, uint256 amount)
+        external
+        onlyOwner
+    {
+        IERC20(token).safeApprove(spender, amount);
+        emit Approval(token, spender, amount);
+    }
+
+    function withdrawERC20(address token, uint256 amount)
+        external
+        onlyOwner
+    {
+        require(amount > 0, INVALID_AMOUNT);
+        IERC20(token).safeTransfer(msg.sender, amount);
+
+        emit Withdraw(token, msg.sender, amount);
+    }
+
 
     /**
      * Do match for MARKET Protocol contract.
@@ -182,7 +209,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             orderAddressSet,
             orderContext
         );
-        settleResults(results, takerOrderParam, orderAddressSet, orderContext);
+        settleResults(results, orderAddressSet, orderContext);
     }
 
     /**
@@ -206,9 +233,9 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         orderContext.marketContractPool = IMarketContractPool(
             orderContext.marketContract.COLLATERAL_POOL_ADDRESS()
         );
-        orderContext.ctkAddress = orderContext.marketContract.COLLATERAL_TOKEN_ADDRESS();
-        orderContext.posAddresses[LONG] = orderContext.marketContract.LONG_POSITION_TOKEN();
-        orderContext.posAddresses[SHORT] = orderContext.marketContract.SHORT_POSITION_TOKEN();
+        orderContext.collateral = IERC20(orderContext.marketContract.COLLATERAL_TOKEN_ADDRESS());
+        orderContext.positions[LONG] = IERC20(orderContext.marketContract.LONG_POSITION_TOKEN());
+        orderContext.positions[SHORT] = IERC20(orderContext.marketContract.SHORT_POSITION_TOKEN());
         orderContext.takerSide = isSell(takerOrderParam.data) ? SHORT : LONG;
 
         return orderContext;
@@ -260,8 +287,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             );
             validatePrice(
                 takerOrderParam,
-                makerOrderParams[i],
-                orderContext
+                makerOrderParams[i]
             );
             uint256 toFillAmount = posFilledAmounts[i];
             for (uint256 j = 0; j < MAX_MATCHES && toFillAmount > 0; j++) {
@@ -372,13 +398,10 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
      *
      * @param takerOrderParam A OrderParam object representing the order from taker.
      * @param makerOrderParam A OrderParam object representing the order from maker.
-     * @param orderContext A OrderContext object contains information abount
-     *                     MARKET Protocol contract.
      */
     function validatePrice(
         OrderParam memory takerOrderParam,
-        OrderParam memory makerOrderParam,
-        OrderContext memory orderContext
+        OrderParam memory makerOrderParam
     )
         internal
         pure
@@ -649,24 +672,10 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             orderInfo.margins[0] = calculateLongMargin(orderContext, orderParam);
             orderInfo.margins[1] = calculateShortMargin(orderContext, orderParam);
         }
-        orderInfo.balances[0] = getERC20Balance(orderContext.posAddresses[0], orderParam.trader);
-        orderInfo.balances[1] = getERC20Balance(orderContext.posAddresses[1], orderParam.trader);
+        orderInfo.balances[0] = IERC20(orderContext.positions[0]).balanceOf(orderParam.trader);
+        orderInfo.balances[1] = IERC20(orderContext.positions[1]).balanceOf(orderParam.trader);
 
         return orderInfo;
-    }
-
-    /**
-     * Helper function to get balance of erc20 token on given account.
-     * @param tokenAddress An erc20 token address.
-     * @param account The token owner to query.
-     # @return The balance of the specified token owner.
-     */
-    function getERC20Balance(address tokenAddress, address account)
-        internal
-        view
-        returns (uint256)
-    {
-        return IERC20(tokenAddress).balanceOf(account);
     }
 
     /**
@@ -694,128 +703,33 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     }
 
     /**
-     * Calculate all total fee required.
-     *
-     * @param result A MatchResult object indicating that how the order be filled.
-     * @return Total fee for trading.
-     */
-    function calculateTotalFee(MatchResult memory result)
-        internal
-        pure
-        returns (uint256)
-    {
-        return result.takerFee
-            .add(result.takerGasFee)
-            .add(result.makerFee)
-            .add(result.makerGasFee);
-    }
-
-    /**
      * Take a list of matches and settle them with the taker order, transferring tokens all tokens
      * and paying all fees necessary to complete the transaction.
      *
      * @param results List of MatchResult objects representing each individual trade to settle.
-     * @param takerOrderParam The OrderParam object representing the taker order data.
      * @param orderAddressSet An object containing addresses common across each order.
      * @param orderContext An object containing order related information.
      */
     function settleResults(
         MatchResult[] memory results,
-        OrderParam memory takerOrderParam,
         OrderAddressSet memory orderAddressSet,
         OrderContext memory orderContext
     )
         internal
     {
-        uint256 ctkFromProxyToTaker;
-        uint256 ctkFromProxyToRelayer;
-        uint256 ctkFromRelayerToTaker;
-        uint256 ctkFromTakerToRelayer;
-
         for (uint256 i = 0; i < results.length; i++) {
             if (results[i].fillAction == FillAction.REDEEM) {
-                /**
-                 *  ============= doRedeem =============
-                 *  - taker   ->    proxy   : pos
-                 *  - maker   ->    proxy   : pos-opposite
-                 *  - proxy   ->    mpx     : redeem
-                 *  - proxy   ->    maker   : ctk - makerFee
-                 *  ====================================
-                 *  - proxy   ->    taker   : ctk - makerFee
-                 *  - proxy   ->    relayer : ctk + makerFee + takerFee
-                 */
-                ctkFromProxyToTaker = ctkFromProxyToTaker
-                    .add(doRedeem(results[i], orderAddressSet, orderContext));
-                ctkFromProxyToRelayer = ctkFromProxyToRelayer
-                    .add(calculateTotalFee(results[i]));
+                doRedeem(results[i], orderAddressSet, orderContext);
             } else if (results[i].fillAction == FillAction.SELL) {
-                /**
-                 *  ============== doSell ==============
-                 *  - taker   ->    maker   : pos
-                 *  - maker   ->    relayer : ctk + makerFee
-                 *  ====================================
-                 *  - relayer ->    taker   : ctk - takerFee
-                 */
-                ctkFromRelayerToTaker = ctkFromRelayerToTaker
-                    .add(doSell(results[i], orderAddressSet, orderContext));
+                doSell(results[i], orderAddressSet, orderContext);
             } else if (results[i].fillAction == FillAction.BUY) {
-                /**
-                 *  ============== doBuy ==============
-                 *  - maker   ->    taker   : pos
-                 *  - taker   ->    maker   : ctk - makerFee - takerFee
-                 *  ====================================
-                 *  - taker   ->    relayer : ctk + makerFee + takerFee
-                 */
-                ctkFromTakerToRelayer = ctkFromTakerToRelayer
-                    .add(doBuy(results[i], orderAddressSet, orderContext));
+                doBuy(results[i], orderAddressSet, orderContext);
             } else if (results[i].fillAction == FillAction.MINT) {
-                /**
-                 *  ============== doMint ==============
-                 *  - taker   ->    proxy   : ctk + takerFee
-                 *  - maker   ->    proxy   : ctk + makerFee
-                 *  - proxy   ->    mpx     : mint
-                 *  - proxy   ->    maker   : pos
-                 *  - proxy   ->    taker   : pos-opposite
-                 *  ====================================
-                 *  - proxy   ->    relayer : makerFee + takerFee - mintFee
-                 */
-                ctkFromProxyToRelayer = ctkFromProxyToRelayer
-                    .add(doMint(results[i], orderAddressSet, orderContext));
+                doMint(results[i], orderAddressSet, orderContext);
             } else {
                 break;
             }
-
             emit Match(orderAddressSet, results[i]);
-        }
-
-        if (ctkFromProxyToTaker > 0) {
-            transfer(
-                orderContext.ctkAddress,
-                takerOrderParam.trader,
-                ctkFromProxyToTaker
-            );
-        }
-        if (ctkFromProxyToRelayer > 0) {
-            transfer(
-                orderContext.ctkAddress,
-                orderAddressSet.relayer,
-                ctkFromProxyToRelayer
-            );
-        }
-        if (ctkFromRelayerToTaker > ctkFromTakerToRelayer) {
-            transferFrom(
-                orderContext.ctkAddress,
-                orderAddressSet.relayer,
-                takerOrderParam.trader,
-                ctkFromRelayerToTaker.sub(ctkFromTakerToRelayer)
-            );
-        } else if (ctkFromRelayerToTaker < ctkFromTakerToRelayer) {
-            transferFrom(
-                orderContext.ctkAddress,
-                takerOrderParam.trader,
-                orderAddressSet.relayer,
-                ctkFromTakerToRelayer.sub(ctkFromRelayerToTaker)
-            );
         }
     }
 
@@ -825,38 +739,113 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         OrderContext memory orderContext
     )
         internal
-        returns (uint256)
     {
+        uint256 takerTotalFee = result.takerFee.add(result.takerGasFee);
+        uint256 makerTotalFee = result.makerFee.add(result.makerGasFee);
         // taker -> maker
-        transferFrom(
-            orderContext.posAddresses[oppositeSide(orderContext.takerSide)],
-            result.taker,
-            result.maker,
-            result.posFilledAmount
-        );
+        orderContext.positions[oppositeSide(orderContext.takerSide)]
+            .safeTransferFrom(
+                result.taker,
+                result.maker,
+                result.posFilledAmount
+            );
+        // if you want alter solution, replacing starts here
         // maker -> relayer
-        transferFrom(
-            orderContext.ctkAddress,
+        orderContext.collateral.safeTransferFrom(
             result.maker,
             orderAddressSet.relayer,
-            result.ctkFilledAmount
-                .add(result.makerFee)
-                .add(result.makerGasFee)
+            result.ctkFilledAmount.add(makerTotalFee)
         );
-        uint256 takerTotalFee = result.takerFee.add(result.takerGasFee);
         if (result.ctkFilledAmount > takerTotalFee) {
-            // relayer to taker
-            return result.ctkFilledAmount.sub(takerTotalFee);
+            // taker to relayer
+            orderContext.collateral.safeTransferFrom(
+                orderAddressSet.relayer,
+                result.taker,
+                result.ctkFilledAmount.sub(takerTotalFee)
+            );
         } else if (result.ctkFilledAmount < takerTotalFee) {
             // taker to relayer
-            transferFrom(
-                orderContext.ctkAddress,
+            orderContext.collateral.safeTransferFrom(
                 result.taker,
                 orderAddressSet.relayer,
                 takerTotalFee.sub(result.ctkFilledAmount)
             );
         }
-        return 0;
+
+        // // alter solution: side effect is that taker has to approve ctk,
+        // // that may be difficult to test on frontend
+        // // maker -> taker
+        // orderContext.collateral.safeTransferFrom(
+        //     result.maker,
+        //     result.taker,
+        //     result.ctkFilledAmount.add(makerTotalFee)
+        // );
+        // orderContext.collateral.safeTransferFrom(
+        //     result.taker,
+        //     orderAddressSet.relayer,
+        //     takerTotalFee.add(makerTotalFee)
+        // );
+    }
+
+    /**
+     * doBuy: taker buy position token from maker.
+     *         taker -> maker: position
+     *         maker -> taker: collateral
+     *         taker -> relayer: fee
+     */
+    function doBuy(
+        MatchResult memory result,
+        OrderAddressSet memory orderAddressSet,
+        OrderContext memory orderContext
+    )
+        internal
+    {
+        uint256 makerTotalFee = result.makerFee.add(result.makerGasFee);
+        uint256 takerTotalFee = result.takerFee.add(result.takerGasFee);
+        // maker -> taker
+        orderContext.positions[orderContext.takerSide]
+            .safeTransferFrom(
+                result.maker,
+                result.taker,
+                result.posFilledAmount
+            );
+        // if you want alter solution, replacing starts here
+        if (result.ctkFilledAmount > makerTotalFee) {
+            // taker -> maker
+            orderContext.collateral.safeTransferFrom(
+                result.taker,
+                result.maker,
+                result.ctkFilledAmount.sub(makerTotalFee)
+            );
+        } else if (result.ctkFilledAmount < makerTotalFee) {
+            // maker -> taker
+            orderContext.collateral.safeTransferFrom(
+                result.maker,
+                result.taker,
+                makerTotalFee.sub(result.ctkFilledAmount)
+            );
+        }
+        // taker -> relayer
+        orderContext.collateral.safeTransferFrom(
+            result.taker,
+            orderAddressSet.relayer,
+            takerTotalFee.add(makerTotalFee)
+        );
+
+        // // alter solution: side effect is that maker has to approve ctk,
+        // // that may be difficult to test on frontend
+        // // taker -> maker
+        // orderContext.collateral.safeTransferFrom(
+        //     result.taker,
+        //     result.maker,
+        //     result.ctkFilledAmount.add(takerTotalFee)
+        // );
+        // // maker -> relayer
+        // orderContext.collateral.safeTransferFrom(
+        //     result.maker,
+        //     orderAddressSet.relayer,
+        //     takerTotalFee.add(makerTotalFee)
+        // );
     }
 
     function oppositeSide(uint256 side) internal pure returns (uint256) {
@@ -868,16 +857,6 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
      * long and short tokens from both taker and makers, then calls mint method of market protocol
      * contract pool. The amount of tokens collected from maker and taker must be equal.
      *
-     *  for FillAction.MINT
-     *
-     *   taker -- takerPosToken --> maker
-     *   maker -- makerPositionToken --> relayer
-     *   proxy -- quoteToken - takerFee - takerGasFee - makerFee - makerGasFee --> taker
-     *
-     *   taker get: ctkFilledAmount  (-takerFee -takerGasFee)
-     *   maker get: ctkFilledAmount  (-makerFee -makerGasFee)
-     *   proxy get: makerFee + makerGasFee + takerFee + takerGasFee - mintFee
-     *
      * @param result A MatchResult object representing an individual trade to settle.
      * @param orderAddressSet An object containing addresses common across each order.
      * @param orderContext An object containing order related information.
@@ -888,101 +867,66 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         OrderContext memory orderContext
     )
         internal
-        returns (uint256)
     {
-        // taker -> proxy
-        transferFrom(
-            orderContext.posAddresses[oppositeSide(orderContext.takerSide)],
-            result.taker,
-            proxyAddress,
-            result.posFilledAmount
-        );
-        // maker -> proxy
-        transferFrom(
-            orderContext.posAddresses[orderContext.takerSide],
-            result.maker,
-            proxyAddress,
-            result.posFilledAmount
-        );
-        // proxy -> mpx
-        redeemPositionTokens(orderAddressSet.marketContractAddress, result.posFilledAmount);
-
         uint256 makerTotalFee = result.makerFee.add(result.makerGasFee);
         uint256 takerTotalFee = result.takerFee.add(result.takerGasFee);
-        // proxy -> maker
-        if (result.ctkFilledAmount > makerTotalFee) {
-            transfer(
-                orderContext.ctkAddress,
-                result.maker,
-                result.ctkFilledAmount.sub(makerTotalFee)
-            );
-        } else if (result.ctkFilledAmount < makerTotalFee) {
-            transferFrom(
-                orderContext.ctkAddress,
-                result.maker,
-                proxyAddress,
-                makerTotalFee.sub(result.ctkFilledAmount)
-            );
-        }
-        uint256 collateralToTaker = result.posFilledAmount
-            .mul(orderContext.marketContract.COLLATERAL_PER_UNIT())
+        uint256 collateralToTaker = orderContext.marketContract.COLLATERAL_PER_UNIT()
+            .mul(result.posFilledAmount)
             .sub(result.ctkFilledAmount);
 
-        // proxy -> taker
-        if (collateralToTaker > takerTotalFee) {
-            return collateralToTaker.sub(takerTotalFee);
-        } else if (collateralToTaker < takerTotalFee) {
-            transferFrom(
-                orderContext.ctkAddress,
+        // 1. collect positions
+        // taker -> mai
+        orderContext.positions[oppositeSide(orderContext.takerSide)]
+            .safeTransferFrom(
                 result.taker,
-                proxyAddress,
-                takerTotalFee.sub(collateralToTaker)
+                address(this),
+                result.posFilledAmount
             );
-        }
-        return 0;
-    }
-
-    /**
-     * doBuy: taker buy position token from maker.
-     *         taker -> maker: position
-     *         maker -> taker: collateral
-     *         taker -> relayer: fee
-     */
-    function doBuy(
-        MatchResult memory result,
-        OrderAddressSet memory,
-        OrderContext memory orderContext
-    )
-        internal
-        returns (uint256)
-    {
-        // maker -> taker
-        transferFrom(
-            orderContext.posAddresses[orderContext.takerSide],
-            result.maker,
-            result.taker,
-            result.posFilledAmount
-        );
-        uint256 makerTotalFee = result.makerFee.add(result.makerGasFee);
+        // maker -> mai
+        orderContext.positions[orderContext.takerSide]
+            .safeTransferFrom(
+                result.maker,
+                address(this),
+                result.posFilledAmount
+            );
+        // 2. do redeem
+        redeemPositionTokens(orderContext, result.posFilledAmount);
+        // 3. send collateral back to user
+        // to maker
         if (result.ctkFilledAmount > makerTotalFee) {
-            // taker -> maker
-            transferFrom(
-                orderContext.ctkAddress,
-                result.taker,
+            // mai -> maker
+            orderContext.collateral.safeTransfer(
                 result.maker,
                 result.ctkFilledAmount.sub(makerTotalFee)
             );
         } else if (result.ctkFilledAmount < makerTotalFee) {
-            // maker -> taker
-            transferFrom(
-                orderContext.ctkAddress,
+            // maker -> mai: insufficent fees
+            orderContext.collateral.safeTransferFrom(
                 result.maker,
-                result.taker,
+                address(this),
                 makerTotalFee.sub(result.ctkFilledAmount)
             );
         }
-        // taker -> relayer
-        return result.takerFee.add(result.takerGasFee).add(makerTotalFee);
+        // to taker
+        if (collateralToTaker > takerTotalFee) {
+            // mai -> taker
+            orderContext.collateral.safeTransfer(
+                result.taker,
+                collateralToTaker.sub(takerTotalFee)
+            );
+        } else if (collateralToTaker < takerTotalFee) {
+            // takker -> mai: insufficent fees
+            orderContext.collateral.safeTransferFrom(
+                result.taker,
+                address(this),
+                collateralToTaker.sub(takerTotalFee)
+            );
+        }
+        // to relayer
+        orderContext.collateral.safeTransfer(
+            orderAddressSet.relayer,
+            makerTotalFee.add(takerTotalFee)
+        );
     }
 
     /**
@@ -990,16 +934,6 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
      * collaterals from both taker and makers, then calls mint method of market protocol contract
      * pool.
      *
-     *  for FillAction.MINT
-     *
-     *   maker      -- ctkFilledAmount + makerFee + makerGasFee   --> proxy
-     *   taker      -- ctkFilledAmount + takerFee + takerGasFee   --> proxy
-     *   proxy      -- posFilledAmount                             --> maker
-     *   proxy      -- posFilledAmount                             --> taker
-     *
-     *   taker get:     ctkFilledAmount  (-takerFee -takerGasFee)
-     *   maker get:     posFilledAmount   (-makerFee -makerGasFee)
-     *   relayer get:   makerFee + makerGasFee + takerFee + takerGasFee
      *
      * @param result MatchResult object representing an individual trade to settle.
      * @param orderAddressSet An object containing addresses common across each order.
@@ -1011,316 +945,91 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         OrderContext memory orderContext
     )
         internal
-        returns (uint256)
     {
         // posFilledAmount
         uint256 neededCollateral = result.posFilledAmount
             .mul(orderContext.marketContract.COLLATERAL_PER_UNIT());
         uint256 neededCollateralTokenFee = result.posFilledAmount
             .mul(orderContext.marketContract.COLLATERAL_TOKEN_FEE_PER_UNIT());
-        uint256 totalFee = result.takerFee.add(result.makerFee);
-
-        if (neededCollateralTokenFee > totalFee) {
-            transferFrom(
-                orderContext.ctkAddress,
+        uint256 mintFee = result.takerFee.add(result.makerFee);
+        uint256 feeToRelayer = result.takerGasFee.add(result.makerGasFee);
+        // if fees from user is not enough for minting, the rest will be payed by relayer
+        if (neededCollateralTokenFee > mintFee) {
+            orderContext.collateral.safeTransferFrom(
                 orderAddressSet.relayer,
-                proxyAddress,
-                neededCollateralTokenFee.sub(totalFee)
+                address(this),
+                neededCollateralTokenFee.sub(mintFee)
             );
+        } else if (neededCollateralTokenFee < mintFee) {
+            feeToRelayer = feeToRelayer.add(mintFee).sub(neededCollateralTokenFee);
         }
-        // maker -> proxy
-        transferFrom(
-            orderContext.ctkAddress,
+        // 1. collect collateral
+        // maker -> mai
+        orderContext.collateral.safeTransferFrom(
             result.maker,
-            proxyAddress,
+            address(this),
             result.ctkFilledAmount
                 .add(result.makerFee)
                 .add(result.makerGasFee)
         );
-        // taker -> proxy
-        transferFrom(
-            orderContext.ctkAddress,
+        // taker -> mai
+        orderContext.collateral.safeTransferFrom(
             result.taker,
-            proxyAddress,
+            address(this),
             neededCollateral
                 .sub(result.ctkFilledAmount)
                 .add(result.takerFee)
                 .add(result.takerGasFee)
         );
-        // proxy <- long/short position tokens
-        mintPositionTokens(orderAddressSet.marketContractAddress, result.posFilledAmount);
-        // proxy -> taker
-        transfer(
-            orderContext.posAddresses[orderContext.takerSide],
-            result.taker,
-            result.posFilledAmount
+        // 2. do mint
+        mintPositionTokens(orderContext, result.posFilledAmount);
+        // 3. send positions to user
+        // mai -> taker
+        orderContext.positions[orderContext.takerSide]
+            .safeTransfer(
+                result.taker,
+                result.posFilledAmount
+            );
+        // mai -> maker
+        orderContext.positions[oppositeSide(orderContext.takerSide)]
+            .safeTransfer(
+                result.maker,
+                result.posFilledAmount
+            );
+        // mai -> relayer
+        orderContext.collateral.safeTransfer(
+            orderAddressSet.relayer,
+            feeToRelayer
         );
-        // proxy -> maker
-        transfer(
-            orderContext.posAddresses[oppositeSide(orderContext.takerSide)],
-            result.maker,
-            result.posFilledAmount
-        );
-        if (neededCollateralTokenFee > totalFee) {
-            return result.takerGasFee.add(result.makerGasFee);
-        }
-        // proxy -> relayer
-        return result.makerFee
-            .add(result.takerFee)
-            .add(result.takerGasFee)
-            .add(result.makerGasFee)
-            .sub(neededCollateralTokenFee);
     }
 
-    /**
-     * A helper function to call the transfer function in Proxy.sol with solidity assembly.
-     * Copying the data in order to make an external call can be expensive, but performing the
-     * operations in assembly seems to reduce gas cost.
-     *
-     * The function will revert the transaction if the transfer fails.
-     *
-     * @param token The address of the ERC20 token we will be transferring, 0 for ETH.
-     * @param to The address we will be transferring to.
-     * @param value The amount of token we will be transferring.
-     */
-    function transfer(address token, address to, uint256 value) internal {
-        if (value == 0) {
-            return;
+    /// @dev Invoking mintPositionTokens.
+    /// @param orderContext Order context contains required market contract info.
+    /// @param qtyToMint Quantity to mint in position token.
+    function mintPositionTokens(OrderContext memory orderContext, uint256 qtyToMint)
+        internal
+    {
+        IMarketContractPool collateralPool;
+        if (mintingPoolAddress != address(0x0)) {
+            collateralPool = IMarketContractPool(mintingPoolAddress);
+        } else {
+            collateralPool = orderContext.marketContractPool;
         }
-
-        address proxy = proxyAddress;
-        uint256 result;
-
-        /**
-         * We construct calldata for the `Proxy.transferFrom` ABI.
-         * The layout of this calldata is in the table below.
-         *
-         * ╔════════╤════════╤════════╤═══════════════════╗
-         * ║ Area   │ Offset │ Length │ Contents          ║
-         * ╟────────┼────────┼────────┼───────────────────╢
-         * ║ Header │ 0      │ 4      │ function selector ║
-         * ║ Params │ 4      │ 32     │ token address     ║
-         * ║        │ 36     │ 32     │ from address      ║
-         * ║        │ 68     │ 32     │ to address        ║
-         * ║        │ 100    │ 32     │ amount of token   ║
-         * ╚════════╧════════╧════════╧═══════════════════╝
-         */
-        // solium-disable-next-line security/no-inline-assembly
-        assembly {
-            // Keep these so we can restore stack memory upon completion
-            let tmp1 := mload(0)
-            let tmp2 := mload(4)
-            let tmp3 := mload(36)
-            let tmp4 := mload(68)
-
-            // keccak256('transfer(address,address,uint256)') bitmasked to 4 bytes
-            mstore(0, 0xbeabacc800000000000000000000000000000000000000000000000000000000)
-            mstore(4, token)
-            mstore(36, to)
-            mstore(68, value)
-
-            // Call Proxy contract transferFrom function using constructed calldata
-            result := call(
-                gas,   // Forward all gas
-                proxy, // Proxy.sol deployment address
-                0,     // Don't send any ETH
-                0,     // Pointer to start of calldata
-                100,   // Length of calldata
-                0,     // Output location
-                0      // We don't expect any output
-            )
-
-            // Restore stack memory
-            mstore(0, tmp1)
-            mstore(4, tmp2)
-            mstore(36, tmp3)
-            mstore(68, tmp4)
-        }
-
-        if (result == 0) {
-            revert(TRANSFER_FAILED);
-        }
+        collateralPool.mintPositionTokens(address(orderContext.marketContract), qtyToMint, false);
     }
 
-    /**
-     * A helper function to call the transferFrom function in Proxy.sol with solidity assembly.
-     * Copying the data in order to make an external call can be expensive, but performing the
-     * operations in assembly seems to reduce gas cost.
-     *
-     * The function will revert the transaction if the transfer fails.
-     *
-     * @param token The address of the ERC20 token we will be transferring, 0 for ETH.
-     * @param from The address we will be transferring from.
-     * @param to The address we will be transferring to.
-     * @param value The amount of token we will be transferring.
-     */
-    function transferFrom(address token, address from, address to, uint256 value) internal {
-        if (value == 0) {
-            return;
+    /// @dev Invoking redeemPositionTokens.
+    /// @param orderContext Order context contains required market contract info.
+    /// @param qtyToRedeem Quantity to redeem in position token.
+    function redeemPositionTokens(OrderContext memory orderContext, uint256 qtyToRedeem)
+        internal
+    {
+        IMarketContractPool collateralPool;
+        if (mintingPoolAddress != address(0x0)) {
+            collateralPool = IMarketContractPool(mintingPoolAddress);
+        } else {
+            collateralPool = orderContext.marketContractPool;
         }
-
-        address proxy = proxyAddress;
-        uint256 result;
-
-        /**
-         * We construct calldata for the `Proxy.transferFrom` ABI.
-         * The layout of this calldata is in the table below.
-         *
-         * ╔════════╤════════╤════════╤═══════════════════╗
-         * ║ Area   │ Offset │ Length │ Contents          ║
-         * ╟────────┼────────┼────────┼───────────────────╢
-         * ║ Header │ 0      │ 4      │ function selector ║
-         * ║ Params │ 4      │ 32     │ token address     ║
-         * ║        │ 36     │ 32     │ from address      ║
-         * ║        │ 68     │ 32     │ to address        ║
-         * ║        │ 100    │ 32     │ amount of token   ║
-         * ╚════════╧════════╧════════╧═══════════════════╝
-         */
-        // solium-disable-next-line security/no-inline-assembly
-        assembly {
-            // Keep these so we can restore stack memory upon completion
-            let tmp1 := mload(0)
-            let tmp2 := mload(4)
-            let tmp3 := mload(36)
-            let tmp4 := mload(68)
-            let tmp5 := mload(100)
-
-            // keccak256('transferFrom(address,address,address,uint256)') bitmasked to 4 bytes
-            mstore(0, 0x15dacbea00000000000000000000000000000000000000000000000000000000)
-            mstore(4, token)
-            mstore(36, from)
-            mstore(68, to)
-            mstore(100, value)
-
-            // Call Proxy contract transferFrom function using constructed calldata
-            result := call(
-                gas,   // Forward all gas
-                proxy, // Proxy.sol deployment address
-                0,     // Don't send any ETH
-                0,     // Pointer to start of calldata
-                132,   // Length of calldata
-                0,     // Output location
-                0      // We don't expect any output
-            )
-
-            // Restore stack memory
-            mstore(0, tmp1)
-            mstore(4, tmp2)
-            mstore(36, tmp3)
-            mstore(68, tmp4)
-            mstore(100, tmp5)
-        }
-
-        if (result == 0) {
-            revert(TRANSFER_FROM_FAILED);
-        }
-    }
-
-    function mintPositionTokens(address contractAddress, uint256 value) internal {
-        if (value == 0) {
-            return;
-        }
-
-        address proxy = proxyAddress;
-        uint256 result;
-
-        /**
-         * We construct calldata for the `Proxy.transferFrom` ABI.
-         * The layout of this calldata is in the table below.
-         *
-         * ╔════════╤════════╤════════╤═══════════════════╗
-         * ║ Area   │ Offset │ Length │ Contents          ║
-         * ╟────────┼────────┼────────┼───────────────────╢
-         * ║ Header │ 0      │ 4      │ function selector ║
-         * ║ Params │ 4      │ 32     │ contract address  ║
-         * ║        │ 36     │ 32     │ amount of token    ║
-         * ╚════════╧════════╧════════╧═══════════════════╝
-         */
-        // solium-disable-next-line security/no-inline-assembly
-        assembly {
-            // Keep these so we can restore stack memory upon completion
-            let tmp1 := mload(0)
-            let tmp2 := mload(4)
-            let tmp3 := mload(36)
-
-            // keccak256('mintPositionTokens(address,uint256)') bitmasked to 4 bytes
-            mstore(0, 0x2bb0d30f00000000000000000000000000000000000000000000000000000000)
-            mstore(4, contractAddress)
-            mstore(36, value)
-
-            // Call Proxy contract transferFrom function using constructed calldata
-            result := call(
-                gas,   // Forward all gas
-                proxy, // Proxy.sol deployment address
-                0,     // Don't send any ETH
-                0,     // Pointer to start of calldata
-                68,   // Length of calldata
-                0,     // Output location
-                0      // We don't expect any output
-            )
-
-            // Restore stack memory
-            mstore(0, tmp1)
-            mstore(4, tmp2)
-            mstore(36, tmp3)
-        }
-
-        if (result == 0) {
-            revert(MINT_POSITION_TOKENS_FAILED);
-        }
-    }
-
-    function redeemPositionTokens(address contractAddress, uint256 value) internal {
-        if (value == 0) {
-            return;
-        }
-
-        address proxy = proxyAddress;
-        uint256 result;
-
-        /**
-         * We construct calldata for the `Proxy.transferFrom` ABI.
-         * The layout of this calldata is in the table below.
-         *
-         * ╔════════╤════════╤════════╤═══════════════════╗
-         * ║ Area   │ Offset │ Length │ Contents          ║
-         * ╟────────┼────────┼────────┼───────────────────╢
-         * ║ Header │ 0      │ 4      │ function selector ║
-         * ║ Params │ 4      │ 32     │ contract address  ║
-         * ║        │ 36     │ 32     │ amount of token    ║
-         * ╚════════╧════════╧════════╧═══════════════════╝
-         */
-        // solium-disable-next-line security/no-inline-assembly
-        assembly {
-            // Keep these so we can restore stack memory upon completion
-            let tmp1 := mload(0)
-            let tmp2 := mload(4)
-            let tmp3 := mload(36)
-
-            // keccak256('redeemPositionTokens(address,uint256)') bitmasked to 4 bytes
-            mstore(0, 0xc1b2141100000000000000000000000000000000000000000000000000000000)
-            mstore(4, contractAddress)
-            mstore(36, value)
-
-            // Call Proxy contract transferFrom function using constructed calldata
-            result := call(
-                gas,   // Forward all gas
-                proxy, // Proxy.sol deployment address
-                0,     // Don't send any ETH
-                0,     // Pointer to start of calldata
-                68,   // Length of calldata
-                0,     // Output location
-                0      // We don't expect any output
-            )
-
-            // Restore stack memory
-            mstore(0, tmp1)
-            mstore(4, tmp2)
-            mstore(36, tmp3)
-        }
-
-        if (result == 0) {
-            revert(REDEEM_POSITION_TOKENS_FAILED);
-        }
+        collateralPool.redeemPositionTokens(address(orderContext.marketContract), qtyToRedeem);
     }
 }

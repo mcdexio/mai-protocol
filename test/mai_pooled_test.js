@@ -6,8 +6,8 @@ const { toPrice, fromPrice, toBase, fromBase, toWei, fromWei, infinity } = requi
 
 const maxGasLimit = 8000000;
 
-contract('Mai', async accounts => {
-    let exchange, proxy, pool;
+contract('MaiPooled', async accounts => {
+    let exchange, pool;
     let mpx, collateral, long, short, mkt;
 
     const relayer = accounts[9];
@@ -20,7 +20,6 @@ contract('Mai', async accounts => {
     beforeEach(async () => {
         const contracts = await getContracts();
         exchange = contracts.exchange;
-        proxy = contracts.proxy;
 
         const mpxContract = await getMarketContract({
             cap: toPrice(8500),
@@ -36,14 +35,20 @@ contract('Mai', async accounts => {
         pool = mpxContract.pool;
         mkt = mpxContract.mkt;
 
+        await pool.methods.approveERC20(collateral._address, mpx._address, infinity)
+            .send({ from: admin, gasLimit: maxGasLimit });
+        await pool.methods.approveERC20(mkt._address, mpx._address, infinity)
+            .send({ from: admin, gasLimit: maxGasLimit });
+        await pool.methods.addAddress(exchange._address)
+            .send({ from: admin, gasLimit: maxGasLimit });
 
-        await pool.methods.addAddress(proxy._address)
+        await exchange.methods.approveERC20(collateral._address, pool._address, infinity)
             .send({ from: admin, gasLimit: maxGasLimit });
-        await pool.methods.approveCollateralPool(mpx._address, infinity)
+        await exchange.methods.approveERC20(long._address, pool._address, infinity)
             .send({ from: admin, gasLimit: maxGasLimit });
-        await proxy.methods.setCollateralPoolAddress(pool._address)
+        await exchange.methods.approveERC20(short._address, pool._address, infinity)
             .send({ from: admin, gasLimit: maxGasLimit });
-        await proxy.methods.approveCollateralPool(mpx._address, pool._address, infinity)
+        await exchange.methods.setMintingPool(pool._address)
             .send({ from: admin, gasLimit: maxGasLimit });
 
     });
@@ -65,53 +70,6 @@ contract('Mai', async accounts => {
         };
         return await buildOrder(orderParam);
     }
-
-    const getNormalizedBalance = async (contract, user) => {
-        const decimals = await contract.methods.decimals().call();
-        const balance = await contract.methods.balanceOf(user).call();
-        return new BigNumber(balance).div(Math.pow(10, decimals)).toString();
-    }
-
-    const withBalanceWatcher = async (contracts, users, callback) => {
-        console.log("BEGIN");
-        console.log("---------------------------------------------------------------");
-        let initialBalance = {};
-        for (let i = 0; i < Object.keys(users).length; i++) {
-            const userKey = Object.keys(users)[i];
-            const userAddress = users[userKey];
-            initialBalance[userKey] = {}
-            console.log("   $", userKey);
-            for (let j = 0; j < Object.keys(contracts).length; j++) {
-                const contractKey = Object.keys(contracts)[j];
-                const contract = contracts[contractKey];
-                initialBalance[userKey][contractKey] = await getNormalizedBalance(contract, userAddress);
-                console.log("       -", contractKey, "[I]", initialBalance[userKey][contractKey]);
-            }
-        }
-        console.log("TRANSACTION BEGIN");
-        console.log("---------------------------------------------------------------");
-        await callback();
-        console.log("TRANSACTION END");
-        console.log("---------------------------------------------------------------");
-
-        console.log("SUMMARY");
-        console.log("---------------------------------------------------------------");
-        for (let i = 0; i < Object.keys(users).length; i++) {
-            const userKey = Object.keys(users)[i];
-            const userAddress = users[userKey];
-            console.log("   $", userKey);
-            for (let j = 0; j < Object.keys(contracts).length; j++) {
-                const contractKey = Object.keys(contracts)[j];
-                const contract = contracts[contractKey];
-                const remaining = await getNormalizedBalance(contract, userAddress);
-                const diff = remaining - initialBalance[userKey][contractKey];
-                console.log("       -", contractKey,
-                    "[R]", remaining,
-                    "[D]", diff > 0 ? "+" + diff : diff);
-            }
-        }
-    }
-
 
     /*
     matchConfigs    - initialBalances   { token: user: amount }
@@ -157,7 +115,7 @@ contract('Mai', async accounts => {
                     if (amount > 0) {
                         await send(admin, token.methods.mint(user, amount));
                     }
-                    await send(user, token.methods.approve(proxy._address, infinity));
+                    await send(user, token.methods.approve(exchange._address, infinity));
                 }
             }
         }
@@ -171,7 +129,6 @@ contract('Mai', async accounts => {
         }
 
         // prepare
-        // await send(admin, proxy.methods.approveCollateralPool(mpx._address, mpx._address, infinity));
         if (beforeMatching !== undefined) {
             beforeMatching();
         }
@@ -199,7 +156,7 @@ contract('Mai', async accounts => {
                     const token = tokens[tokenName];
                     const expect = expectedBalances[userName][tokenName];
                     const actual = await call(token.methods.balanceOf(user));
-                    assert.equal(actual, expect);
+                    assert.equal(actual, expect, "!! -> " + tokenName + " of " + userName);
                 }
             }
         }
@@ -892,7 +849,6 @@ contract('Mai', async accounts => {
         const mktFeePerUnit = await mpx.methods.MKT_TOKEN_FEE_PER_UNIT().call();
         const mktRequired = (amount).times(new BigNumber(mktFeePerUnit));
 
-
         const testConfig = {
             initialBalances: {
                 u1: { collateral: toWei(10000) },
@@ -922,13 +878,13 @@ contract('Mai', async accounts => {
                 u1: { collateral: toWei(10000, -70, -2, -0.1), short: toBase(0.1), },
                 u2: { collateral: toWei(10000, -30, -2, -0.1), long: toBase(0.1), },
                 relayer: { collateral: toWei(2, 2, 0.1, 0.1, -2.4) }, // 2.4 = MP mint fee
-                proxy: { collateral: 0 },
+                exchange: { collateral: 0 },
                 pool: {
                     mkt: mktInitial.minus(mktRequired).toFixed(),
                     collateral: toWei(2.4),
                 },
             },
-            users: { admin, u1, u2, u3, relayer, proxy: proxy._address, pool: pool._address },
+            users: { admin, u1, u2, u3, relayer, exchange: exchange._address, pool: pool._address },
             tokens: { collateral, long, short, mkt },
             admin: admin,
             gasLimit: 8000000,
@@ -977,7 +933,7 @@ contract('Mai', async accounts => {
                 u1: { collateral: toWei(10000, -70, -2, -0.1), short: toBase(0.1), },
                 u2: { collateral: toWei(10000, -30, -2, -0.1), long: toBase(0.1), },
                 relayer: { collateral: toWei(2, 2, 0.1, 0.1, -2.4) }, // 2.4 = MP mint fee
-                proxy: { collateral: 0 },
+                exchange: { collateral: 0 },
                 pool: {
                     mkt: mktInitial.toFixed(),
                     collateral: toWei(100, 2.4),
@@ -985,7 +941,7 @@ contract('Mai', async accounts => {
                     short: 0,
                 },
             },
-            users: { admin, u1, u2, u3, relayer, proxy: proxy._address, pool: pool._address },
+            users: { admin, u1, u2, u3, relayer, exchange: exchange._address, pool: pool._address },
             tokens: { collateral, long, short, mkt },
             admin: admin,
             gasLimit: 8000000,
@@ -1038,6 +994,7 @@ contract('Mai', async accounts => {
                     short: toBase(0),
                 },
                 relayer: { collateral: toWei(32, 0.1, 0.1) },
+                exchange: { collateral: 0 },
                 pool: {
                     mkt: 0,
                     collateral: 0,
@@ -1045,7 +1002,7 @@ contract('Mai', async accounts => {
                     short: amount.toFixed(),
                 },
             },
-            users: { admin, u1, u2, u3, relayer, proxy: proxy._address, pool: pool._address },
+            users: { admin, u1, u2, u3, relayer, exchange: exchange._address, pool: pool._address },
             tokens: { collateral, long, short, mkt },
             admin: admin,
             gasLimit: 8000000,

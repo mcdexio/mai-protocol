@@ -1,5 +1,4 @@
 const Web3 = require('web3');
-const Proxy = artifacts.require('./Proxy.sol');
 const MaiProtocol = artifacts.require('./MaiProtocol.sol');
 const TestMaiProtocol = artifacts.require('helper/TestMaiProtocol.sol');
 const TestToken = artifacts.require('helper/TestToken.sol');
@@ -85,33 +84,17 @@ const newContractAt = (contract, address) => {
 };
 
 const getContracts = async () => {
-    const proxy = await newContract(Proxy);
-    // console.log('[test]Proxy deployed at', proxy._address);
-
-    const exchange = await newContract(MaiProtocol, proxy._address);
+    const exchange = await newContract(MaiProtocol);
     // console.log('[test]MaiProtocol deployed at', exchange._address);
-
-    const accounts = await web3.eth.getAccounts();
-    await proxy.methods.addAddress(exchange._address).send({ from: accounts[0] });
-
     return {
-        proxy,
         exchange
     };
 };
 
 const getTestContracts = async () => {
-    const proxy = await newContract(Proxy);
-    // console.log('[test]Proxy deployed at', proxy._address);
-
-    const exchange = await newContract(TestMaiProtocol, proxy._address);
+    const exchange = await newContract(TestMaiProtocol);
     // console.log('[test]TestMaiProtocol deployed at', exchange._address);
-
-    const accounts = await web3.eth.getAccounts();
-    await proxy.methods.addAddress(exchange._address).send({ from: accounts[0] });
-
     return {
-        proxy,
         exchange
     };
 };
