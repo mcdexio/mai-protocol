@@ -125,7 +125,6 @@ contract('Mai', async accounts => {
                     - admin
                     - gasLimit
     */
-
     const matchTest = async (matchConfigs, beforeMatching = undefined, afterMatching = undefined) => {
         const gasLimit = matchConfigs.gasLimit || 8000000;
         const admin = matchConfigs.admin;
@@ -203,6 +202,11 @@ contract('Mai', async accounts => {
                 }
             }
         }
+
+        // mai should never have assets
+        assert.equal(await call(tokens.collateral.methods.balanceOf(exchange._address)), '0', 'mai should never have ctk');
+        assert.equal(await call(tokens.long.methods.balanceOf(exchange._address)), '0', 'mai should never have long');
+        assert.equal(await call(tokens.short.methods.balanceOf(exchange._address)), '0', 'mai should never have short');
     }
 
     it('buy(long) + buy(short) = mint', async () => {
