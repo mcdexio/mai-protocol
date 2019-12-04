@@ -1018,14 +1018,14 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             .mul(orderContext.marketContract.COLLATERAL_PER_UNIT());
         uint256 neededCollateralTokenFee = result.posFilledAmount
             .mul(orderContext.marketContract.COLLATERAL_TOKEN_FEE_PER_UNIT());
-        uint256 totalFee = result.takerFee.add(result.makerFee);
+        uint256 mintFee = result.takerFee.add(result.makerFee);
 
-        if (neededCollateralTokenFee > totalFee) {
+        if (neededCollateralTokenFee > mintFee) {
             transferFrom(
                 orderContext.ctkAddress,
                 orderAddressSet.relayer,
                 proxyAddress,
-                neededCollateralTokenFee.sub(totalFee)
+                neededCollateralTokenFee.sub(mintFee)
             );
         }
         // maker -> proxy
@@ -1061,7 +1061,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             result.maker,
             result.posFilledAmount
         );
-        if (neededCollateralTokenFee > totalFee) {
+        if (neededCollateralTokenFee > mintFee) {
             return result.takerGasFee.add(result.makerGasFee);
         }
         // proxy -> relayer
