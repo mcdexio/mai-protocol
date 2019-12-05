@@ -35,12 +35,16 @@ contract('MaiPooled', async accounts => {
         pool = mpxContract.pool;
         mkt = mpxContract.mkt;
 
+        await pool.methods.addAddress(exchange._address)
+            .send({ from: admin, gasLimit: maxGasLimit });
+        await exchange.methods.setMintingPool(pool._address)
+            .send({ from: admin, gasLimit: maxGasLimit });
+
         await pool.methods.approveERC20(collateral._address, mpx._address, infinity)
             .send({ from: admin, gasLimit: maxGasLimit });
         await pool.methods.approveERC20(mkt._address, mpx._address, infinity)
             .send({ from: admin, gasLimit: maxGasLimit });
-        await pool.methods.addAddress(exchange._address)
-            .send({ from: admin, gasLimit: maxGasLimit });
+
 
         await exchange.methods.approveERC20(collateral._address, pool._address, infinity)
             .send({ from: admin, gasLimit: maxGasLimit });
@@ -48,8 +52,7 @@ contract('MaiPooled', async accounts => {
             .send({ from: admin, gasLimit: maxGasLimit });
         await exchange.methods.approveERC20(short._address, pool._address, infinity)
             .send({ from: admin, gasLimit: maxGasLimit });
-        await exchange.methods.setMintingPool(pool._address)
-            .send({ from: admin, gasLimit: maxGasLimit });
+
 
     });
 
@@ -160,7 +163,7 @@ contract('MaiPooled', async accounts => {
                 }
             }
         }
-        
+
         // mai should never have assets
         assert.equal(await call(tokens.collateral.methods.balanceOf(exchange._address)), '0', 'mai should never have ctk');
         assert.equal(await call(tokens.long.methods.balanceOf(exchange._address)), '0', 'mai should never have long');

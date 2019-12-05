@@ -33,6 +33,9 @@ async function tryApproveERC20(owner, token, spender, amount) {
         await owner.approveERC20(token.address, spender, amount);
         assert.equal(await token.allowance(owner.address, spender), amount, "unexpected allowance of collateral");
     }
+    const allowance = await token.allowance(owner.address, spender);
+    log(token.address, "for", spender, "=", allowance.toString());
+    assert.ok(allowance > 0);
 }
 
 module.exports = async () => {
@@ -51,7 +54,7 @@ module.exports = async () => {
             await tryApproveERC20(maiProtocol, short, mintingPool.address, infinity);
 
             await tryApproveERC20(mintingPool, collateral, collateralPool.address, infinity);
-            await tryApproveERC20(maiProtocol, mkt, collateralPool.address, infinity);
+            await tryApproveERC20(mintingPool, mkt, collateralPool.address, infinity);
 
             log(mpContractAddress, "approved");
         }
