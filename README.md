@@ -51,37 +51,31 @@ structs:
   Order                        containing necessary information of an order, built by OrderParam and OrderAddressSet
 
 actions:
-  matchMarketContractOrders    match orders from taker and makers to mint/redeem/exchange tokens published by Market Protocol contracts.
-    - takerOrderParam          taker of the matching
-    - makerOrderParams         makers of the matching, could be one or more
-    - posFilledAmounts         an array representing how much positions should match for each take-maker pair. should have the same length with makerOrderParams
-    - orderAddressSet          addresses sharing among taker and makers
+  matchMarketContractOrders        match orders from taker and makers to mint/redeem/exchange tokens published by Market Protocol contracts.
+    - takerOrderParam              taker of the matching
+    - makerOrderParams             makers of the matching, could be one or more
+    - posFilledAmounts             an array representing how much positions should match for each take-maker pair. should have the same length with makerOrderParams
+    - orderAddressSet              addresses sharing among taker and makers
 
-  cancelOrder                  cancel an order, the canceled order can no longer match or be matched.
-```
-
-Proxy:
-```
-actions:
-  setCollateralPoolAddress  owner        set collateral pool for proxy, see xxx for details of a collateral pool
-
-  approveCollateralPool     owner        approvel collateral pool to pull collateral/short/long token from proxy
-
-  withdrawCollateral        owner        withdraw collateral tokens from proxy, the actual address of token is specified by 'COLLATRAL_TOKEN_ADDRESS' field of given market protocol contract
-
-  transfer                  whitelisted  transfer erc20 token from pool to another
-  transferFrom              whitelisted  transfer erc20 token from one to another
-  mintPositionTokens        whitelisted  mint position tokens from collateral pool
-  redeemPositionTokens      whitelisted  redeem position tokens from collateral pool
+  cancelOrder                      cancel an order, the canceled order can no longer match or be matched.
+  
+  setMarketRegistryAddress  owner  set a non-0x address market register to enable market contract is in the official publishing list.
+  
+  setMintingPool            owner  set collateral pool for proxy, see documents for details abount collateral pool 
+  
+  approveERC20              owner  approve a spender to transfer erc20 token from mai-protocol
+  
+  withdrawERC20             owner  withdraw erc20 token from mai-protocol. note that the mai-protocol itself should NEVER hold any token
+  
 ```
 
 MintingPool:
 ```
 actions:
-  withdrawCollateral            owner        withdraw collateral tokens from proxy, the actual category of token is specified by COLLATRAL_TOKEN_ADDRESS of given market protocol contract
-
-  withdrawMarketToken           owner        withdraw market tokens from proxy, the actual address of token is specified by 'mktToken' field of given market protocol collateral pool
-
+  approveERC20                  owner  approve a spender to transfer erc20 token from minting pool
+  
+  withdrawERC20                 owner  withdraw erc20 token from minting pool, usually the collateral token and the market token for minting market contract positions
+  
   internalMintPositionTokens    owner        converting collateral in pool to position tokens for further minting requests
   internalRedeemPositionTokens  owner        converting position tokens in pool to collateral tokens for further redeeming requests
 
