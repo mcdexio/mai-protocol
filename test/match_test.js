@@ -108,9 +108,9 @@ contract('Match', async accounts => {
         const mpxPoolAddress = await call(mpx.methods.COLLATERAL_POOL_ADDRESS());
         assert.equal(context.marketContract, mpx._address, 'marketContract');
         assert.equal(context.marketContractPool, mpxPoolAddress, 'marketContractPool');
-        assert.equal(context.ctkAddress, ctk._address, 'ctk');
-        assert.equal(context.posAddresses[0], long._address, 'pos[0]');
-        assert.equal(context.posAddresses[1], short._address, 'pos[1]');
+        assert.equal(context.collateral, ctk._address, 'ctk');
+        assert.equal(context.positions[0], long._address, 'pos[0]');
+        assert.equal(context.positions[1], short._address, 'pos[1]');
         assert.equal(context.takerSide, '1', 'takerSide');
     });
 
