@@ -8,8 +8,8 @@ const { toPrice, fromPrice, toBase, fromBase, toWei, fromWei, infinity } = requi
 const gasLimit = 8000000;
 
 contract('EstimateGas', async accounts => {
-    let exchange;
-    let mpx, collateral, long, short;
+    let exchange, pool;
+    let mpx, collateral, long, short, mkt;
 
     const relayer = accounts[9];
     const admin = accounts[0];
@@ -19,6 +19,8 @@ contract('EstimateGas', async accounts => {
     const u3 = accounts[3];
     const u4 = accounts[4];
     const u5 = accounts[5];
+
+    let maker1, maker2, maker3, maker4
 
     beforeEach(async () => {
         const contracts = await getContracts();
@@ -31,13 +33,210 @@ contract('EstimateGas', async accounts => {
             feeRate: 300,
         });
         mpx = mpxContract.mpx;
+        pool = mpxContract.pool;
         collateral = mpxContract.collateral;
         long = mpxContract.long;
         short = mpxContract.short;
+        mkt = mpxContract.mkt;
 
         await exchange.methods.approveERC20(collateral._address, mpx._address, infinity)
             .send({ from: admin, gasLimit: gasLimit });
+            
+        maker1 = {
+            initialBalances: {
+                u1: { collateral: toWei(10000), short: toBase(2) },
+                u5: { collateral: toWei(10000), long: toBase(1) },
+                relayer: {},
+            },
+            takerOrder: {
+                trader: u5,
+                side: "sell",
+                amount: toBase(3),
+                price: toPrice(7900),
+                takerFeeRate: 250,
+            },
+            makerOrders: [
+                {
+                    trader: u1,
+                    side: "buy",
+                    amount: toBase(3),
+                    price: toPrice(7900),
+                    makerFeeRate: 250,
+                }
+            ],
+            filledAmounts: [
+                toBase(3)
+            ],
+            users: { admin, u1, u2, u3, u4, u5, relayer },
+            tokens: { collateral, long, short },
+            admin: admin,
+            gasLimit: 8000000,
+        };
+        maker2 = {
+            initialBalances: {
+                u1: { collateral: toWei(10000), short: toBase(2) },
+                u2: { collateral: toWei(10000), short: toBase(1) },
+                u5: { collateral: toWei(10000), long: toBase(1) },
+                relayer: {},
+            },
+            takerOrder: {
+                trader: u5,
+                side: "sell",
+                amount: toBase(5),
+                price: toPrice(7900),
+                takerFeeRate: 250,
+            },
+            makerOrders: [
+                {
+                    trader: u1,
+                    side: "buy",
+                    amount: toBase(3),
+                    price: toPrice(7900),
+                    makerFeeRate: 250,
+                },
+                {
+                    trader: u2,
+                    side: "buy",
+                    amount: toBase(2),
+                    price: toPrice(7900),
+                    makerFeeRate: 250,
+                }
+            ],
+            filledAmounts: [
+                toBase(3), toBase(2),
+            ],
+            users: { admin, u1, u2, u3, u4, u5, relayer },
+            tokens: { collateral, long, short },
+            admin: admin,
+            gasLimit: 8000000,
+        };
+        maker3 = {
+            initialBalances: {
+                u1: { collateral: toWei(10000), short: toBase(2) },
+                u2: { collateral: toWei(10000), short: toBase(1) },
+                u3: { collateral: toWei(10000), short: toBase(1) },
+                u5: { collateral: toWei(10000), long: toBase(1) },
+                relayer: {},
+            },
+            takerOrder: {
+                trader: u5,
+                side: "sell",
+                amount: toBase(7),
+                price: toPrice(7900),
+                takerFeeRate: 250,
+            },
+            makerOrders: [
+                {
+                    trader: u1,
+                    side: "buy",
+                    amount: toBase(3),
+                    price: toPrice(7900),
+                    makerFeeRate: 250,
+                },
+                {
+                    trader: u2,
+                    side: "buy",
+                    amount: toBase(2),
+                    price: toPrice(7900),
+                    makerFeeRate: 250,
+                },
+                {
+                    trader: u3,
+                    side: "buy",
+                    amount: toBase(2),
+                    price: toPrice(7900),
+                    makerFeeRate: 250,
+                }
+            ],
+            filledAmounts: [
+                toBase(3), toBase(2), toBase(2),
+            ],
+            users: { admin, u1, u2, u3, u4, u5, relayer },
+            tokens: { collateral, long, short },
+            admin: admin,
+            gasLimit: 8000000,
+        };
+        maker4 = {
+            initialBalances: {
+                u1: { collateral: toWei(10000), short: toBase(2) },
+                u2: { collateral: toWei(10000), short: toBase(1) },
+                u3: { collateral: toWei(10000), short: toBase(1) },
+                u4: { collateral: toWei(10000), short: toBase(1) },
+                u5: { collateral: toWei(10000), long: toBase(1) },
+                relayer: {},
+            },
+            takerOrder: {
+                trader: u5,
+                side: "sell",
+                amount: toBase(9),
+                price: toPrice(7900),
+                takerFeeRate: 250,
+            },
+            makerOrders: [
+                {
+                    trader: u1,
+                    side: "buy",
+                    amount: toBase(3),
+                    price: toPrice(7900),
+                    makerFeeRate: 250,
+                },
+                {
+                    trader: u2,
+                    side: "buy",
+                    amount: toBase(2),
+                    price: toPrice(7900),
+                    makerFeeRate: 250,
+                },
+                {
+                    trader: u3,
+                    side: "buy",
+                    amount: toBase(2),
+                    price: toPrice(7900),
+                    makerFeeRate: 250,
+                },
+                {
+                    trader: u4,
+                    side: "buy",
+                    amount: toBase(2),
+                    price: toPrice(7900),
+                    makerFeeRate: 250,
+                }
+            ],
+            filledAmounts: [
+                toBase(3), toBase(2), toBase(2), toBase(2),
+            ],
+            users: { admin, u1, u2, u3, u4, u5, relayer },
+            tokens: { collateral, long, short },
+            admin: admin,
+            gasLimit: 8000000,
+        };
     });
+
+    const usePool = async () => {
+        await pool.methods.approveERC20(collateral._address, mpx._address, infinity)
+            .send({ from: admin, gasLimit: gasLimit });
+        await pool.methods.approveERC20(mkt._address, mpx._address, infinity)
+            .send({ from: admin, gasLimit: gasLimit });
+        await pool.methods.addAddress(exchange._address)
+            .send({ from: admin, gasLimit: gasLimit });
+        await exchange.methods.approveERC20(collateral._address, pool._address, infinity)
+            .send({ from: admin, gasLimit: gasLimit });
+        await exchange.methods.approveERC20(long._address, pool._address, infinity)
+            .send({ from: admin, gasLimit: gasLimit });
+        await exchange.methods.approveERC20(short._address, pool._address, infinity)
+            .send({ from: admin, gasLimit: gasLimit });
+        await exchange.methods.setMintingPool(pool._address)
+            .send({ from: admin, gasLimit: gasLimit });
+    };
+    
+    const poolPreCharge = async () => {
+        await mkt.methods.transfer(pool._address, toWei(10000))
+            .send({ from: admin, gasLimit: gasLimit });
+        await admin, long.methods.mint(pool._address, toBase(10))
+            .send({ from: admin, gasLimit: gasLimit });
+        await admin, short.methods.mint(pool._address, toBase(10))
+            .send({ from: admin, gasLimit: gasLimit });
+    }
 
     const buildMpxOrder = async (config) => {
         const orderParam = {
@@ -130,188 +329,62 @@ contract('EstimateGas', async accounts => {
     }
 
     it('1 maker', async () => {
-        const testConfig = {
-            initialBalances: {
-                u1: { collateral: toWei(10000), short: toBase(2) },
-                u5: { collateral: toWei(10000), long: toBase(1) },
-                relayer: {},
-            },
-            takerOrder: {
-                trader: u5,
-                side: "sell",
-                amount: toBase(3),
-                price: toPrice(7900),
-                takerFeeRate: 250,
-            },
-            makerOrders: [
-                {
-                    trader: u1,
-                    side: "buy",
-                    amount: toBase(3),
-                    price: toPrice(7900),
-                    makerFeeRate: 250,
-                }
-            ],
-            filledAmounts: [
-                toBase(3)
-            ],
-            users: { admin, u1, u2, u3, u4, u5, relayer },
-            tokens: { collateral, long, short },
-            admin: admin,
-            gasLimit: 8000000,
-        };
-        await matchTest(testConfig);
+        await matchTest(maker1);
     });
 
-    it('2 makers', async () => {
-        const testConfig = {
-            initialBalances: {
-                u1: { collateral: toWei(10000), short: toBase(2) },
-                u2: { collateral: toWei(10000), short: toBase(1) },
-                u5: { collateral: toWei(10000), long: toBase(1) },
-                relayer: {},
-            },
-            takerOrder: {
-                trader: u5,
-                side: "sell",
-                amount: toBase(5),
-                price: toPrice(7900),
-                takerFeeRate: 250,
-            },
-            makerOrders: [
-                {
-                    trader: u1,
-                    side: "buy",
-                    amount: toBase(3),
-                    price: toPrice(7900),
-                    makerFeeRate: 250,
-                },
-                {
-                    trader: u2,
-                    side: "buy",
-                    amount: toBase(2),
-                    price: toPrice(7900),
-                    makerFeeRate: 250,
-                }
-            ],
-            filledAmounts: [
-                toBase(3), toBase(2),
-            ],
-            users: { admin, u1, u2, u3, u4, u5, relayer },
-            tokens: { collateral, long, short },
-            admin: admin,
-            gasLimit: 8000000,
-        };
-        await matchTest(testConfig);
+    it('1 maker with pool', async () => {
+        usePool();
+        await matchTest(maker1);
     });
 
-    it('3 makers', async () => {
-        const testConfig = {
-            initialBalances: {
-                u1: { collateral: toWei(10000), short: toBase(2) },
-                u2: { collateral: toWei(10000), short: toBase(1) },
-                u3: { collateral: toWei(10000), short: toBase(1) },
-                u5: { collateral: toWei(10000), long: toBase(1) },
-                relayer: {},
-            },
-            takerOrder: {
-                trader: u5,
-                side: "sell",
-                amount: toBase(7),
-                price: toPrice(7900),
-                takerFeeRate: 250,
-            },
-            makerOrders: [
-                {
-                    trader: u1,
-                    side: "buy",
-                    amount: toBase(3),
-                    price: toPrice(7900),
-                    makerFeeRate: 250,
-                },
-                {
-                    trader: u2,
-                    side: "buy",
-                    amount: toBase(2),
-                    price: toPrice(7900),
-                    makerFeeRate: 250,
-                },
-                {
-                    trader: u3,
-                    side: "buy",
-                    amount: toBase(2),
-                    price: toPrice(7900),
-                    makerFeeRate: 250,
-                }
-            ],
-            filledAmounts: [
-                toBase(3), toBase(2), toBase(2),
-            ],
-            users: { admin, u1, u2, u3, u4, u5, relayer },
-            tokens: { collateral, long, short },
-            admin: admin,
-            gasLimit: 8000000,
-        };
-        await matchTest(testConfig);
+    it('1 maker with pre-charged pool', async () => {
+        usePool();
+        poolPreCharge();
+        await matchTest(maker1);
     });
 
-    it('4 makers', async () => {
-        const testConfig = {
-            initialBalances: {
-                u1: { collateral: toWei(10000), short: toBase(2) },
-                u2: { collateral: toWei(10000), short: toBase(1) },
-                u3: { collateral: toWei(10000), short: toBase(1) },
-                u4: { collateral: toWei(10000), short: toBase(1) },
-                u5: { collateral: toWei(10000), long: toBase(1) },
-                relayer: {},
-            },
-            takerOrder: {
-                trader: u5,
-                side: "sell",
-                amount: toBase(9),
-                price: toPrice(7900),
-                takerFeeRate: 250,
-            },
-            makerOrders: [
-                {
-                    trader: u1,
-                    side: "buy",
-                    amount: toBase(3),
-                    price: toPrice(7900),
-                    makerFeeRate: 250,
-                },
-                {
-                    trader: u2,
-                    side: "buy",
-                    amount: toBase(2),
-                    price: toPrice(7900),
-                    makerFeeRate: 250,
-                },
-                {
-                    trader: u3,
-                    side: "buy",
-                    amount: toBase(2),
-                    price: toPrice(7900),
-                    makerFeeRate: 250,
-                },
-                {
-                    trader: u4,
-                    side: "buy",
-                    amount: toBase(2),
-                    price: toPrice(7900),
-                    makerFeeRate: 250,
-                }
-            ],
-            filledAmounts: [
-                toBase(3), toBase(2), toBase(2), toBase(2),
-            ],
-            users: { admin, u1, u2, u3, u4, u5, relayer },
-            tokens: { collateral, long, short },
-            admin: admin,
-            gasLimit: 8000000,
-        };
-        await matchTest(testConfig);
+    it('2 maker', async () => {
+        await matchTest(maker2);
     });
 
+    it('2 maker with pool', async () => {
+        usePool();
+        await matchTest(maker2);
+    });
 
+    it('2 maker with pre-charged pool', async () => {
+        usePool();
+        poolPreCharge();
+        await matchTest(maker2);
+    });
+
+    it('3 maker', async () => {
+        await matchTest(maker3);
+    });
+
+    it('3 maker with pool', async () => {
+        usePool();
+        await matchTest(maker3);
+    });
+
+    it('3 maker with pre-charged pool', async () => {
+        usePool();
+        poolPreCharge();
+        await matchTest(maker3);
+    });
+
+    it('4 maker', async () => {
+        await matchTest(maker4);
+    });
+
+    it('4 maker with pool', async () => {
+        usePool();
+        await matchTest(maker4);
+    });
+
+    it('4 maker with pre-charged pool', async () => {
+        usePool();
+        poolPreCharge();
+        await matchTest(maker4);
+    });
 });
