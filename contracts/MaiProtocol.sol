@@ -291,9 +291,8 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             );
             uint256 toFillAmount = posFilledAmounts[i];
             for (uint256 j = 0; j < MAX_MATCHES && toFillAmount > 0; j++) {
-                MatchResult memory result;
                 uint256 filledAmount;
-                (result, filledAmount) = getMatchResult(
+                (results[resultIndex], filledAmount) = getMatchResult(
                     takerOrderParam,
                     takerOrderInfo,
                     makerOrderParams[i],
@@ -302,7 +301,6 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
                     toFillAmount
                 );
                 toFillAmount = toFillAmount.sub(filledAmount);
-                results[resultIndex] = result;
                 resultIndex++;
             }
             // must be full filled for a maker, if not, that means the exchange progress
@@ -669,7 +667,8 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
 
         // a maker order does not contain price, so margin calculation is unavailable
         if (!isMarketOrder(orderParam.data)) {
-            // a maker order is never a market order, so it's safe to reach here for a maker order
+            // a maker order is never a market order (see MAKER_ORDER_CAN_NOT_BE_MARKET_ORDER),
+            // so it's safe to reach here for a maker order
             orderInfo.margins[LONG] = calculateLongMargin(orderContext, orderParam);
             orderInfo.margins[SHORT] = calculateShortMargin(orderContext, orderParam);
         }
