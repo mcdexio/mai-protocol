@@ -9,7 +9,7 @@ contract('CancelOrder', accounts => {
         exchange = contracts.exchange;
     });
 
-    it('should not cancel order', async () => {
+    it('cancel order by user', async () => {
         const order = {
             trader: accounts[0],
             relayer: '0x0000000000000000000000000000000000000000',
@@ -24,18 +24,12 @@ contract('CancelOrder', accounts => {
         let cancelled = await exchange.methods.cancelled(hash).call();
         assert.equal(false, cancelled);
 
-        try {
-            await exchange.methods.cancelOrder(order).send({ from: order.trader });
-        } catch (error) {
-            assert.ok(error.message.includes("INVALID_TRADER"))
-            cancelled = await exchange.methods.cancelled(hash).call();
-            assert.equal(false, cancelled);
-            return
-        }
-        throw null
+        await exchange.methods.cancelOrder(order).send({ from: order.trader });
+        cancelled = await exchange.methods.cancelled(hash).call();
+        assert.equal(true, cancelled);
     });
 
-    it('should cancel order by relayer', async () => {
+    it('cancel order by relayer', async () => {
         const order = {
             trader: accounts[0],
             relayer: accounts[1],
