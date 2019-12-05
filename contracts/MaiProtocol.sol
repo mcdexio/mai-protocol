@@ -105,8 +105,8 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     struct OrderContext {
         IMarketContract marketContract;         // market contract
         IMarketContractPool marketContractPool; // market contract pool
-        IERC20 collateral;                     // collateral token
-        IERC20[2] positions;                // [0] = long position, [1] = short position
+        IERC20 collateral;                      // collateral token
+        IERC20[2] positions;                    // [0] = long position, [1] = short position
         uint256 takerSide;                      // 0 = buy/long, 1 = sell/short
     }
 
@@ -667,12 +667,14 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             INVALID_ORDER_SIGNATURE
         );
 
+        // a maker order does not contain price, so margin calculation is unavailable
         if (!isMarketOrder(orderParam.data)) {
-            orderInfo.margins[0] = calculateLongMargin(orderContext, orderParam);
-            orderInfo.margins[1] = calculateShortMargin(orderContext, orderParam);
+            // a maker order is never a market order, so it's safe to reach here for a maker order
+            orderInfo.margins[LONG] = calculateLongMargin(orderContext, orderParam);
+            orderInfo.margins[SHORT] = calculateShortMargin(orderContext, orderParam);
         }
-        orderInfo.balances[0] = IERC20(orderContext.positions[0]).balanceOf(orderParam.trader);
-        orderInfo.balances[1] = IERC20(orderContext.positions[1]).balanceOf(orderParam.trader);
+        orderInfo.balances[LONG] = IERC20(orderContext.positions[LONG]).balanceOf(orderParam.trader);
+        orderInfo.balances[SHORT] = IERC20(orderContext.positions[SHORT]).balanceOf(orderParam.trader);
 
         return orderInfo;
     }
