@@ -189,6 +189,11 @@ contract('MaiExt', async accounts => {
                 }
             }
         }
+
+        // mai should never have assets
+        assert.equal(await call(tokens.collateral.methods.balanceOf(exchange._address)), '0', 'mai should never have ctk');
+        assert.equal(await call(tokens.long.methods.balanceOf(exchange._address)), '0', 'mai should never have long');
+        assert.equal(await call(tokens.short.methods.balanceOf(exchange._address)), '0', 'mai should never have short');
     }
 
     it('buy(long) + buy(short) = mint', async () => {
