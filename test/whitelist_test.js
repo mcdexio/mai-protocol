@@ -48,14 +48,14 @@ contract('Whitelist', accounts => {
     });
 
     it('should revert when caller is not in whitelist', async () => {
-        const proxy = (await getContracts()).proxy;
+        const exchange = (await getContracts()).exchange;
 
         try {
-            await proxy.methods
+            await exchange.methods
                 .transferOwnership('0x0000000000000000000000000000000000000000')
                 .send({ from: accounts[1] });
         } catch (e) {
-            assert.ok(e.message.match(/revert/));
+            assert.ok(e.message.match("revert"));
             return;
         }
 

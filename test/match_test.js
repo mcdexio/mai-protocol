@@ -417,11 +417,11 @@ contract('Match', async accounts => {
         const ctkFromProxyToTaker = await call(exchange.methods.doRedeemPublic(
             retResult, getAddressSet(), orderContext
         ));
-        assert.equal(ctkFromProxyToTaker, toWei((8500 - 7540) * 0.1, -8000 * 0.1 * 0.00300, -0.2), 'u2.ctk'); // taker ctk
         await send(relayer, exchange.methods.doRedeemPublic(
             retResult, getAddressSet(), orderContext
         ));
         assert.equal(await call(ctk.methods.balanceOf(u1)), toWei((7540 - 7500) * 0.1, -8000 * 0.1 * 0.00100, -0.1), 'u1.ctk'); // maker ctk
+        assert.equal(await call(ctk.methods.balanceOf(u2)), toWei((8500 - 7540) * 0.1, -8000 * 0.1 * 0.00300, -0.2), 'u2.ctk'); // taker ctk
     });
 
     it('sell(short) + [buy(short) + sell(long)] = exchange + redeem', async () => {
