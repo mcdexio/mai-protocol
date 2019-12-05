@@ -1391,37 +1391,42 @@ contract('Mai', async accounts => {
         await matchTest(testConfig);
     });
 
-    it('market: buy(long) + buy(short) = cancel after minting', async () => {
+    it('0 ctk operation: sell(long) + buy(long) = exchange + mint', async () => {
         const testConfig = {
             initialBalances: {
-                u1: { collateral: toWei(10000) },
+                u1: { long: toBase(1) },
                 u2: { collateral: toWei(10000) },
-                relayer: {},
+                relayer: { collateral: toWei(10000) },
             },
             takerOrder: {
-                trader: u2,
-                side: "buy",
-                type: "market",
-                amount: toBase(0.1),
-                price: toPrice(7900),
-                takerFeeRate: 250,
+                trader: u1,
+                side: "sell",
+                amount: toBase(9),
+                price: toPrice(8400),
+                takerFeeRate: 0,
+                gasTokenAmount: toWei(0),
             },
             makerOrders: [
                 {
-                    trader: u1,
-                    side: "sell",
-                    amount: toBase(0.1),
-                    price: toPrice(7800),
-                    makerFeeRate: 250,
+                    trader: u2,
+                    side: "buy",
+                    amount: toBase(9),
+                    price: toPrice(8400),
+                    makerFeeRate: 0,
+                    gasTokenAmount: toWei(0),
                 }
             ],
             filledAmounts: [
-                toBase(0.1)
+                toBase(9),
             ],
             expectedBalances: {
-                u1: { collateral: toWei(10000, -70, -2, -0.1), short: toBase(0.1), },
-                u2: { collateral: toWei(10000, -30, -2, -0.1), long: toBase(0.1), },
-                relayer: { collateral: toWei(2, 2, 0.1, 0.1, -2.4) },
+                u1: {
+                    long: toBase(0),
+                    short: toBase(8),
+                },
+                u2: {
+                    long: toBase(9),
+                }
             },
             users: { admin, u1, u2, u3, relayer },
             tokens: { collateral, long, short },
@@ -1429,13 +1434,142 @@ contract('Mai', async accounts => {
             gasLimit: 8000000,
         };
         await matchTest(testConfig);
+    });
 
-        const takerOrder = await buildMpxOrder(testConfig.takerOrder);
-        const takerOrderHash = getOrderHash(takerOrder);
+    it('0 ctk operation: buy(long) + sell(long) = exchange + mint', async () => {
+        const testConfig = {
+            initialBalances: {
+                u1: { long: toBase(1) },
+                u2: { collateral: toWei(10000) },
+                relayer: { collateral: toWei(10000) },
+            },
+            takerOrder: {
+                trader: u2,
+                side: "buy",
+                amount: toBase(9),
+                price: toPrice(8400),
+                makerFeeRate: 0,
+                gasTokenAmount: toWei(0),
+            },
+            makerOrders: [
+                {
+                    trader: u1,
+                    side: "sell",
+                    amount: toBase(9),
+                    price: toPrice(8400),
+                    takerFeeRate: 0,
+                    gasTokenAmount: toWei(0),
+                }
+            ],
+            filledAmounts: [
+                toBase(9),
+            ],
+            expectedBalances: {
+                u1: {
+                    long: toBase(0),
+                    short: toBase(8),
+                },
+                u2: {
+                    long: toBase(9),
+                }
+            },
+            users: { admin, u1, u2, u3, relayer },
+            tokens: { collateral, long, short },
+            admin: admin,
+            gasLimit: 8000000,
+        };
+        await matchTest(testConfig);
+    });
 
-        /*
-        const isTakerOrderCancelled = await exchange.methods.cancelled(takerOrderHash).call();
-        assert.ok(isTakerOrderCancelled);
-        */
+    it('0 ctk operation: sell(long) + buy(long) = redeem + exchange', async () => {
+        const testConfig = {
+            initialBalances: {
+                u1: { long: toBase(1) },
+                u2: { short: toBase(1) },
+                relayer: { collateral: toWei(10000) },
+            },
+            takerOrder: {
+                trader: u1,
+                side: "sell",
+                amount: toBase(2),
+                price: toPrice(8000),
+                takerFeeRate: 0,
+                gasTokenAmount: toWei(0),
+            },
+            makerOrders: [
+                {
+                    trader: u2,
+                    side: "buy",
+                    amount: toBase(2),
+                    price: toPrice(8000),
+                    makerFeeRate: 0,
+                    gasTokenAmount: toWei(0),
+                }
+            ],
+            filledAmounts: [
+                toBase(2),
+            ],
+            expectedBalances: {
+                u1: {
+                    long: toBase(0),
+                    short: toBase(1),
+                },
+                u2: {
+                    long: toBase(1),
+                    short: toBase(0),
+                }
+            },
+            users: { admin, u1, u2, u3, relayer },
+            tokens: { collateral, long, short },
+            admin: admin,
+            gasLimit: 8000000,
+        };
+        await matchTest(testConfig);
+    });
+
+    it('0 ctk operation: buy(long) + sell(long) = redeem + exchange', async () => {
+        const testConfig = {
+            initialBalances: {
+                u1: { long: toBase(1) },
+                u2: { short: toBase(1) },
+                relayer: { collateral: toWei(10000) },
+            },
+            takerOrder: {
+                trader: u2,
+                side: "buy",
+                amount: toBase(2),
+                price: toPrice(8000),
+                makerFeeRate: 0,
+                gasTokenAmount: toWei(0),
+            },
+            makerOrders: [
+                {
+                    trader: u1,
+                    side: "sell",
+                    amount: toBase(2),
+                    price: toPrice(8000),
+                    takerFeeRate: 0,
+                    gasTokenAmount: toWei(0),
+                }
+            ],
+            filledAmounts: [
+                toBase(2),
+            ],
+            expectedBalances: {
+                u1: {
+                    long: toBase(0),
+                    short: toBase(1),
+                },
+                u2: {
+                    long: toBase(1),
+                    short: toBase(0),
+                }
+            },
+            users: { admin, u1, u2, u3, relayer },
+            tokens: { collateral, long, short },
+            admin: admin,
+            gasLimit: 8000000,
+        };
+        await matchTest(testConfig);
     });
 });
