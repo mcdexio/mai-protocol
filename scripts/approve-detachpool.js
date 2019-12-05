@@ -30,23 +30,8 @@ async function parseMarketContract(marketContractAddress) {
 module.exports = async () => {
     try {
         const maiProtocol = await MaiProtocol.at(addresses.maiProtocol);
-
-        for (let i = 0; i < addresses.marketContracts.length; i++) {
-            const mpContractAddress = addresses.marketContracts[i];
-            log("approving tokens for", addresses.relayer);
-
-            const { collateral } = await parseMarketContract(mpContractAddress);
-
-            if (await collateral.allowance(addresses.relayer, maiProtocol.address) == 0) {
-                await collateral.approve(maiProtocol.address, infinity, { from: addresses.relayer });
-                assert.equal(await collateral.allowance(addresses.relayer, maiProtocol.address), infinity, "unexpected allowance of collateral");
-            }
-            const allowance = await collateral.allowance(addresses.relayer, maiProtocol.address);
-            log("allowance of", addresses.relayer, "for", maiProtocol.address, "=", allowance.toString());
-
-            const balance = await collateral.balanceOf(addresses.relayer);
-            log("balance of", addresses.relayer, "=", balance.toString());
-        }
+        await maiProtocol.setMintingPool("0x0000000000000000000000000000000000000000");
+        log("current minting pool =", maiProtocol.mintingPool());
 
         process.exit(0);
     } catch (error) {
