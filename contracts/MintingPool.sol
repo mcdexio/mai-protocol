@@ -70,7 +70,7 @@ contract MintingPool is LibOwnable, LibWhitelist {
     {
         IERC20(token).safeApprove(spender, amount);
 
-        emit Approval(token, msg.sender, amount);
+        emit Approval(token, spender, amount);
     }
 
 
