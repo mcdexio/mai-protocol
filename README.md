@@ -7,6 +7,8 @@ Mai Protocol is a smart contract for building decentralized derivatives exchange
 
 Mai Protocol's goal is to make trading decentralized derivatives easy and efficient.
 
+The name Mai comes from two Chinese characters "买," which means buy and "卖," which means sell. Using pinyin (the modern system for transliterating Chinese characters to Latin letters) "买" is spelled Mǎi and "卖" is spelled Mài. Thus, "Mai" means "Buy" and "Sell".
+
 See the [document](https://github.com/mcdexio/documents/blob/master/en/mai.md) for more details about Mai Protocol.
 
 ## Features
@@ -14,6 +16,7 @@ See the [document](https://github.com/mcdexio/documents/blob/master/en/mai.md) f
 Mai Protocol smart contract v1.0 has the following attributes:
 
 * Trading Market Protocol contracts
+  * Only two operations "Buy" and "Sell" for trading contracts
   * Encapsulates the minting, exchange and redeeming operations
   * A minting pool to reduce redundant minting and redeeming
 * No order collision
