@@ -423,44 +423,4 @@ contract('Match', async accounts => {
         assert.equal(await call(ctk.methods.balanceOf(u1)), toWei((7540 - 7500) * 0.1, -8000 * 0.1 * 0.00100, -0.1), 'u1.ctk'); // maker ctk
         assert.equal(await call(ctk.methods.balanceOf(u2)), toWei((8500 - 7540) * 0.1, -8000 * 0.1 * 0.00300, -0.2), 'u2.ctk'); // taker ctk
     });
-
-    it('sell(short) + [buy(short) + sell(long)] = exchange + redeem', async () => {
-        await transferBalances({
-            u1: { short: toBase(1) },
-            u2: { ctk: toWei(10000) },
-            u3: { long: toBase(1) },
-        });
-        const takerOrder = await buildMpxOrder({
-            trader: u1, side: 'buy', type: 'limit', price: toPrice(8000), amount: toBase(1),
-            relayer, marketContractAddress: mpx._address, version: 1, expiredAtSeconds: 3500000000,
-            makerFeeRate: 250, takerFeeRate: 250, gasTokenAmount: toWei(0.2),
-        });
-        const makerOrder1 = await buildMpxOrder({
-            trader: u2, side: 'sell', type: 'limit', price: toPrice(7900), amount: toBase(0.5),
-            relayer, marketContractAddress: mpx._address, version: 1, expiredAtSeconds: 3500000000,
-            makerFeeRate: 250, takerFeeRate: 250, gasTokenAmount: toWei(0.1),
-        });
-        const makerOrder2 = await buildMpxOrder({
-            trader: u3, side: 'sell', type: 'limit', price: toPrice(7980), amount: toBase(0.5),
-            relayer, marketContractAddress: mpx._address, version: 1, expiredAtSeconds: 3500000000,
-            makerFeeRate: 250, takerFeeRate: 250, gasTokenAmount: toWei(0.1),
-        });
-        const orderContext = await call(exchange.methods.getOrderContextPublic(getAddressSet(), takerOrder));
-        const retResults = await exchange.methods.getMatchPlanPublic(
-            takerOrder, [makerOrder1, makerOrder2],
-            [toBase(0.5), toBase(0.5),], // posFilledAmount
-            getAddressSet(), orderContext
-        ).call();
-        assert.equal(retResults.length, 6, 'results.length');
-        assert.equal(retResults[0].fillAction, 2, 'results[0].fillAction'); // SELL
-        assert.equal(retResults[1].fillAction, 4, 'results[1].fillAction'); // REDEEM
-        assert.equal(retResults[2].fillAction, 0, 'results[2].fillAction'); // INVALID
-        assert.equal(retResults[3].fillAction, 0, 'results[3].fillAction'); // INVALID
-        assert.equal(retResults[0].posFilledAmount, toBase(0.5), 'results[0].posFilledAmount');
-        assert.equal(retResults[1].posFilledAmount, toBase(0.5), 'results[1].posFilledAmount');
-        assert.equal(retResults[0].maker, u2, 'results[0].maker');
-        assert.equal(retResults[1].maker, u3, 'results[1].maker');
-        assert.equal(retResults[0].ctkFilledAmount, toWei(300), 'results[0].ctkFilledAmount');
-        assert.equal(retResults[1].ctkFilledAmount, toWei(240), 'results[1].ctkFilledAmount');
-    });
 });
