@@ -194,6 +194,68 @@ contract('Mai', async accounts => {
         assert.equal(await call(tokens.short.methods.balanceOf(exchange._address)), '0', 'mai should never have short');
     }
 
+    it('buy(long) + buy(short) = mint', async () => {
+        const testConfig = {
+            initialBalances: {
+                u1: {
+                    collateral: toWei(30),
+                    long: toBase(0.002),
+                },
+                u2: {
+                    collateral: toWei(22)
+                },
+                relayer: {
+                },
+            },
+            takerOrder: {
+                trader: u2,
+                side: "buy",
+                amount: toBase(0.01),
+                price: toPrice(0),
+                takerFeeRate: 0,
+                type: "market",
+            },
+            makerOrders: [
+                {
+                    trader: u1,
+                    side: "sell",
+                    amount: toBase(0.001),
+                    price: toPrice(7500),
+                    makerFeeRate: 0,
+                },
+                {
+                    trader: u1,
+                    side: "sell",
+                    amount: toBase(0.001),
+                    price: toPrice(7501),
+                    makerFeeRate: 0,
+                },
+                {
+                    trader: u1,
+                    side: "sell",
+                    amount: toBase(0.001),
+                    price: toPrice(7502),
+                    makerFeeRate: 0,
+                },
+            ],
+            filledAmounts: [
+                toBase(0.001),
+                toBase(0.001),
+                toBase(0.001),
+            ],
+            expectedBalances: {
+                u1: { collateral: toWei(30, 0, 0.001, -0.998, -0.1, -0.1, -0.1), long: toBase(0), short: toBase(0.001) },
+                u2: { collateral: toWei(22, 0, -0.001, -0.002, -0.1), long: toBase(0.003), },
+                relayer: { collateral: toWei(0.4, -0.024) },
+            },
+            users: { admin, u1, u2, u3, relayer },
+            tokens: { collateral, long, short },
+            admin: admin,
+            gasLimit: 8000000,
+        };
+        await matchTest(testConfig);
+    });
+
     it('should fail if maker is market order', async () => {
         const testConfig = {
             initialBalances: {

@@ -53,24 +53,6 @@ contract TestMaiProtocol is MaiProtocol {
         validateMarketContract(marketContractAddress);
     }
 
-    function getMatchPlanPublic(
-        OrderParam memory takerOrderParam,
-        OrderParam[] memory makerOrderParams,
-        uint256[] memory posFilledAmounts,
-        OrderAddressSet memory orderAddressSet,
-        OrderContext memory orderContext
-    )
-        public
-        returns (MatchResult[] memory results)
-    {
-        return getMatchPlan(
-            takerOrderParam,
-            makerOrderParams,
-            posFilledAmounts,
-            orderAddressSet,
-            orderContext);
-    }
-
     function calculateMiddleCollateralPerUnitPublic(OrderContext memory orderContext)
         public
         view
@@ -188,14 +170,14 @@ contract TestMaiProtocol is MaiProtocol {
         return getOrderFromOrderParam(orderParam, orderAddressSet);
     }
 
-    function settleResultsPublic(
-        MatchResult[] memory results,
+    function settleResultPublic(
+        MatchResult memory result,
         OrderAddressSet memory orderAddressSet,
         OrderContext memory orderContext
     )
         public
     {
-        return settleResults(results, orderAddressSet, orderContext);
+        return settleResult(result, orderAddressSet, orderContext);
     }
 
     function doSellPublic(

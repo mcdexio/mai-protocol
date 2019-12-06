@@ -200,16 +200,14 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         require(!isMakerOnly(takerOrderParam.data), MAKER_ONLY_ORDER_CANNOT_BE_TAKER);
 
         validateMarketContract(orderAddressSet.marketContractAddress);
-
         OrderContext memory orderContext = getOrderContext(orderAddressSet, takerOrderParam);
-        MatchResult[] memory results = getMatchPlan(
+        matchAndSettle(
             takerOrderParam,
             makerOrderParams,
             posFilledAmounts,
             orderAddressSet,
             orderContext
         );
-        settleResults(results, orderAddressSet, orderContext);
     }
 
     /**
@@ -253,7 +251,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
      *                     MARKET Protocol contract.
      * @return A array of MatchResult object contains matching results.
      */
-    function getMatchPlan(
+    function matchAndSettle(
         OrderParam memory takerOrderParam,
         OrderParam[] memory makerOrderParams,
         uint256[] memory posFilledAmounts,
@@ -261,18 +259,12 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         OrderContext memory orderContext
     )
         internal
-        returns (MatchResult[] memory results)
     {
         OrderInfo memory takerOrderInfo = getOrderInfo(
             takerOrderParam,
             orderAddressSet,
             orderContext
         );
-
-        uint256 resultIndex;
-        // Each matched pair will produce 3 results at most. so that alloc MAX_MATCHES (3)
-        // to avoid overflow.
-        results = new MatchResult[](makerOrderParams.length * MAX_MATCHES);
         for (uint256 i = 0; i < makerOrderParams.length; i++) {
             require(!isMarketOrder(makerOrderParams[i].data), MAKER_ORDER_CAN_NOT_BE_MARKET_ORDER);
             require(isSell(takerOrderParam.data) != isSell(makerOrderParams[i].data), INVALID_SIDE);
@@ -291,8 +283,9 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             );
             uint256 toFillAmount = posFilledAmounts[i];
             for (uint256 j = 0; j < MAX_MATCHES && toFillAmount > 0; j++) {
+                MatchResult memory result;
                 uint256 filledAmount;
-                (results[resultIndex], filledAmount) = getMatchResult(
+                (result, filledAmount) = getMatchResult(
                     takerOrderParam,
                     takerOrderInfo,
                     makerOrderParams[i],
@@ -301,7 +294,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
                     toFillAmount
                 );
                 toFillAmount = toFillAmount.sub(filledAmount);
-                resultIndex++;
+                settleResult(result, orderAddressSet, orderContext);
             }
             // must be full filled for a maker, if not, that means the exchange progress
             // is not expected.
@@ -309,8 +302,6 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             filled[makerOrderInfo.orderHash] = makerOrderInfo.filledAmount;
         }
         filled[takerOrderInfo.orderHash] = takerOrderInfo.filledAmount;
-
-        return results;
     }
 
     /**
@@ -617,7 +608,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
      */
     function cancelOrder(Order memory order) public {
         require(msg.sender == order.trader || msg.sender == order.relayer, INVALID_TRADER);
-        
+
         bytes32 orderHash = getOrderHash(order);
         cancelled[orderHash] = true;
 
@@ -703,34 +694,32 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     }
 
     /**
-     * Take a list of matches and settle them with the taker order, transferring tokens all tokens
+     * Take a matche result and settle them with the taker order, transferring tokens all tokens
      * and paying all fees necessary to complete the transaction.
      *
-     * @param results List of MatchResult objects representing each individual trade to settle.
+     * @param result MatchResult object representing each individual trade to settle.
      * @param orderAddressSet An object containing addresses common across each order.
      * @param orderContext An object containing order related information.
      */
-    function settleResults(
-        MatchResult[] memory results,
+    function settleResult(
+        MatchResult memory result,
         OrderAddressSet memory orderAddressSet,
         OrderContext memory orderContext
     )
         internal
     {
-        for (uint256 i = 0; i < results.length; i++) {
-            if (results[i].fillAction == FillAction.REDEEM) {
-                doRedeem(results[i], orderAddressSet, orderContext);
-            } else if (results[i].fillAction == FillAction.SELL) {
-                doSell(results[i], orderAddressSet, orderContext);
-            } else if (results[i].fillAction == FillAction.BUY) {
-                doBuy(results[i], orderAddressSet, orderContext);
-            } else if (results[i].fillAction == FillAction.MINT) {
-                doMint(results[i], orderAddressSet, orderContext);
-            } else {
-                break;
-            }
-            emit Match(orderAddressSet, results[i]);
+        if (result.fillAction == FillAction.REDEEM) {
+            doRedeem(result, orderAddressSet, orderContext);
+        } else if (result.fillAction == FillAction.SELL) {
+            doSell(result, orderAddressSet, orderContext);
+        } else if (result.fillAction == FillAction.BUY) {
+            doBuy(result, orderAddressSet, orderContext);
+        } else if (result.fillAction == FillAction.MINT) {
+            doMint(result, orderAddressSet, orderContext);
+        } else {
+            revert("UNEXPECTED_FILLACTION");
         }
+        emit Match(orderAddressSet, result);
     }
 
     function doSell(
