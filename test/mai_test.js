@@ -1634,4 +1634,50 @@ contract('Mai', async accounts => {
         };
         await matchTest(testConfig);
     });
+
+    it('taker remove position with negative revenue', async () => {
+        const testConfig = {
+            initialBalances: {
+                u1: { collateral: toWei('100'), long: toBase('1') },
+                u2: { collateral: toWei('100'), short: toBase('1') },
+                relayer: { collateral: toWei(10000) },
+            },
+            takerOrder: {
+                trader: u1,
+                side: "sell",
+                amount: toBase('1'),
+                price: toPrice(7600),
+                takerFeeRate: 200,
+                gasTokenAmount: toWei(1),
+            },
+            makerOrders: [
+                {
+                    trader: u2,
+                    side: "buy",
+                    amount: toBase('1'),
+                    price: toPrice(7600),
+                    makerFeeRate: 100,
+                    gasTokenAmount: toWei(1),
+                }
+            ],
+            filledAmounts: [
+                toBase('0.001'),
+            ],
+            expectedBalances: {
+                u1: {
+                    long: toBase(1, -0.001),
+                    collateral: toWei(100, 0.1, -0.016, -1),
+                },
+                u2: {
+                    short: toBase(1, -0.001),
+                    collateral: toWei(100, 0.9, -0.008, -1),
+                }
+            },
+            users: { admin, u1, u2, u3, relayer },
+            tokens: { collateral, long, short },
+            admin: admin,
+            gasLimit: 8000000,
+        };
+        await matchTest(testConfig);
+    });
 });
