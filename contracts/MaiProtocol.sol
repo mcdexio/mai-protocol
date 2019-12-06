@@ -908,7 +908,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             orderContext.collateral.safeTransferFrom(
                 result.taker,
                 address(this),
-                collateralToTaker.sub(takerTotalFee)
+                takerTotalFee.sub(collateralToTaker)
             );
         }
         // to relayer
