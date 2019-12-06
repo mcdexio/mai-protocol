@@ -3,7 +3,7 @@
 [![Build Status](https://travis-ci.org/mcdexio/mai-protocol.svg?branch=master)](https://travis-ci.org/mcdexio/mai-protocol)
 [![Coverage Status](https://coveralls.io/repos/github/mcdexio/mai-protocol/badge.svg?branch=master)](https://coveralls.io/github/mcdexio/mai-protocol?branch=master)
 
-Mai Protocol is an open-source framework for building decentralized derivatives exchanges on Ethereum.
+Mai Protocol is a smart contract for building decentralized derivatives exchanges on Ethereum.
 
 Mai Protocol's goal is to make trading decentralized derivatives easy and efficient.
 
@@ -17,7 +17,6 @@ Mai Protocol smart contract v1.0 has the following attributes:
   * Encapsulates the minting, exchange and redeeming operations
   * A minting pool to reduce redundant minting and redeeming
 * No order collision
-* No possibility of front-running
 * Accurate market orders
 * Ability to collect fees as a percentage of the collateral token
 * Allows asymmetrical maker/taker fee structure
