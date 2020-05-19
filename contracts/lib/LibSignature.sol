@@ -66,18 +66,35 @@ contract LibSignature {
         uint8 v = uint8(signature.config[0]);
 
         if (method == uint8(SignatureMethod.EthSign)) {
-            recovered = ecrecover(
+            recovered = recover(
                 keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash)),
                 v,
                 signature.r,
                 signature.s
             );
         } else if (method == uint8(SignatureMethod.EIP712)) {
-            recovered = ecrecover(hash, v, signature.r, signature.s);
+            recovered = recover(hash, v, signature.r, signature.s);
         } else {
             revert("INVALID_SIGN_METHOD");
         }
 
         return signerAddress == recovered;
+    }
+
+    // see "@openzeppelin/contracts/cryptography/ECDSA.sol"
+    function recover(bytes32 hash, uint8 v, bytes32 r, bytes32 s) internal pure returns (address) {
+        if (uint256(s) > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0) {
+            revert("ECDSA: invalid signature 's' value");
+        }
+
+        if (v != 27 && v != 28) {
+            revert("ECDSA: invalid signature 'v' value");
+        }
+
+        // If the signature is valid (and not malleable), return the signer address
+        address signer = ecrecover(hash, v, r, s);
+        require(signer != address(0), "ECDSA: invalid signature");
+
+        return signer;
     }
 }

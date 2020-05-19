@@ -85,4 +85,38 @@ contract('Signature', accounts => {
 
         assert(false, 'Should never get here');
     });
+
+    it('hack 1', async () => {
+        const sha = toBuffer(orderHash);
+        const sig = ecsign(sha, toBuffer(privateKey));
+        sig.v -= 0x1b;
+
+        try {
+            const isValid = await contract.methods
+                .isValidSignaturePublic(orderHash, address, formatSig(sig, SignatureType.EthSign))
+                .call();
+        } catch (e) {
+            assert.ok(e.message.includes('ECDSA'), e);
+            return;
+        }
+
+        assert(false, 'Should never get here');
+    });
+
+    it('hack 2', async () => {
+        const sha = toBuffer(orderHash);
+        const sig = ecsign(sha, toBuffer(privateKey));
+        sig.s[0] += 0x80;
+
+        try {
+            const isValid = await contract.methods
+                .isValidSignaturePublic(orderHash, address, formatSig(sig, SignatureType.EthSign))
+                .call();
+        } catch (e) {
+            assert.ok(e.message.includes('ECDSA'), e);
+            return;
+        }
+
+        assert(false, 'Should never get here');
+    });
 });

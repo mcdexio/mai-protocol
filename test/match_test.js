@@ -54,6 +54,7 @@ contract('Match', async accounts => {
             amount: config.amount,
             price: config.price,
             gasTokenAmount: config.gasTokenAmount || toWei(0.1),
+            hack: config.hack,
         };
         return await buildOrder(orderParam);
     };
@@ -172,6 +173,116 @@ contract('Match', async accounts => {
             throw null;
         } catch (error) {
             assert.equal(error.message.includes("ORDER_IS_NOT_FILLABLE"), true);
+        }
+    });
+
+    it('getOrderInfo signature hack 1', async () => {
+        await transferBalances({
+            u1: { ctk: toWei(1.5), long: toBase(1.5), short: toBase(2.5), }
+        });
+        assert.equal(await call(ctk.methods.balanceOf(u1)), toWei(1.5), 'u1.ctk');
+        assert.equal(await call(long.methods.balanceOf(u1)), toBase(1.5), 'u1.long');
+        assert.equal(await call(short.methods.balanceOf(u1)), toBase(2.5), 'u1.short');
+        const takerOrder = await buildMpxOrder({
+            trader: u1,
+            side: 'sell',
+            type: 'limit',
+            price: toPrice(7540),
+            amount: toBase(0.1),
+            relayer,
+            marketContractAddress: mpx._address,
+            version: 1,
+            expiredAtSeconds: 3500000000,
+            makerFeeRate: '0',
+            takerFeeRate: '0',
+            gasTokenAmount: toWei(0.1)
+        });
+        const orderContext = await call(exchange.methods.getOrderContextPublic(getAddressSet(), takerOrder));
+        try {
+            await send(admin, exchange.methods.setFilled(
+                takerOrder,
+                getAddressSet(),
+                toBase(0.1)
+            ));
+            
+            const takerOrder2 = await buildMpxOrder({
+                trader: u1,
+                side: 'sell',
+                type: 'limit',
+                price: toPrice(7540),
+                amount: toBase(0.1),
+                relayer,
+                marketContractAddress: mpx._address,
+                version: 1,
+                expiredAtSeconds: 3500000000,
+                makerFeeRate: '0',
+                takerFeeRate: '0',
+                gasTokenAmount: toWei(0.1),
+                hack: { v: true }
+            });
+            assert.equal(takerOrder2.orderHash, takerOrder.orderHash);
+            assert.notEqual(takerOrder2.signature.config, takerOrder.signature.config);
+            await call(exchange.methods.getOrderInfoPublic(
+                takerOrder2, getAddressSet(), orderContext
+            ));
+            throw null;
+        } catch (error) {
+            assert.equal(error.message.includes("ORDER_IS_NOT_FILLABLE"), true, error);
+        }
+    });
+
+    it('getOrderInfo signature hack 2', async () => {
+        await transferBalances({
+            u1: { ctk: toWei(1.5), long: toBase(1.5), short: toBase(2.5), }
+        });
+        assert.equal(await call(ctk.methods.balanceOf(u1)), toWei(1.5), 'u1.ctk');
+        assert.equal(await call(long.methods.balanceOf(u1)), toBase(1.5), 'u1.long');
+        assert.equal(await call(short.methods.balanceOf(u1)), toBase(2.5), 'u1.short');
+        const takerOrder = await buildMpxOrder({
+            trader: u1,
+            side: 'sell',
+            type: 'limit',
+            price: toPrice(7540),
+            amount: toBase(0.1),
+            relayer,
+            marketContractAddress: mpx._address,
+            version: 1,
+            expiredAtSeconds: 3500000000,
+            makerFeeRate: '0',
+            takerFeeRate: '0',
+            gasTokenAmount: toWei(0.1)
+        });
+        const orderContext = await call(exchange.methods.getOrderContextPublic(getAddressSet(), takerOrder));
+        try {
+            await send(admin, exchange.methods.setFilled(
+                takerOrder,
+                getAddressSet(),
+                toBase(0.1)
+            ));
+
+            const takerOrder2 = await buildMpxOrder({
+                trader: u1,
+                side: 'sell',
+                type: 'limit',
+                price: toPrice(7540),
+                amount: toBase(0.1),
+                relayer,
+                marketContractAddress: mpx._address,
+                version: 1,
+                expiredAtSeconds: 3500000000,
+                makerFeeRate: '0',
+                takerFeeRate: '0',
+                gasTokenAmount: toWei(0.1),
+                hack: { s: true }
+            });
+            assert.equal(takerOrder2.orderHash, takerOrder.orderHash);
+            assert.notEqual(takerOrder2.signature.s, takerOrder.signature.s);
+            await call(exchange.methods.getOrderInfoPublic(
+                takerOrder2, getAddressSet(), orderContext
+            ));
+            throw null;
+        } catch (error) {
+            assert.equal(error.message.includes("ORDER_IS_NOT_FILLABLE"), true, error);
         }
     });
 
