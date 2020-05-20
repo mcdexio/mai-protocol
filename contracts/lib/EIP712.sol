@@ -27,21 +27,17 @@ contract EIP712 {
 
     /**
      * Hash of the EIP712 Domain Separator Schema
+     *   0xb2178a58fb1eefb359ecfdd57bb19c0bdd0f4e6eed8547f46600e500ed111af3 ==
+     *   keccak256(abi.encodePacked("EIP712Domain(string name)"))
      */
-    bytes32 public constant EIP712_DOMAIN_TYPEHASH = keccak256(
-        abi.encodePacked("EIP712Domain(string name)")
-    );
+    bytes32 public constant EIP712_DOMAIN_TYPEHASH = 0xb2178a58fb1eefb359ecfdd57bb19c0bdd0f4e6eed8547f46600e500ed111af3;
 
-    bytes32 public DOMAIN_SEPARATOR;
-
-    constructor () public {
-        DOMAIN_SEPARATOR = keccak256(
-            abi.encodePacked(
-                EIP712_DOMAIN_TYPEHASH,
-                keccak256(bytes(DOMAIN_NAME))
-            )
-        );
-    }
+    /**
+     * Hash of the EIP712 Domain Separator
+     *   0x4bf67a92331f9543ab43d10e3a08b582abd57f9f32f07724559d64f62b2df379 ==
+     *   keccak256(abi.encodePacked(EIP712_DOMAIN_TYPEHASH, keccak256(bytes(DOMAIN_NAME))))
+     */
+    bytes32 public constant DOMAIN_SEPARATOR = 0x4bf67a92331f9543ab43d10e3a08b582abd57f9f32f07724559d64f62b2df379;
 
     /**
      * Calculates EIP712 encoding for a hash struct in this EIP712 Domain.
