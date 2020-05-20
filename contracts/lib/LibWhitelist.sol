@@ -36,6 +36,7 @@ contract LibWhitelist is LibOwnable {
     /// @dev add Address into whitelist
     /// @param adr Address to add
     function addAddress(address adr) external onlyOwner {
+        require(!whitelist[adr], "ADDRESS_ALREADY_IN_WHITELIST_ERROR");
         emit AddressAdded(adr);
         whitelist[adr] = true;
         allAddresses.push(adr);
@@ -44,9 +45,10 @@ contract LibWhitelist is LibOwnable {
     /// @dev remove Address from whitelist
     /// @param adr Address to remove
     function removeAddress(address adr) external onlyOwner {
+        require(whitelist[adr], "ADDRESS_NOT_IN_WHITELIST_ERROR");
         emit AddressRemoved(adr);
         delete whitelist[adr];
-        for(uint i = 0; i < allAddresses.length; i++){
+        for (uint i = 0; i < allAddresses.length; i++){
             if(allAddresses[i] == adr) {
                 allAddresses[i] = allAddresses[allAddresses.length - 1];
                 allAddresses.length -= 1;

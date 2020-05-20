@@ -38,15 +38,6 @@ contract('Whitelist', accounts => {
         }
     });
 
-    it('should do nothing when remove an address not in whitelist', async () => {
-        const whitelistContract = await newContract(LibWhitelist);
-        let whitelist;
-
-        await whitelistContract.methods.removeAddress(accounts[1]).send({ from: accounts[0] });
-        whitelist = await whitelistContract.methods.getAllAddresses().call({ from: accounts[0] });
-        assert.equal(whitelist.length, 0);
-    });
-
     it('should revert when caller is not in whitelist', async () => {
         const exchange = (await getContracts()).exchange;
 
@@ -60,5 +51,28 @@ contract('Whitelist', accounts => {
         }
 
         assert(false, 'Should never get here');
+    });
+
+    it('add whitelist duplicated', async () => {
+        const whitelistContract = await newContract(LibWhitelist);
+        await whitelistContract.methods.addAddress(accounts[1]).send({ from: accounts[0] });
+        try {
+            await whitelistContract.methods.addAddress(accounts[1]).send({ from: accounts[0] });
+            throw null;
+        } catch (error) {
+            assert.equal(error.message.includes("ADDRESS_ALREADY_IN_WHITELIST_ERROR"), true);
+        }
+    });
+
+    it('remove whitelist duplicated', async () => {
+        const whitelistContract = await newContract(LibWhitelist);
+        await whitelistContract.methods.addAddress(accounts[1]).send({ from: accounts[0] });
+        await whitelistContract.methods.removeAddress(accounts[1]).send({ from: accounts[0] });
+        try {
+            await whitelistContract.methods.removeAddress(accounts[1]).send({ from: accounts[0] });
+            throw null;
+        } catch (error) {
+            assert.equal(error.message.includes("ADDRESS_NOT_IN_WHITELIST_ERROR"), true);
+        }
     });
 });
