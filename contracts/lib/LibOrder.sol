@@ -71,11 +71,11 @@ contract LibOrder is EIP712, LibSignature, LibMath {
         REDEEM
     }
 
-    bytes32 public constant EIP712_ORDER_TYPE = keccak256(
-        abi.encodePacked(
-            "Order(address trader,address relayer,address marketContractAddress,uint256 amount,uint256 price,uint256 gasTokenAmount,bytes32 data)"
-        )
-    );
+    /* Hash of EIP712_ORDER_TYPE
+     *   0xcb2a59222442273286b1c23ca81a51fa5a00f847bd229bc464a68250c2bb7905 ==
+     *   abi.encodePacked("Order(address trader,address relayer,address marketContractAddress,uint256 amount,uint256 price,uint256 gasTokenAmount,bytes32 data)")
+     */
+    bytes32 public constant EIP712_ORDER_TYPE = 0xcb2a59222442273286b1c23ca81a51fa5a00f847bd229bc464a68250c2bb7905;
 
     /**
      * Calculates the Keccak-256 EIP712 hash of the order using the Mai Protocol domain.
