@@ -348,7 +348,7 @@ contract('Mai', async accounts => {
 
     describe('expired market contract', async () => {
         it('can not mint after settlement', async () => {
-            await mpx.methods.arbitrateSettlement(toPrice('8000')).send({ from: admin });
+            await mpx.methods.arbitrateSettlement(toPrice('8000')).send({ from: admin, gasLimit: 8000000 });
             await increaseEvmTime(1 * 86400 + 1);
             assert.ok(await mpx.methods.isPostSettlementDelay().call(), "now it is after settlement delay");
             let bad1 = null;
@@ -397,7 +397,7 @@ contract('Mai', async accounts => {
         });
 
         it('can redeem after settlement', async () => {
-            await mpx.methods.arbitrateSettlement(toPrice('8000')).send({ from: admin });
+            await mpx.methods.arbitrateSettlement(toPrice('8000')).send({ from: admin, gasLimit: 8000000 });
 
             const testConfig = {
                 initialBalances: {
