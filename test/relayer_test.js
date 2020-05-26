@@ -23,19 +23,4 @@ contract('Relayer', accounts => {
         const res2 = await exchange.methods.canMatchMarketContractOrdersFrom(accounts[1]).call({ from: accounts[0] });
         assert.equal(false, res2);
     });
-
-    it('default participant', async () => {
-        let isParticipant = await exchange.methods.isParticipant(accounts[1]).call({ from: accounts[1] });
-        assert.equal(true, isParticipant);
-
-        // exit
-        await exchange.methods.exitIncentiveSystem().send({ from: accounts[1] });
-        isParticipant = await exchange.methods.isParticipant(accounts[1]).call({ from: accounts[1] });
-        assert.equal(false, isParticipant);
-
-        // join
-        await exchange.methods.joinIncentiveSystem().send({ from: accounts[1] });
-        isParticipant = await exchange.methods.isParticipant(accounts[1]).call({ from: accounts[1] });
-        assert.equal(true, isParticipant);
-    });
 });

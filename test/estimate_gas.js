@@ -41,7 +41,7 @@ contract('EstimateGas', async accounts => {
 
         await exchange.methods.approveERC20(collateral._address, mpx._address, infinity)
             .send({ from: admin, gasLimit: gasLimit });
-            
+
         maker1 = {
             initialBalances: {
                 u1: { collateral: toWei(10000), short: toBase(2) },
@@ -228,7 +228,7 @@ contract('EstimateGas', async accounts => {
         await exchange.methods.setMintingPool(pool._address)
             .send({ from: admin, gasLimit: gasLimit });
     };
-    
+
     const poolPreCharge = async () => {
         await mkt.methods.transfer(pool._address, toWei(10000))
             .send({ from: admin, gasLimit: gasLimit });

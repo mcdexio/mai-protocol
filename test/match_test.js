@@ -108,7 +108,7 @@ contract('Match', async accounts => {
         const context = await call(exchange.methods.getOrderContextPublic(getAddressSet(), takerOrder));
         const mpxPoolAddress = await call(mpx.methods.COLLATERAL_POOL_ADDRESS());
         assert.equal(context.marketContract, mpx._address, 'marketContract');
-        assert.equal(context.marketContractPool, mpxPoolAddress, 'marketContractPool');
+        assert.equal(context.marketCollateralPool, mpxPoolAddress, 'marketCollateralPool');
         assert.equal(context.collateral, ctk._address, 'ctk');
         assert.equal(context.positions[0], long._address, 'pos[0]');
         assert.equal(context.positions[1], short._address, 'pos[1]');
@@ -204,7 +204,7 @@ contract('Match', async accounts => {
                 getAddressSet(),
                 toBase(0.1)
             ));
-            
+
             const takerOrder2 = await buildMpxOrder({
                 trader: u1,
                 side: 'sell',

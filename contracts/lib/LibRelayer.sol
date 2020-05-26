@@ -19,7 +19,7 @@
 pragma solidity 0.5.2;
 
 /**
- * @title LibRelayer provides two distinct features for relayers. 
+ * @title LibRelayer provides two distinct features for relayers.
  *
  * First, Relayers can opt into or out of the Mai liquidity incentive system.
  *
@@ -35,16 +35,8 @@ contract LibRelayer {
      */
     mapping (address => mapping (address => bool)) public relayerDelegates;
 
-    /**
-     * Mapping of relayerAddress => whether relayer is opted out of the liquidity incentive system
-     */
-    mapping (address => bool) hasExited;
-
     event RelayerApproveDelegate(address indexed relayer, address indexed delegate);
     event RelayerRevokeDelegate(address indexed relayer, address indexed delegate);
-
-    event RelayerExit(address indexed relayer);
-    event RelayerJoin(address indexed relayer);
 
     /**
      * Approve an address to match orders on behalf of msg.sender
@@ -67,30 +59,5 @@ contract LibRelayer {
      */
     function canMatchMarketContractOrdersFrom(address relayer) public view returns(bool) {
         return msg.sender == relayer || relayerDelegates[relayer][msg.sender] == true;
-    }
-
-    /**
-     * Join the Mai incentive system.
-     */
-    function joinIncentiveSystem() external {
-        delete hasExited[msg.sender];
-        emit RelayerJoin(msg.sender);
-    }
-
-    /**
-     * Exit the Mai incentive system.
-     * For relayers that choose to opt-out, the Mai Protocol
-     * effective becomes a tokenless protocol.
-     */
-    function exitIncentiveSystem() external {
-        hasExited[msg.sender] = true;
-        emit RelayerExit(msg.sender);
-    }
-
-    /**
-     * @return true if relayer is participating in the Mai incentive system.
-     */
-    function isParticipant(address relayer) public view returns(bool) {
-        return !hasExited[relayer];
     }
 }

@@ -83,9 +83,8 @@ contract LibOrder is EIP712, LibSignature, LibMath {
      * @param order The order data struct.
      * @return Fully qualified EIP712 hash of the order in the Mai Protocol domain.
      */
-    function getOrderHash(Order memory order) internal view returns (bytes32 orderHash) {
+    function getOrderHash(Order memory order) internal pure returns (bytes32 orderHash) {
         orderHash = hashEIP712Message(hashOrder(order));
-        return orderHash;
     }
 
     /**

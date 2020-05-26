@@ -37,7 +37,7 @@ contract('Match2', async accounts => {
 
         orderContext = {
             marketContract: mpx._address,
-            marketContractPool: mpx._address,
+            marketCollateralPool: mpx._address,
             collateral: collateral._address,
             positions: [
                 long._address,
@@ -270,7 +270,7 @@ contract('Match2', async accounts => {
             };
             const orderContext = {
                 marketContract: mpx._address,
-                marketContractPool: mpx._address,
+                marketCollateralPool: mpx._address,
                 collateral: collateral._address,
                 positions: [
                     long._address,
@@ -343,7 +343,7 @@ contract('Match2', async accounts => {
             };
             const orderContext = {
                 marketContract: mpx._address,
-                marketContractPool: mpx._address,
+                marketCollateralPool: mpx._address,
                 collateral: collateral._address,
                 positions: [
                     long._address,
@@ -416,7 +416,7 @@ contract('Match2', async accounts => {
             };
             const orderContext = {
                 marketContract: mpx._address,
-                marketContractPool: mpx._address,
+                marketCollateralPool: mpx._address,
                 collateral: collateral._address,
                 positions: [
                     long._address,
@@ -488,7 +488,7 @@ contract('Match2', async accounts => {
             };
             const orderContext = {
                 marketContract: mpx._address,
-                marketContractPool: mpx._address,
+                marketCollateralPool: mpx._address,
                 collateral: collateral._address,
                 positions: [
                     long._address,
@@ -546,7 +546,7 @@ contract('Match2', async accounts => {
             };
             const orderContext = {
                 marketContract: mpx._address,
-                marketContractPool: mpx._address,
+                marketCollateralPool: mpx._address,
                 collateral: collateral._address,
                 positions: [
                     long._address,
@@ -604,7 +604,7 @@ contract('Match2', async accounts => {
             };
             const orderContext = {
                 marketContract: mpx._address,
-                marketContractPool: mpx._address,
+                marketCollateralPool: mpx._address,
                 collateral: collateral._address,
                 positions: [
                     long._address,
@@ -670,7 +670,7 @@ contract('Match2', async accounts => {
             };
             const orderContext = {
                 marketContract: mpx._address,
-                marketContractPool: mpx._address,
+                marketCollateralPool: mpx._address,
                 collateral: collateral._address,
                 positions: [
                     long._address,
@@ -736,7 +736,7 @@ contract('Match2', async accounts => {
             };
             const orderContext = {
                 marketContract: mpx._address,
-                marketContractPool: mpx._address,
+                marketCollateralPool: mpx._address,
                 collateral: collateral._address,
                 positions: [
                     long._address,
@@ -803,7 +803,7 @@ contract('Match2', async accounts => {
             };
             const orderContext = {
                 marketContract: mpx._address,
-                marketContractPool: mpx._address,
+                marketCollateralPool: mpx._address,
                 collateral: collateral._address,
                 positions: [
                     long._address,
@@ -893,7 +893,7 @@ contract('Match2', async accounts => {
             };
             const orderContext = {
                 marketContract: mpx._address,
-                marketContractPool: mpx._address,
+                marketCollateralPool: mpx._address,
                 collateral: collateral._address,
                 positions: [
                     long._address,
@@ -960,7 +960,7 @@ contract('Match2', async accounts => {
             };
             const orderContext = {
                 marketContract: mpx._address,
-                marketContractPool: mpx._address,
+                marketCollateralPool: mpx._address,
                 collateral: collateral._address,
                 positions: [
                     long._address,

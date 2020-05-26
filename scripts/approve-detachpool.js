@@ -1,5 +1,5 @@
 const IMarketContract = artifacts.require('./interfaces/IMarketContract.sol');
-const IMarketContractPool = artifacts.require('./interfaces/IMarketContractPool.sol');
+const IMarketCollateralPool = artifacts.require('./interfaces/IMarketCollateralPool.sol');
 const IERC20 = artifacts.require('./IERC20.sol');
 const MaiProtocol = artifacts.require('MaiProtocol.sol');
 
@@ -10,7 +10,7 @@ const { log } = require('./utils');
 
 async function parseMarketContract(marketContractAddress) {
     const marketContract = await IMarketContract.at(marketContractAddress);
-    const collateralPool = await IMarketContractPool.at(await marketContract.COLLATERAL_POOL_ADDRESS());
+    const collateralPool = await IMarketCollateralPool.at(await marketContract.COLLATERAL_POOL_ADDRESS());
 
     const collateral = await IERC20.at(await marketContract.COLLATERAL_TOKEN_ADDRESS());
     const long = await IERC20.at(await marketContract.LONG_POSITION_TOKEN());
