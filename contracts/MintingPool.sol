@@ -19,7 +19,7 @@ pragma solidity 0.5.2;
 
 import "./lib/LibOwnable.sol";
 import "./lib/LibWhitelist.sol";
-import "./interfaces/IMarketContractPool.sol";
+import "./interfaces/IMarketCollateralPool.sol";
 import "./interfaces/IMarketContract.sol";
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -39,8 +39,8 @@ contract MintingPool is LibOwnable, LibWhitelist {
     mapping(address => uint256) public sent;
     mapping(address => uint256) public received;
 
-    event Mint(address indexed contractAddress, address indexed to, uint256 value);
-    event Redeem(address indexed contractAddress, address indexed to, uint256 value);
+    event Mint(address indexed contractAddress, address indexed to, uint256 amount);
+    event Redeem(address indexed contractAddress, address indexed to, uint256 amount);
     event Withdraw(address indexed tokenAddress, address indexed to, uint256 amount);
     event Approval(address indexed tokenAddress, address indexed spender, uint256 amount);
 
@@ -89,10 +89,10 @@ contract MintingPool is LibOwnable, LibWhitelist {
         onlyOwner
     {
         IMarketContract marketContract = IMarketContract(marketContractAddress);
-        IMarketContractPool marketContractPool = IMarketContractPool(
+        IMarketCollateralPool marketCollateralPool = IMarketCollateralPool(
             marketContract.COLLATERAL_POOL_ADDRESS()
         );
-        marketContractPool.mintPositionTokens(
+        marketCollateralPool.mintPositionTokens(
             marketContractAddress,
             qtyToMint,
             payInMKT
@@ -115,10 +115,10 @@ contract MintingPool is LibOwnable, LibWhitelist {
         onlyOwner
     {
         IMarketContract marketContract = IMarketContract(marketContractAddress);
-        IMarketContractPool marketContractPool = IMarketContractPool(
+        IMarketCollateralPool marketCollateralPool = IMarketCollateralPool(
             marketContract.COLLATERAL_POOL_ADDRESS()
         );
-        marketContractPool.redeemPositionTokens(marketContractAddress, qtyToRedeem);
+        marketCollateralPool.redeemPositionTokens(marketContractAddress, qtyToRedeem);
 
         emit Redeem(marketContractAddress, address(this), qtyToRedeem);
     }
@@ -156,16 +156,16 @@ contract MintingPool is LibOwnable, LibWhitelist {
         if (hasEnoughPositionBalance(marketContractAddress, qtyToMint)) {
             sent[marketContractAddress] = sent[marketContractAddress].add(qtyToMint);
         } else {
-            uint256 neededMakretToken = calculateMarketTokenFee(marketContract, qtyToMint);
+            uint256 neededMarketToken = calculateMarketTokenFee(marketContract, qtyToMint);
 
-            IMarketContractPool marketContractPool = IMarketContractPool(
+            IMarketCollateralPool marketCollateralPool = IMarketCollateralPool(
                 marketContract.COLLATERAL_POOL_ADDRESS()
             );
             bool useMarketToken = hasEnoughBalance(
-                marketContractPool.mktToken(),
-                neededMakretToken
+                marketCollateralPool.mktToken(),
+                neededMarketToken
             );
-            marketContractPool.mintPositionTokens(marketContractAddress, qtyToMint, useMarketToken);
+            marketCollateralPool.mintPositionTokens(marketContractAddress, qtyToMint, useMarketToken);
 
             minted[marketContractAddress] = minted[marketContractAddress].add(qtyToMint);
         }
@@ -204,19 +204,20 @@ contract MintingPool is LibOwnable, LibWhitelist {
             qtyToRedeem
         );
 
+        address collateralTokenAddress = marketContract.COLLATERAL_TOKEN_ADDRESS();
         uint256 collateralToReturn = calculateCollateralToReturn(marketContract, qtyToRedeem);
 
-        if (hasEnoughBalance(marketContract.COLLATERAL_TOKEN_ADDRESS(), collateralToReturn)) {
+        if (hasEnoughBalance(collateralTokenAddress, collateralToReturn)) {
             received[marketContractAddress] = received[marketContractAddress].add(qtyToRedeem);
         } else {
-            IMarketContractPool marketContractPool = IMarketContractPool(
+            IMarketCollateralPool marketCollateralPool = IMarketCollateralPool(
                 marketContract.COLLATERAL_POOL_ADDRESS()
             );
-            marketContractPool.redeemPositionTokens(marketContractAddress, qtyToRedeem);
+            marketCollateralPool.redeemPositionTokens(marketContractAddress, qtyToRedeem);
 
             redeemed[marketContractAddress] = redeemed[marketContractAddress].add(qtyToRedeem);
         }
-        IERC20(marketContract.COLLATERAL_TOKEN_ADDRESS()).safeTransfer(
+        IERC20(collateralTokenAddress).safeTransfer(
             msg.sender,
             collateralToReturn
         );

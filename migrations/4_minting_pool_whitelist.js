@@ -23,7 +23,7 @@ module.exports = async function (deployer, network, accounts) {
   console.log('   >     - mai.approveERC20(marketContract.LONG_POSITION_TOKEN(), pool.address, infinity)')
   console.log('   >     - mai.approveERC20(marketContract.SHORT_POSITION_TOKEN, pool.address, infinity)')
   console.log('   >     - pool.approveERC20(marketContract.COLLATERAL_TOKEN_ADDRESS(), collateralPool.address, infinity)')
-  console.log('   >     - pool.approveERC20(marketContractPool.mktToken(), collateralPool.address, infinity)')
+  console.log('   >     - pool.approveERC20(marketCollateralPool.mktToken(), collateralPool.address, infinity)')
   console.log('   > !!! TO ENABLE a MPContext')
   console.log('   -------------------------------------------------------------')
 }

@@ -47,4 +47,5 @@ contract LibExchangeErrors {
     string constant LOW_MARGIN = "LOW_MARGIN";
     string constant INVALID_AMOUNT = "LOW_MARGIN";
     string constant MAKER_CAN_NOT_BE_SAME_WITH_TAKER = "MAKER_CANNOT_BE_TAKER";
+    string constant INVALID_PARAMETERS = "INVALID_PARAMETERS";
 }

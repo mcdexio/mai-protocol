@@ -1,6 +1,6 @@
 pragma solidity 0.5.2;
 
-contract IMarketContractPool {
+contract IMarketCollateralPool {
     function mintPositionTokens(
         address marketContractAddress,
         uint qtyToMint,

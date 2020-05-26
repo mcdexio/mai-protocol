@@ -1,6 +1,6 @@
 const MintingPool = artifacts.require('./MintingPool.sol');
 const IMarketContract = artifacts.require('./interfaces/IMarketContract.sol');
-const IMarketContractPool = artifacts.require('./interfaces/IMarketContractPool.sol');
+const IMarketCollateralPool = artifacts.require('./interfaces/IMarketCollateralPool.sol');
 const IERC20 = artifacts.require('./IERC20.sol');
 const MaiProtocol = artifacts.require('MaiProtocol.sol');
 
@@ -9,9 +9,9 @@ const addresses = require('./addresses');
 const { infinity } = require('./settings');
 const { log } = require('./utils');
 
-async function parseMarketContract(marketContractAddress) {
+async function parseMarketContract (marketContractAddress) {
     const marketContract = await IMarketContract.at(marketContractAddress);
-    const collateralPool = await IMarketContractPool.at(await marketContract.COLLATERAL_POOL_ADDRESS());
+    const collateralPool = await IMarketCollateralPool.at(await marketContract.COLLATERAL_POOL_ADDRESS());
 
     const collateral = await IERC20.at(await marketContract.COLLATERAL_TOKEN_ADDRESS());
     const long = await IERC20.at(await marketContract.LONG_POSITION_TOKEN());
@@ -28,7 +28,7 @@ async function parseMarketContract(marketContractAddress) {
     }
 }
 
-async function tryApproveERC20(owner, token, spender, amount) {
+async function tryApproveERC20 (owner, token, spender, amount) {
     if (await token.allowance(owner.address, spender) == 0) {
         await owner.approveERC20(token.address, spender, amount);
         assert.equal(await token.allowance(owner.address, spender), amount, "unexpected allowance of collateral");

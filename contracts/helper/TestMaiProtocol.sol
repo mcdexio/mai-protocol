@@ -110,7 +110,7 @@ contract TestMaiProtocol is MaiProtocol {
             OrderInfo memory retMakerOrderInfo
         )
     {
-        (result, filledAmount) = getMatchResult(
+        result = getMatchResult(
             takerOrderParam,
             takerOrderInfo,
             makerOrderParam,
@@ -118,7 +118,7 @@ contract TestMaiProtocol is MaiProtocol {
             orderContext,
             posFilledAmount
         );
-        return (result, filledAmount, takerOrderInfo, makerOrderInfo);
+        return (result, result.posFilledAmount, takerOrderInfo, makerOrderInfo);
     }
 
     function fillMatchResultPublic(

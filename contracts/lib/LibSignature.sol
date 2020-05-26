@@ -61,18 +61,18 @@ contract LibSignature {
         pure
         returns (bool)
     {
-        uint8 method = uint8(signature.config[1]);
+        SignatureMethod method = SignatureMethod(uint8(signature.config[1]));
         address recovered;
         uint8 v = uint8(signature.config[0]);
 
-        if (method == uint8(SignatureMethod.EthSign)) {
+        if (method == SignatureMethod.EthSign) {
             recovered = recover(
                 keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash)),
                 v,
                 signature.r,
                 signature.s
             );
-        } else if (method == uint8(SignatureMethod.EIP712)) {
+        } else if (method == SignatureMethod.EIP712) {
             recovered = recover(hash, v, signature.r, signature.s);
         } else {
             revert("INVALID_SIGN_METHOD");

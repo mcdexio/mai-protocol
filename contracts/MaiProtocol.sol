@@ -20,14 +20,15 @@
 pragma solidity 0.5.2;
 pragma experimental ABIEncoderV2; // to enable structure-type parameter
 
+import "./lib/LibExchangeErrors.sol";
+import "./lib/LibMath.sol";
 import "./lib/LibOrder.sol";
 import "./lib/LibOwnable.sol";
-import "./lib/LibMath.sol";
-import "./lib/LibSignature.sol";
 import "./lib/LibRelayer.sol";
-import "./lib/LibExchangeErrors.sol";
+import "./lib/LibSignature.sol";
+
 import "./interfaces/IMarketContract.sol";
-import "./interfaces/IMarketContractPool.sol";
+import "./interfaces/IMarketCollateralPool.sol";
 import "./interfaces/IMarketContractRegistry.sol";
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -103,11 +104,11 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     }
 
     struct OrderContext {
-        IMarketContract marketContract;         // market contract
-        IMarketContractPool marketContractPool; // market contract pool
-        IERC20 collateral;                      // collateral token
-        IERC20[2] positions;                    // [0] = long position, [1] = short position
-        uint256 takerSide;                      // 0 = buy/long, 1 = sell/short
+        IMarketContract marketContract;             // market contract
+        IMarketCollateralPool marketCollateralPool; // market contract pool
+        IERC20 collateral;                          // collateral token
+        IERC20[2] positions;                        // [0] = long position, [1] = short position
+        uint256 takerSide;                          // 0 = buy/long, 1 = sell/short
     }
 
     struct MatchResult {
@@ -196,6 +197,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     )
         public
     {
+        require(posFilledAmounts.length == makerOrderParams.length, INVALID_PARAMETERS);
         require(canMatchMarketContractOrdersFrom(orderAddressSet.relayer), INVALID_SENDER);
         require(!isMakerOnly(takerOrderParam.data), MAKER_ONLY_ORDER_CANNOT_BE_TAKER);
 
@@ -228,7 +230,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         returns (OrderContext memory orderContext)
     {
         orderContext.marketContract = IMarketContract(orderAddressSet.marketContractAddress);
-        orderContext.marketContractPool = IMarketContractPool(
+        orderContext.marketCollateralPool = IMarketCollateralPool(
             orderContext.marketContract.COLLATERAL_POOL_ADDRESS()
         );
         orderContext.collateral = IERC20(orderContext.marketContract.COLLATERAL_TOKEN_ADDRESS());
@@ -283,9 +285,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             );
             uint256 toFillAmount = posFilledAmounts[i];
             for (uint256 j = 0; j < MAX_MATCHES && toFillAmount > 0; j++) {
-                MatchResult memory result;
-                uint256 filledAmount;
-                (result, filledAmount) = getMatchResult(
+                MatchResult memory result = getMatchResult(
                     takerOrderParam,
                     takerOrderInfo,
                     makerOrderParams[i],
@@ -293,7 +293,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
                     orderContext,
                     toFillAmount
                 );
-                toFillAmount = toFillAmount.sub(filledAmount);
+                toFillAmount = toFillAmount.sub(result.posFilledAmount);
                 settleResult(result, orderAddressSet, orderContext);
             }
             // must be full filled for a maker, if not, that means the exchange progress
@@ -429,11 +429,10 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     )
         internal
         view
-        returns (MatchResult memory result, uint256 filledAmount)
+        returns (MatchResult memory result)
     {
         require(makerOrderInfo.filledAmount <= makerOrderParam.amount, MAKER_ORDER_OVER_MATCH);
         require(takerOrderInfo.filledAmount <= takerOrderParam.amount, TAKER_ORDER_OVER_MATCH);
-
         // Each order only pays gas once, so only pay gas when nothing has been filled yet.
         if (takerOrderInfo.filledAmount == 0) {
             result.takerGasFee = takerOrderParam.gasTokenAmount;
@@ -441,9 +440,8 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         if (makerOrderInfo.filledAmount == 0) {
             result.makerGasFee = makerOrderParam.gasTokenAmount;
         }
-
         // calculate posFilledAmount && ctkFilledAmount, update balances
-        filledAmount = fillMatchResult(
+        fillMatchResult(
             result,
             takerOrderParam,
             takerOrderInfo,
@@ -452,15 +450,11 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
             orderContext,
             posFilledAmount
         );
-        result.posFilledAmount = filledAmount;
-
         // calculate fee
-        result.makerFee = filledAmount.mul(getMakerFeeBase(orderContext, makerOrderParam));
-        result.takerFee = filledAmount.mul(getTakerFeeBase(orderContext, takerOrderParam));
+        result.makerFee = result.posFilledAmount.mul(getMakerFeeBase(orderContext, makerOrderParam));
+        result.takerFee = result.posFilledAmount.mul(getTakerFeeBase(orderContext, takerOrderParam));
         result.taker = takerOrderParam.trader;
         result.maker = makerOrderParam.trader;
-
-        return (result, filledAmount);
     }
 
     /**
@@ -592,8 +586,6 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         require(makerOrderInfo.filledAmount <= makerOrderParam.amount, MAKER_ORDER_OVER_MATCH);
 
         result.posFilledAmount = filledAmount;
-
-        return filledAmount;
     }
 
     /**
@@ -998,11 +990,11 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     function mintPositionTokens(OrderContext memory orderContext, uint256 qtyToMint)
         internal
     {
-        IMarketContractPool collateralPool;
+        IMarketCollateralPool collateralPool;
         if (mintingPoolAddress != address(0x0)) {
-            collateralPool = IMarketContractPool(mintingPoolAddress);
+            collateralPool = IMarketCollateralPool(mintingPoolAddress);
         } else {
-            collateralPool = orderContext.marketContractPool;
+            collateralPool = orderContext.marketCollateralPool;
         }
         collateralPool.mintPositionTokens(address(orderContext.marketContract), qtyToMint, false);
     }
@@ -1013,11 +1005,11 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     function redeemPositionTokens(OrderContext memory orderContext, uint256 qtyToRedeem)
         internal
     {
-        IMarketContractPool collateralPool;
+        IMarketCollateralPool collateralPool;
         if (mintingPoolAddress != address(0x0)) {
-            collateralPool = IMarketContractPool(mintingPoolAddress);
+            collateralPool = IMarketCollateralPool(mintingPoolAddress);
         } else {
-            collateralPool = orderContext.marketContractPool;
+            collateralPool = orderContext.marketCollateralPool;
         }
         collateralPool.redeemPositionTokens(address(orderContext.marketContract), qtyToRedeem);
     }
