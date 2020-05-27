@@ -17,7 +17,7 @@
 
 */
 
-pragma solidity 0.5.2;
+pragma solidity 0.5.8;
 pragma experimental ABIEncoderV2; // to enable structure-type parameter
 
 import "./EIP712.sol";
@@ -54,13 +54,6 @@ contract LibOrder is EIP712, LibSignature, LibMath {
          * ╚════════════════════╧═══════════════════════════════════════════════════════════╝
          */
         bytes32 data;
-    }
-
-    enum OrderStatus {
-        EXPIRED,
-        CANCELLED,
-        FILLABLE,
-        FULLY_FILLED
     }
 
     enum FillAction {
@@ -140,15 +133,15 @@ contract LibOrder is EIP712, LibSignature, LibMath {
     }
 
     function isSell(bytes32 data) internal pure returns (bool) {
-        return uint8(data[1]) == 1;
+        return uint8(data[1]) > 0;
     }
 
     function isMarketOrder(bytes32 data) internal pure returns (bool) {
-        return uint8(data[2]) == 1;
+        return uint8(data[2]) > 0;
     }
 
     function isMakerOnly(bytes32 data) internal pure returns (bool) {
-        return uint8(data[22]) == 1;
+        return uint8(data[22]) > 0;
     }
 
     function isMarketBuy(bytes32 data) internal pure returns (bool) {
