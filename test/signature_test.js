@@ -79,7 +79,7 @@ contract('Signature', accounts => {
                 .isValidSignaturePublic(orderHash, address, formatSig(sig, SignatureType.INVALID))
                 .call();
         } catch (e) {
-            assert.ok(e.message.match(/revert/));
+            assert.ok(e.message.includes("INVALID_SIGN_METHOD"));
             return;
         }
 

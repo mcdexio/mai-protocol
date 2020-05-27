@@ -172,7 +172,7 @@ contract('Match', async accounts => {
             ));
             throw null;
         } catch (error) {
-            assert.equal(error.message.includes("ORDER_IS_NOT_FILLABLE"), true);
+            assert.equal(error.message.includes("FULLY_FILLED_ORDER"), true);
         }
     });
 
@@ -227,7 +227,7 @@ contract('Match', async accounts => {
             ));
             throw null;
         } catch (error) {
-            assert.equal(error.message.includes("ORDER_IS_NOT_FILLABLE"), true, error);
+            assert.equal(error.message.includes("FULLY_FILLED_ORDER"), true, error);
         }
     });
 
@@ -282,7 +282,7 @@ contract('Match', async accounts => {
             ));
             throw null;
         } catch (error) {
-            assert.equal(error.message.includes("ORDER_IS_NOT_FILLABLE"), true, error);
+            assert.equal(error.message.includes("FULLY_FILLED_ORDER"), true, error);
         }
     });
 
@@ -314,7 +314,7 @@ contract('Match', async accounts => {
             ));
             throw null;
         } catch (error) {
-            assert.equal(error.message.includes("ORDER_IS_NOT_FILLABLE"), true);
+            assert.equal(error.message.includes("EXPIRED_ORDER"), true);
         }
     });
 
@@ -350,7 +350,7 @@ contract('Match', async accounts => {
             ));
             throw null;
         } catch (error) {
-            assert.equal(error.message.includes("ORDER_IS_NOT_FILLABLE"), true);
+            assert.equal(error.message.includes("CANCELLED_ORDER"), true);
         }
     });
 

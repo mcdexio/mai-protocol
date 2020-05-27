@@ -17,7 +17,7 @@
 
 */
 
-pragma solidity 0.5.2;
+pragma solidity 0.5.8;
 pragma experimental ABIEncoderV2; // to enable structure-type parameter
 
 import "./lib/LibExchangeErrors.sol";
@@ -59,8 +59,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
 
     /**
      * Mapping of orderHash => amount
-     * Generally the amount will be specified in base token units, however in the case of a market
-     * buy order the amount is specified in quote token units.
+     * Generally the amount will be specified in position token units
      */
     mapping (bytes32 => uint256) public filled;
 
@@ -70,8 +69,8 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
     mapping (bytes32 => bool) public cancelled;
 
     /**
-     * When orders are being matched, they will always contain the exact same base token,
-     * quote token, and relayer. Since excessive call data is very expensive, we choose
+     * When orders are being matched, they will always contain the exact same market contract
+     * address and relayer. Since excessive call data is very expensive, we choose
      * to create a stripped down OrderParam struct containing only data that may vary between
      * Order objects, and separate out the common elements into a set of addresses that will
      * be shared among all of the OrderParam items. This is meant to eliminate redundancy in
@@ -88,8 +87,7 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
 
     /**
      * Calculated data about an order object.
-     * Generally the filledAmount is specified in base token units, however in the case of a market
-     * buy order the filledAmount is specified in quote token units.
+     * Generally the filledAmount is specified in position token units
      */
     struct OrderInfo {
         bytes32 orderHash;
@@ -190,12 +188,12 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
      * @param orderAddressSet An object containing addresses common across each order.
      */
     function matchMarketContractOrders(
-        OrderParam memory takerOrderParam,
-        OrderParam[] memory makerOrderParams,
-        uint256[] memory posFilledAmounts,
-        OrderAddressSet memory orderAddressSet
+        OrderParam calldata takerOrderParam,
+        OrderParam[] calldata makerOrderParams,
+        uint256[] calldata posFilledAmounts,
+        OrderAddressSet calldata orderAddressSet
     )
-        public
+        external
     {
         require(posFilledAmounts.length == makerOrderParams.length, INVALID_PARAMETERS);
         require(canMatchMarketContractOrdersFrom(orderAddressSet.relayer), INVALID_SENDER);
@@ -632,17 +630,10 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
         Order memory order = getOrderFromOrderParam(orderParam, orderAddressSet);
         orderInfo.orderHash = getOrderHash(order);
         orderInfo.filledAmount = filled[orderInfo.orderHash];
-        uint8 status = uint8(OrderStatus.FILLABLE);
 
-        if (orderInfo.filledAmount >= order.amount) {
-            status = uint8(OrderStatus.FULLY_FILLED);
-        } else if (block.timestamp >= getExpiredAtFromOrderData(order.data)) {
-            status = uint8(OrderStatus.EXPIRED);
-        } else if (cancelled[orderInfo.orderHash]) {
-            status = uint8(OrderStatus.CANCELLED);
-        }
-
-        require(status == uint8(OrderStatus.FILLABLE), ORDER_IS_NOT_FILLABLE);
+        require(orderInfo.filledAmount < order.amount, "FULLY_FILLED_ORDER");
+        require(block.timestamp < getExpiredAtFromOrderData(order.data), "EXPIRED_ORDER");
+        require(!cancelled[orderInfo.orderHash], "CANCELLED_ORDER");
         require(
             isValidSignature(orderInfo.orderHash, orderParam.trader, orderParam.signature),
             INVALID_ORDER_SIGNATURE
@@ -770,9 +761,9 @@ contract MaiProtocol is LibMath, LibOrder, LibRelayer, LibExchangeErrors, LibOwn
 
     /**
      * doBuy: taker buy position token from maker.
-     *         taker -> maker: position
-     *         maker -> taker: collateral
-     *         taker -> relayer: fee
+     *         maker -> taker: position
+     *         taker -> maker: collateral (excluding fee)
+     *         taker -> relayer: fee (taker fee & maker fee)
      */
     function doBuy(
         MatchResult memory result,

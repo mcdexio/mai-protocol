@@ -16,7 +16,7 @@
 
 */
 
-pragma solidity 0.5.2;
+pragma solidity 0.5.8;
 
 import "./LibOwnable.sol";
 

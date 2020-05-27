@@ -16,7 +16,7 @@
 
 */
 
-pragma solidity 0.5.2;
+pragma solidity 0.5.8;
 pragma experimental ABIEncoderV2; // to enable structure-type parameter
 
 contract LibSignature {
@@ -61,18 +61,19 @@ contract LibSignature {
         pure
         returns (bool)
     {
-        SignatureMethod method = SignatureMethod(uint8(signature.config[1]));
-        address recovered;
+        // if using enum, this function will throw a 'invalid opcode' exception
+        uint8 method = uint8(signature.config[1]);
         uint8 v = uint8(signature.config[0]);
+        address recovered;
 
-        if (method == SignatureMethod.EthSign) {
+        if (method == uint8(SignatureMethod.EthSign)) {
             recovered = recover(
                 keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash)),
                 v,
                 signature.r,
                 signature.s
             );
-        } else if (method == SignatureMethod.EIP712) {
+        } else if (method == uint8(SignatureMethod.EIP712)) {
             recovered = recover(hash, v, signature.r, signature.s);
         } else {
             revert("INVALID_SIGN_METHOD");

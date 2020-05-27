@@ -16,7 +16,7 @@
 
 */
 
-pragma solidity 0.5.2;
+pragma solidity 0.5.8;
 
 /**
  * @title LibRelayer provides two distinct features for relayers.
@@ -42,6 +42,7 @@ contract LibRelayer {
      * Approve an address to match orders on behalf of msg.sender
      */
     function approveDelegate(address delegate) external {
+        require(!relayerDelegates[msg.sender][delegate], "ALREADY_APPROVED");
         relayerDelegates[msg.sender][delegate] = true;
         emit RelayerApproveDelegate(msg.sender, delegate);
     }
@@ -50,6 +51,7 @@ contract LibRelayer {
      * Revoke an existing delegate
      */
     function revokeDelegate(address delegate) external {
+        require(relayerDelegates[msg.sender][delegate], "NOT_APPROVED");
         relayerDelegates[msg.sender][delegate] = false;
         emit RelayerRevokeDelegate(msg.sender, delegate);
     }

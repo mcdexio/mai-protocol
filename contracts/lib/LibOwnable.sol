@@ -1,4 +1,4 @@
-pragma solidity 0.5.2;
+pragma solidity 0.5.8;
 
 /// @title Ownable
 /// @dev The Ownable contract has an owner address, and provides basic authorization control
@@ -45,6 +45,7 @@ contract LibOwnable {
     /// @dev Allows the current owner to transfer control of the contract to a newOwner.
     /// @param newOwner The address to transfer ownership to.
     function transferOwnership(address newOwner) public onlyOwner {
+        require(_owner != newOwner, "SAME_OWNER");
         require(newOwner != address(0), "INVALID_OWNER");
         emit OwnershipTransferred(_owner, newOwner);
         _owner = newOwner;
