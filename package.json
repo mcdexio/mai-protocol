@@ -2,14 +2,14 @@
   "scripts": {
     "test": "truffle test",
     "compile": "truffle compile",
-    "coverage": "solidity-coverage"
+    "coverage": "truffle run coverage"
   },
   "dependencies": {
     "@openzeppelin/contracts": "2.3.0",
     "bignumber.js": "^7.2.1",
     "coveralls": "^3.0.6",
     "ethereumjs-util": "^5.2.0",
-    "solidity-coverage": "^0.5.11",
+    "solidity-coverage": "^0.7.2",
     "truffle": "^5.0.32",
     "truffle-privatekey-provider": "1.2.0",
     "web3": "^1.2.0"
