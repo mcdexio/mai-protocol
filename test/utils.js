@@ -140,7 +140,7 @@ const getMarketContract = async (configs) => {
 
 const clone = x => JSON.parse(JSON.stringify(x));
 
-const getOrderSignature = async (order, hack=undefined) => {
+const getOrderSignature = async (order, hack = undefined) => {
     const orderHash = getOrderHash(order);
     const newWeb3 = getWeb3();
 
@@ -151,17 +151,19 @@ const getOrderSignature = async (order, hack=undefined) => {
     const isValid = isValidSignature(order.trader, signature, orderHash);
 
     assert.equal(true, isValid);
-    order.signature = signature;
-    order.orderHash = orderHash;
 
     if (hack && hack.v) {
         signature.v = signature.v - 0x1b;
-        signature.config = `0x${signature.v.toString(16)}00` + '0'.repeat(60);
+        const c = ('00' + signature.v.toString(16)).slice(-2);
+        signature.config = `0x${c}00` + '0'.repeat(60);
     }
 
     if (hack && hack.s) {
         signature.s[0] += 0x80;
     }
+
+    order.signature = signature;
+    order.orderHash = orderHash;
 };
 
 const buildOrder = async (orderParam) => {
@@ -190,7 +192,7 @@ const buildOrder = async (orderParam) => {
     return order;
 };
 
-function increaseEvmTime(duration) {
+function increaseEvmTime (duration) {
     const id = Date.now();
     return new Promise((resolve, reject) => {
         web3.currentProvider.send({

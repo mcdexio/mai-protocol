@@ -10,8 +10,8 @@
     "coveralls": "^3.0.6",
     "ethereumjs-util": "^5.2.0",
     "solidity-coverage": "^0.7.2",
-    "truffle": "^5.0.32",
+    "truffle": "^5.0.22",
     "truffle-privatekey-provider": "1.2.0",
-    "web3": "^1.2.0"
+    "web3": "1.2.0"
   }
 }
