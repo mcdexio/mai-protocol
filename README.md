@@ -102,6 +102,10 @@ npm run compile
 npm run coverage
 ```
 
+## Audit
+
+Mai-protocol have been audited by ChainSecurity. Check the [report](https://github.com/mcdexio/mai-protocol/blob/master/audit/ChainSecurity_MaiProtocol.pdf).
+
 ## Acknowledgments
 
 Mai is inspired by the [0x project](https://github.com/0xProject) and [Hydro](https://github.com/HydroProtocol)
